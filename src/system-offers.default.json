@@ -1,0 +1,11 @@
+[
+  {
+    "id": "example.info",
+    "title": "Example system offer",
+    "description": "Copy this file to system-offers.json and replace this entry with real server offers.",
+    "price": 100,
+    "currency": "",
+    "icon": "shop-icon",
+    "enabled": false
+  }
+]
