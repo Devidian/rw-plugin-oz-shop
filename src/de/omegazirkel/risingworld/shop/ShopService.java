@@ -159,16 +159,17 @@ public class ShopService {
         }
     }
 
-    static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, long price, String currencyIdentifier,
-            boolean enabled) {
+    static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, long price,
+            String currencyIdentifier, boolean enabled) {
         ItemDefinition definition = Definitions.getItemDefinition(itemName);
         Variant variant = definition == null ? null : definition.getVariant(itemVariant);
         String title = variant != null && variant.name != null && !variant.name.isBlank()
                 ? variant.name
                 : itemName + ":" + itemVariant;
-        return new ShopOffer(normalizeId(id), title, "", itemName, itemVariant, price, currencyIdentifier, "",
+        return new ShopOffer(normalizeId(id), title, "", itemName, itemVariant, amount, price, currencyIdentifier, "",
                 SYSTEM_PLUGIN, enabled, true, (player, offer) -> {
-                    Item item = player.getInventory().addItem(offer.getItemName(), offer.getItemVariant(), 1);
+                    Item item = player.getInventory().addItem(offer.getItemName(), offer.getItemVariant(),
+                            offer.getAmount());
                     if (item == null) {
                         return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
                                 "Could not add item to inventory.");

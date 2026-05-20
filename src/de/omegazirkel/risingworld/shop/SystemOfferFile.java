@@ -52,14 +52,16 @@ public final class SystemOfferFile {
             String id = stringValue(object, "id");
             String itemName = stringValue(object, "itemName");
             int itemVariant = intValue(object, "itemVariant");
+            int amount = intValue(object, "amount");
             long price = longValue(object, "price");
-            if (id.isBlank() || itemName.isBlank() || itemVariant < 0 || price < 0) {
+            if (id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0 || price < 0) {
                 continue;
             }
             offers.add(ShopService.systemItemOffer(
                     id,
                     itemName,
                     itemVariant,
+                    amount,
                     price,
                     stringValue(object, "currency"),
                     booleanValue(object, "enabled", true)));
@@ -91,6 +93,7 @@ public final class SystemOfferFile {
                             .append("    \"id\": \"").append(escape(id)).append("\",\n")
                             .append("    \"itemName\": \"").append(escape(definition.name)).append("\",\n")
                             .append("    \"itemVariant\": ").append(variantIndex).append(",\n")
+                            .append("    \"amount\": 1,\n")
                             .append("    \"price\": 100,\n")
                             .append("    \"currency\": \"\",\n")
                             .append("    \"enabled\": false");

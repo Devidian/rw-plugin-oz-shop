@@ -10,5 +10,6 @@
 - feat: add admin-editable JSON system-shop offer loading
 - feat: add `/shop` list, buy, and admin reload command workflow
 - feat: change system offers to `itemName` and `itemVariant` based built-in item offers
+- feat: add system offer `amount` for multi-item packages
 - feat: generate `system-offer-example.json` from Rising World item definitions
 - fix: send configured welcome message to all players instead of admins only

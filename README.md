@@ -36,6 +36,7 @@ System-shop offers for built-in game items use JSON:
     "id": "example.info",
     "itemName": "ore",
     "itemVariant": 0,
+    "amount": 1,
     "price": 100,
     "currency": "",
     "enabled": false
@@ -43,7 +44,7 @@ System-shop offers for built-in game items use JSON:
 ]
 ```
 
-An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, and adds one item to the buyer inventory after successful payment.
+An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, and adds `amount` items to the buyer inventory after successful payment.
 
 ## Public API
 

@@ -163,7 +163,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
                     ? t.get("TC_SHOP_DEFAULT_CURRENCY", player)
                     : offer.getCurrencyIdentifier();
             String label = offer.getItemName().isBlank() ? offer.getTitle()
-                    : offer.getItemName() + ":" + offer.getItemVariant();
+                    : offer.getAmount() + "x " + offer.getItemName() + ":" + offer.getItemVariant();
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice() + " " + currency + ")");
         }

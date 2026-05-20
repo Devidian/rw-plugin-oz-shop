@@ -3,6 +3,7 @@
     "id": "example.info",
     "itemName": "ore",
     "itemVariant": 0,
+    "amount": 1,
     "price": 100,
     "currency": "",
     "enabled": false

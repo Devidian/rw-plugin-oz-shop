@@ -25,6 +25,7 @@ Supporting repositories:
 - [x] Add synchronous purchase callback contract.
 - [x] Add Wallet-backed purchase execution with refund attempt on callback failure.
 - [x] Add admin-editable JSON system-shop item offer file.
+- [x] Add system-offer amount support for item packages.
 - [x] Generate `system-offer-example.json` from Rising World item definitions.
 - [x] Add `/shop` list, buy, and admin reload command workflow.
 - [x] Update README, HISTORY, and root catalog docs.

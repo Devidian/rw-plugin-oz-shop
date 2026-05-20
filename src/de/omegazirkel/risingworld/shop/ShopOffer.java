@@ -6,6 +6,7 @@ public class ShopOffer {
     private final String description;
     private final String itemName;
     private final int itemVariant;
+    private final int amount;
     private final long price;
     private final String currencyIdentifier;
     private final String icon;
@@ -16,11 +17,11 @@ public class ShopOffer {
 
     public ShopOffer(String id, String title, String description, long price, String currencyIdentifier, String icon,
             String pluginIdentifier, boolean enabled, boolean systemOffer, ShopPurchaseCallback callback) {
-        this(id, title, description, "", 0, price, currencyIdentifier, icon, pluginIdentifier, enabled, systemOffer,
+        this(id, title, description, "", 0, 1, price, currencyIdentifier, icon, pluginIdentifier, enabled, systemOffer,
                 callback);
     }
 
-    public ShopOffer(String id, String title, String description, String itemName, int itemVariant, long price,
+    public ShopOffer(String id, String title, String description, String itemName, int itemVariant, int amount, long price,
             String currencyIdentifier, String icon, String pluginIdentifier, boolean enabled, boolean systemOffer,
             ShopPurchaseCallback callback) {
         this.id = id;
@@ -28,6 +29,7 @@ public class ShopOffer {
         this.description = description;
         this.itemName = itemName == null ? "" : itemName.trim();
         this.itemVariant = itemVariant;
+        this.amount = amount;
         this.price = price;
         this.currencyIdentifier = currencyIdentifier == null ? "" : currencyIdentifier.trim().toUpperCase();
         this.icon = icon == null ? "" : icon.trim();
@@ -42,6 +44,7 @@ public class ShopOffer {
     public String getDescription() { return description; }
     public String getItemName() { return itemName; }
     public int getItemVariant() { return itemVariant; }
+    public int getAmount() { return amount; }
     public long getPrice() { return price; }
     public String getCurrencyIdentifier() { return currencyIdentifier; }
     public String getIcon() { return icon; }
