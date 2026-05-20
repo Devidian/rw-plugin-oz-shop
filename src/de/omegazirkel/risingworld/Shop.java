@@ -78,7 +78,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
     @EventMethod
     public void onPlayerSpawnEvent(PlayerSpawnEvent event) {
         Player player = event.getPlayer();
-        if (s.enableWelcomeMessage && player.isAdmin()) {
+        if (s.enableWelcomeMessage) {
             player.sendTextMessage(t.get("TC_MSG_PLUGIN_WELCOME", player)
                     .replace("PH_PLUGIN_NAME", getDescription("name"))
                     .replace("PH_PLUGIN_CMD", s.shopCommand)
@@ -162,7 +162,9 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
             String currency = offer.getCurrencyIdentifier().isBlank()
                     ? t.get("TC_SHOP_DEFAULT_CURRENCY", player)
                     : offer.getCurrencyIdentifier();
-            player.sendTextMessage(c.info + offer.getId() + c.text + " - " + offer.getTitle() + " ("
+            String label = offer.getItemName().isBlank() ? offer.getTitle()
+                    : offer.getItemName() + ":" + offer.getItemVariant();
+            player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice() + " " + currency + ")");
         }
         player.sendTextMessage(c.text + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));

@@ -24,27 +24,26 @@ sendPluginWelcome=false
 systemOffersFile=system-offers.json
 ```
 
-`systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing.
+`systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing. The plugin also creates `system-offer-example.json` on startup if it is missing and fills it from `Definitions.getAllItemDefinitions()` so admins can copy exact item names and variants.
 
 ## System Offers
 
-System-shop offers use JSON:
+System-shop offers for built-in game items use JSON:
 
 ```json
 [
   {
     "id": "example.info",
-    "title": "Example system offer",
-    "description": "Shown in /shop list",
+    "itemName": "ore",
+    "itemVariant": 0,
     "price": 100,
     "currency": "",
-    "icon": "shop-icon",
     "enabled": false
   }
 ]
 ```
 
-An empty `currency` uses Wallet's configured default currency. System offers are listed, but they are not purchasable until a purchase action exists. Plugin-registered offers provide that action through a synchronous callback.
+An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, and adds one item to the buyer inventory after successful payment.
 
 ## Public API
 

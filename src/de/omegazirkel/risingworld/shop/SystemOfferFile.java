@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 import de.omegazirkel.risingworld.Shop;
+import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Items.ItemDefinition;
+import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
 
 public final class SystemOfferFile {
     private SystemOfferFile() {
@@ -22,8 +25,10 @@ public final class SystemOfferFile {
                 ? "system-offers.json"
                 : configuredFileName);
         Path defaultOfferFile = offerFile.resolveSibling("system-offers.default.json");
+        Path exampleOfferFile = offerFile.resolveSibling("system-offer-example.json");
 
         try {
+            createExampleFile(exampleOfferFile);
             if (Files.notExists(offerFile) && Files.exists(defaultOfferFile)) {
                 Shop.logger().info("system-offers.json not found, copying from system-offers.default.json...");
                 Files.copy(defaultOfferFile, offerFile);
@@ -45,20 +50,63 @@ public final class SystemOfferFile {
         List<ShopOffer> offers = new ArrayList<>();
         for (Map<String, Object> object : objects) {
             String id = stringValue(object, "id");
+            String itemName = stringValue(object, "itemName");
+            int itemVariant = intValue(object, "itemVariant");
             long price = longValue(object, "price");
-            if (id.isBlank() || price < 0) {
+            if (id.isBlank() || itemName.isBlank() || itemVariant < 0 || price < 0) {
                 continue;
             }
-            offers.add(ShopService.systemOffer(
+            offers.add(ShopService.systemItemOffer(
                     id,
-                    stringValue(object, "title"),
-                    stringValue(object, "description"),
+                    itemName,
+                    itemVariant,
                     price,
                     stringValue(object, "currency"),
-                    stringValue(object, "icon"),
                     booleanValue(object, "enabled", true)));
         }
         return offers;
+    }
+
+    private static void createExampleFile(Path exampleOfferFile) throws IOException {
+        if (Files.exists(exampleOfferFile)) {
+            return;
+        }
+        StringBuilder json = new StringBuilder("[\n");
+        ItemDefinition[] definitions = Definitions.getAllItemDefinitions();
+        boolean first = true;
+        if (definitions != null) {
+            for (ItemDefinition definition : definitions) {
+                if (definition == null || definition.name == null || definition.name.isBlank()) {
+                    continue;
+                }
+                int variations = Math.max(1, definition.variations);
+                for (int variantIndex = 0; variantIndex < variations; variantIndex++) {
+                    Variant variant = definition.getVariant(variantIndex);
+                    if (!first) {
+                        json.append(",\n");
+                    }
+                    first = false;
+                    String id = definition.name + "." + variantIndex;
+                    json.append("  {\n")
+                            .append("    \"id\": \"").append(escape(id)).append("\",\n")
+                            .append("    \"itemName\": \"").append(escape(definition.name)).append("\",\n")
+                            .append("    \"itemVariant\": ").append(variantIndex).append(",\n")
+                            .append("    \"price\": 100,\n")
+                            .append("    \"currency\": \"\",\n")
+                            .append("    \"enabled\": false");
+                    if (variant != null && variant.name != null && !variant.name.isBlank()) {
+                        json.append(",\n    \"_variantName\": \"").append(escape(variant.name)).append("\"");
+                    }
+                    json.append("\n  }");
+                }
+            }
+        }
+        json.append("\n]\n");
+        Files.writeString(exampleOfferFile, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static String stringValue(Map<String, Object> object, String key) {
@@ -79,6 +127,14 @@ public final class SystemOfferFile {
             }
         }
         return -1L;
+    }
+
+    private static int intValue(Map<String, Object> object, String key) {
+        long value = longValue(object, key);
+        if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            return -1;
+        }
+        return (int) value;
     }
 
     private static boolean booleanValue(Map<String, Object> object, String key, boolean defaultValue) {

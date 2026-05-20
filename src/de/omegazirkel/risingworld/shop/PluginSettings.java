@@ -101,7 +101,7 @@ public class PluginSettings {
                         AdminSettingsType.BOOLEAN),
                 entry("shopCommand", "Shop command", "Chat command used to list and buy shop offers.", shopCommand,
                         "shop", AdminSettingsType.STRING),
-                entry("sendPluginWelcome", "Admin welcome", "Shows a short Shop message when an admin joins.",
+                entry("sendPluginWelcome", "Welcome message", "Shows a short Shop message when a player joins.",
                         enableWelcomeMessage, "false", AdminSettingsType.BOOLEAN),
                 entry("systemOffersFile", "System offers file", "JSON file used for admin-managed system offers.",
                         systemOffersFile, "system-offers.json", AdminSettingsType.STRING));

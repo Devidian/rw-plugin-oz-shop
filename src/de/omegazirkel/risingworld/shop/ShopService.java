@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Items.ItemDefinition;
+import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
+import net.risingworld.api.objects.Item;
 import net.risingworld.api.objects.Player;
 
 public class ShopService {
@@ -155,10 +159,23 @@ public class ShopService {
         }
     }
 
-    static ShopOffer systemOffer(String id, String title, String description, long price, String currencyIdentifier,
-            String icon, boolean enabled) {
-        return new ShopOffer(normalizeId(id), title == null ? normalizeId(id) : title.trim(), safe(description), price,
-                currencyIdentifier, icon, SYSTEM_PLUGIN, enabled, true, null);
+    static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, long price, String currencyIdentifier,
+            boolean enabled) {
+        ItemDefinition definition = Definitions.getItemDefinition(itemName);
+        Variant variant = definition == null ? null : definition.getVariant(itemVariant);
+        String title = variant != null && variant.name != null && !variant.name.isBlank()
+                ? variant.name
+                : itemName + ":" + itemVariant;
+        return new ShopOffer(normalizeId(id), title, "", itemName, itemVariant, price, currencyIdentifier, "",
+                SYSTEM_PLUGIN, enabled, true, (player, offer) -> {
+                    Item item = player.getInventory().addItem(offer.getItemName(), offer.getItemVariant(), 1);
+                    if (item == null) {
+                        return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
+                                "Could not add item to inventory.");
+                    }
+                    player.getInventory().syncWithClient();
+                    return ShopPurchaseResult.success("Purchase completed.", offer);
+                });
     }
 
     private static String normalizeId(String value) {

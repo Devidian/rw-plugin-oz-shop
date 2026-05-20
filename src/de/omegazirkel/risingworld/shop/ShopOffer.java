@@ -4,6 +4,8 @@ public class ShopOffer {
     private final String id;
     private final String title;
     private final String description;
+    private final String itemName;
+    private final int itemVariant;
     private final long price;
     private final String currencyIdentifier;
     private final String icon;
@@ -14,9 +16,18 @@ public class ShopOffer {
 
     public ShopOffer(String id, String title, String description, long price, String currencyIdentifier, String icon,
             String pluginIdentifier, boolean enabled, boolean systemOffer, ShopPurchaseCallback callback) {
+        this(id, title, description, "", 0, price, currencyIdentifier, icon, pluginIdentifier, enabled, systemOffer,
+                callback);
+    }
+
+    public ShopOffer(String id, String title, String description, String itemName, int itemVariant, long price,
+            String currencyIdentifier, String icon, String pluginIdentifier, boolean enabled, boolean systemOffer,
+            ShopPurchaseCallback callback) {
         this.id = id;
         this.title = title;
         this.description = description;
+        this.itemName = itemName == null ? "" : itemName.trim();
+        this.itemVariant = itemVariant;
         this.price = price;
         this.currencyIdentifier = currencyIdentifier == null ? "" : currencyIdentifier.trim().toUpperCase();
         this.icon = icon == null ? "" : icon.trim();
@@ -29,6 +40,8 @@ public class ShopOffer {
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
+    public String getItemName() { return itemName; }
+    public int getItemVariant() { return itemVariant; }
     public long getPrice() { return price; }
     public String getCurrencyIdentifier() { return currencyIdentifier; }
     public String getIcon() { return icon; }

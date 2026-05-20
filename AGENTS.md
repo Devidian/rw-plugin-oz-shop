@@ -8,7 +8,7 @@ This repository owns the `OZ - Shop` Rising World plugin.
 
 Owns:
 - shared plugin offer registration API
-- system-shop offer file loading
+- system-shop item offer file loading
 - Wallet-backed purchase orchestration
 - synchronous purchase callback execution
 - lightweight `/shop` command workflow
@@ -31,7 +31,8 @@ If `OZ - Wallet` is missing or not loaded, this plugin may load but purchases mu
 - Keep purchase orchestration in Shop and economy state in Wallet.
 - Keep plugin-specific purchase fulfillment in the registering feature plugin callback.
 - Use `rw-plugin-oz-tools` helpers for shared runtime concerns.
-- Keep system offers in JSON and copy `system-offers.default.json` on first run/update.
+- Keep system item offers in JSON with `id`, `itemName`, `itemVariant`, `price`, `currency`, and `enabled`.
+- Copy `system-offers.default.json` on first run/update and generate `system-offer-example.json` from `Definitions.getAllItemDefinitions()` when missing.
 - Treat public result objects, `ShopPurchaseCallback`, and main-class public API methods as sibling-plugin compatibility surface.
 - Keep `README.md`, `HISTORY.md`, and `PLANS.md` aligned with behavior changes.
 
