@@ -47,6 +47,20 @@ public class WalletBridge {
                 new Object[] { playerDbId, value, reason, currencyIdentifier, pluginIdentifier });
     }
 
+    public String defaultCurrencyIdentifier() {
+        Plugin walletPlugin = owner.getPluginByName("OZ - Wallet");
+        if (walletPlugin == null) {
+            return "";
+        }
+        try {
+            Method method = walletPlugin.getClass().getMethod("defaultCurrencyIdentifier");
+            Object result = method.invoke(walletPlugin);
+            return result instanceof String ? (String) result : "";
+        } catch (ReflectiveOperationException ex) {
+            return "";
+        }
+    }
+
     private WalletCallResult call(String methodName, Class<?>[] paramTypes, Object[] args) {
         Plugin walletPlugin = owner.getPluginByName("OZ - Wallet");
         if (walletPlugin == null) {

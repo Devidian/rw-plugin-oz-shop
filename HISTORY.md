@@ -12,4 +12,14 @@
 - feat: change system offers to `itemName` and `itemVariant` based built-in item offers
 - feat: add system offer `amount` for multi-item packages
 - feat: generate `system-offer-example.json` from Rising World item definitions
+- feat: support per-player dynamic plugin offer prices through `ShopPriceResolver`
+- feat: add public shop-offer category and source metadata for plugin registrations
+- feat: expose runtime plugin-offer registry listing and bulk unregister API
+- feat: report callback-failure refunds and failed compensation during purchases
+- feat: add shop availability settings and area-based shop access control
+- feat: add admin radial action to mark the current existing area as a shop area
+- feat: add shop UI with Systemshop, Pluginshop, and admin shop-area tabs
+- feat: add global system-shop enablement and per-shop-area `systemShop` overrides
+- feat: add shop-zone HUD indicator below LandClaim area info
+- docs: document Shop API, install/update scope, and example plugin registration
 - fix: send configured welcome message to all players instead of admins only

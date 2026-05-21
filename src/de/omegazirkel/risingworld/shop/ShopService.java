@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import de.omegazirkel.risingworld.Shop;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
@@ -31,6 +32,51 @@ public class ShopService {
             String icon,
             String pluginIdentifier,
             ShopPurchaseCallback callback) {
+        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, pluginIdentifier, callback,
+                null);
+    }
+
+    public synchronized ShopOfferRegistrationResult registerPluginOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback,
+            ShopPriceResolver priceResolver) {
+        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, "", pluginIdentifier,
+                pluginIdentifier, callback, priceResolver);
+    }
+
+    public synchronized ShopOfferRegistrationResult registerPluginOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String category,
+            String source,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback) {
+        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
+                pluginIdentifier, callback, null);
+    }
+
+    public synchronized ShopOfferRegistrationResult registerPluginOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String category,
+            String source,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback,
+            ShopPriceResolver priceResolver) {
         String normalizedId = normalizeId(id);
         String normalizedPlugin = normalizePlugin(pluginIdentifier);
         if (normalizedId.isBlank() || normalizedPlugin.isBlank() || isBlank(title) || price < 0 || callback == null) {
@@ -43,7 +89,8 @@ public class ShopService {
                     "Offer id is already registered by another plugin.");
         }
         ShopOffer offer = new ShopOffer(normalizedId, title.trim(), safe(description), price, currencyIdentifier, icon,
-                normalizedPlugin, true, false, callback);
+                safe(category), isBlank(source) ? normalizedPlugin : safe(source), normalizedPlugin, true, false,
+                callback, priceResolver);
         offers.put(normalizedId, offer);
         return ShopOfferRegistrationResult.success("Offer registered.", offer);
     }
@@ -63,6 +110,17 @@ public class ShopService {
         return ShopOfferRegistrationResult.success("Offer unregistered.", existing);
     }
 
+    public synchronized int unregisterPluginOffers(String pluginIdentifier) {
+        String normalizedPlugin = normalizePlugin(pluginIdentifier);
+        if (normalizedPlugin.isBlank()) {
+            return 0;
+        }
+        int before = offers.size();
+        offers.entrySet().removeIf(entry -> !entry.getValue().isSystemOffer()
+                && entry.getValue().getPluginIdentifier().equals(normalizedPlugin));
+        return before - offers.size();
+    }
+
     public synchronized void replaceSystemOffers(List<ShopOffer> systemOffers) {
         offers.entrySet().removeIf(entry -> entry.getValue().isSystemOffer());
         for (ShopOffer offer : systemOffers) {
@@ -71,8 +129,10 @@ public class ShopService {
                 continue;
             }
             offers.put(normalizedId, new ShopOffer(normalizedId, offer.getTitle(), offer.getDescription(),
-                    offer.getPrice(), offer.getCurrencyIdentifier(), offer.getIcon(), SYSTEM_PLUGIN, offer.isEnabled(),
-                    true, offer.getCallback()));
+                    offer.getItemName(), offer.getItemTypeId(), offer.getItemVariant(), offer.getAmount(),
+                    offer.getPrice(), offer.getCurrencyIdentifier(), offer.getIcon(), offer.getCategory(),
+                    offer.getSource(), SYSTEM_PLUGIN, offer.isEnabled(), true, offer.getCallback(),
+                    offer.getPriceResolver()));
         }
     }
 
@@ -82,6 +142,20 @@ public class ShopService {
 
     public synchronized List<ShopOffer> listOffers() {
         return offers.values().stream()
+                .sorted(Comparator.comparing(ShopOffer::getId))
+                .toList();
+    }
+
+    public synchronized List<ShopOffer> listPluginOffers() {
+        return offers.values().stream()
+                .filter(offer -> !offer.isSystemOffer())
+                .sorted(Comparator.comparing(ShopOffer::getId))
+                .toList();
+    }
+
+    public synchronized List<ShopOffer> listSystemOffers() {
+        return offers.values().stream()
+                .filter(ShopOffer::isSystemOffer)
                 .sorted(Comparator.comparing(ShopOffer::getId))
                 .toList();
     }
@@ -116,15 +190,24 @@ public class ShopService {
         if (!wallet.isAvailable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.WALLET_UNAVAILABLE, "OZ - Wallet is not available.");
         }
+        long price;
+        try {
+            price = offer.getPrice(player);
+        } catch (RuntimeException ex) {
+            Shop.logger().error("Shop price resolution failed for " + offer.getId() + ": " + ex.getMessage());
+            return ShopPurchaseResult.failure(ShopErrorCode.PRICE_RESOLUTION_FAILED,
+                    "Could not resolve offer price: " + ex.getMessage());
+        }
 
         WalletBridge.WalletCallResult payment = WalletBridge.WalletCallResult.success("No payment required.");
-        if (offer.getPrice() > 0) {
+        if (price > 0) {
             payment = offer.getCurrencyIdentifier().isBlank()
-                    ? wallet.withdrawDefault(player.getDbID(), offer.getPrice(), "Shop purchase: " + offer.getId(),
+                    ? wallet.withdrawDefault(player.getDbID(), price, "Shop purchase: " + offer.getId(),
                             "OZ - Shop")
-                    : wallet.withdraw(player.getDbID(), offer.getPrice(), "Shop purchase: " + offer.getId(),
+                    : wallet.withdraw(player.getDbID(), price, "Shop purchase: " + offer.getId(),
                             offer.getCurrencyIdentifier(), "OZ - Shop");
             if (!payment.success()) {
+                Shop.logger().error(payment.toString());
                 return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, payment.message());
             }
         }
@@ -132,31 +215,42 @@ public class ShopService {
         try {
             ShopPurchaseResult callbackResult = offer.getCallback().complete(player, offer);
             if (callbackResult == null) {
-                refund(player, offer);
-                return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
-                        "Purchase action returned no result after payment.");
+                return failAfterPayment(player, offer, price, "Purchase action returned no result after payment.");
             }
-            if (!callbackResult.success && offer.getPrice() > 0) {
-                refund(player, offer);
+            if (!callbackResult.success && price > 0) {
+                return failAfterPayment(player, offer, price, callbackResult.message);
             }
             return callbackResult;
         } catch (RuntimeException ex) {
-            refund(player, offer);
-            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
-                    "Purchase action failed after payment: " + ex.getMessage());
+            Shop.logger().error(ex.getMessage());
+            return failAfterPayment(player, offer, price, "Purchase action failed after payment: " + ex.getMessage());
         }
     }
 
-    private void refund(Player player, ShopOffer offer) {
-        if (offer.getPrice() <= 0) {
-            return;
+    private ShopPurchaseResult failAfterPayment(Player player, ShopOffer offer, long price, String failureMessage) {
+        String message = isBlank(failureMessage) ? "Purchase action failed after payment." : failureMessage;
+        if (price <= 0) {
+            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, message);
+        }
+        WalletBridge.WalletCallResult refund = refund(player, offer, price);
+        if (!refund.success()) {
+            Shop.logger().error("Shop refund failed for " + offer.getId() + ": " + refund.message());
+            return ShopPurchaseResult.failure(ShopErrorCode.REFUND_FAILED,
+                    message + " Refund failed: " + refund.message());
+        }
+        return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
+                message + " Payment was refunded.");
+    }
+
+    private WalletBridge.WalletCallResult refund(Player player, ShopOffer offer, long price) {
+        if (price <= 0) {
+            return WalletBridge.WalletCallResult.success("No refund required.");
         }
         if (offer.getCurrencyIdentifier().isBlank()) {
-            wallet.depositDefault(player.getDbID(), offer.getPrice(), "Shop refund: " + offer.getId(), "OZ - Shop");
-        } else {
-            wallet.deposit(player.getDbID(), offer.getPrice(), "Shop refund: " + offer.getId(),
-                    offer.getCurrencyIdentifier(), "OZ - Shop");
+            return wallet.depositDefault(player.getDbID(), price, "Shop refund: " + offer.getId(), "OZ - Shop");
         }
+        return wallet.deposit(player.getDbID(), price, "Shop refund: " + offer.getId(),
+                offer.getCurrencyIdentifier(), "OZ - Shop");
     }
 
     static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, long price,
@@ -166,9 +260,9 @@ public class ShopService {
         String title = variant != null && variant.name != null && !variant.name.isBlank()
                 ? variant.name
                 : itemName + ":" + itemVariant;
-        return new ShopOffer(normalizeId(id), title, "", itemName, itemVariant, amount, price, currencyIdentifier, "",
-                SYSTEM_PLUGIN, enabled, true, (player, offer) -> {
-                    Item item = player.getInventory().addItem(offer.getItemName(), offer.getItemVariant(),
+        return new ShopOffer(normalizeId(id), title, "", itemName, definition.id, itemVariant, amount, price,
+                currencyIdentifier, "", "system", "OZ - Shop", SYSTEM_PLUGIN, enabled, true, (player, offer) -> {
+                    Item item = player.getInventory().addItem(offer.getItemTypeId(), offer.getItemVariant(),
                             offer.getAmount());
                     if (item == null) {
                         return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
@@ -176,7 +270,7 @@ public class ShopService {
                     }
                     player.getInventory().syncWithClient();
                     return ShopPurchaseResult.success("Purchase completed.", offer);
-                });
+                }, null);
     }
 
     private static String normalizeId(String value) {

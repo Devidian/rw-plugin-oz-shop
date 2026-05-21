@@ -12,6 +12,7 @@ import java.util.Map;
 
 import de.omegazirkel.risingworld.Shop;
 import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Items;
 import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
 
@@ -54,7 +55,10 @@ public final class SystemOfferFile {
             int itemVariant = intValue(object, "itemVariant");
             int amount = intValue(object, "amount");
             long price = longValue(object, "price");
-            if (id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0 || price < 0) {
+            Items.ItemDefinition def = Definitions.getItemDefinition(itemName);
+            if (def == null || id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0 || price < 0) {
+                Shop.logger().warn("Invalid offer" + (def == null ? " definition not found" : "")
+                        + (itemName.isBlank() ? " no itemName set" : "<itemName:" + itemName + ">"));
                 continue;
             }
             offers.add(ShopService.systemItemOffer(

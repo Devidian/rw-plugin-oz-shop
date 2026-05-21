@@ -26,6 +26,11 @@ public class PluginSettings {
     public String shopCommand = "shop";
     public boolean enableWelcomeMessage = false;
     public String systemOffersFile = "system-offers.json";
+    public boolean systemShopEnabled = true;
+    public boolean shopEnabled = true;
+    public boolean requireShopZone = false;
+    public String shopZonesFile = "shop-zones.json";
+    public boolean showShopZoneIndicator = true;
     private Path settingsFile;
 
     private static OZLogger logger() {
@@ -81,10 +86,23 @@ public class PluginSettings {
                     .contentEquals("true");
             systemOffersFile = settings.getProperty("systemOffersFile",
                     defaults.getProperty("systemOffersFile", "system-offers.json"));
+            systemShopEnabled = settings.getProperty("systemShopEnabled",
+                    defaults.getProperty("systemShopEnabled", "true")).contentEquals("true");
+            shopEnabled = settings.getProperty("shopEnabled", defaults.getProperty("shopEnabled", "true"))
+                    .contentEquals("true");
+            requireShopZone = settings.getProperty("requireShopZone",
+                    defaults.getProperty("requireShopZone", "false")).contentEquals("true");
+            shopZonesFile = settings.getProperty("shopZonesFile",
+                    defaults.getProperty("shopZonesFile", "shop-zones.json"));
+            showShopZoneIndicator = settings.getProperty("showShopZoneIndicator",
+                    defaults.getProperty("showShopZoneIndicator", "true")).contentEquals("true");
 
             logger().info(plugin.getName() + " Plugin settings loaded");
             logger().info("Shop command is /" + shopCommand);
             logger().info("System offers file is " + systemOffersFile);
+            logger().info("System shop is " + (systemShopEnabled ? "enabled" : "disabled"));
+            logger().info("Shop access is " + (shopEnabled ? "enabled" : "disabled")
+                    + (requireShopZone ? " and zone-gated" : " globally available"));
             logger().setLevel(logLevel);
         } catch (IOException ex) {
             logger().error("IOException on initSettings: " + ex.getMessage());
@@ -104,7 +122,20 @@ public class PluginSettings {
                 entry("sendPluginWelcome", "Welcome message", "Shows a short Shop message when a player joins.",
                         enableWelcomeMessage, "false", AdminSettingsType.BOOLEAN),
                 entry("systemOffersFile", "System offers file", "JSON file used for admin-managed system offers.",
-                        systemOffersFile, "system-offers.json", AdminSettingsType.STRING));
+                        systemOffersFile, "system-offers.json", AdminSettingsType.STRING),
+                entry("systemShopEnabled", "System shop enabled",
+                        "Allows system-shop offers unless a shop area overrides this value.", systemShopEnabled, "true",
+                        AdminSettingsType.BOOLEAN),
+                entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
+                        AdminSettingsType.BOOLEAN),
+                entry("requireShopZone", "Require shop zone",
+                        "Restricts shop access to areas marked as shop areas unless the player is an admin.",
+                        requireShopZone, "false", AdminSettingsType.BOOLEAN),
+                entry("shopZonesFile", "Shop zones file", "JSON file used for admin-managed shop areas.",
+                        shopZonesFile, "shop-zones.json", AdminSettingsType.STRING),
+                entry("showShopZoneIndicator", "Show shop-zone indicator",
+                        "Shows a compact HUD indicator below the LandClaim area info while players are in a shop area.",
+                        showShopZoneIndicator, "true", AdminSettingsType.BOOLEAN));
     }
 
     private AdminSettingsEntry entry(String key, String label, String description, Object value, String defaultValue,

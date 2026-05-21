@@ -2,6 +2,7 @@ package de.omegazirkel.risingworld;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.ShopErrorCode;
@@ -10,18 +11,21 @@ import de.omegazirkel.risingworld.shop.ShopOfferRegistrationResult;
 import de.omegazirkel.risingworld.shop.ShopPurchaseCallback;
 import de.omegazirkel.risingworld.shop.ShopPurchaseResult;
 import de.omegazirkel.risingworld.shop.ShopService;
+import de.omegazirkel.risingworld.shop.ShopZone;
+import de.omegazirkel.risingworld.shop.ShopZoneService;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
 import de.omegazirkel.risingworld.shop.WalletBridge;
+import de.omegazirkel.risingworld.shop.PluginGUI;
+import de.omegazirkel.risingworld.shop.ui.ShopOverlay;
 import de.omegazirkel.risingworld.shop.ui.ShopPlayerPluginData;
+import de.omegazirkel.risingworld.shop.ui.ShopZoneIndicatorManager;
 import de.omegazirkel.risingworld.tools.Colors;
 import de.omegazirkel.risingworld.tools.FileChangeListener;
 import de.omegazirkel.risingworld.tools.I18n;
 import de.omegazirkel.risingworld.tools.OZLogger;
 import de.omegazirkel.risingworld.tools.settings.PlayerPluginAdminSettings;
-import de.omegazirkel.risingworld.tools.ui.AssetManager;
-import de.omegazirkel.risingworld.tools.ui.MenuItem;
+import de.omegazirkel.risingworld.tools.ui.CursorManager;
 import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettingsOverlay;
-import de.omegazirkel.risingworld.tools.ui.PluginMenuManager;
 import net.risingworld.api.Plugin;
 import net.risingworld.api.events.EventMethod;
 import net.risingworld.api.events.Listener;
@@ -34,6 +38,8 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
     private static I18n t;
     private static PluginSettings s;
     private static ShopService service;
+    private static ShopZoneService zoneService;
+    private static ShopZoneIndicatorManager zoneIndicatorManager;
     public static String name;
 
     public static OZLogger logger() {
@@ -47,13 +53,13 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         t = I18n.getInstance(this);
         s.initSettings();
         service = new ShopService(new WalletBridge(this));
+        zoneService = new ShopZoneService(this, s.shopZonesFile);
+        zoneIndicatorManager = new ShopZoneIndicatorManager(this);
         reloadSystemOffers();
         registerEventListener(this);
+        zoneIndicatorManager.start();
 
-        PluginMenuManager.registerPluginMenu(new MenuItem(AssetManager.getIcon("shop-icon"), "Shop", p -> {
-            p.hideRadialMenu(true);
-            sendOfferList(p);
-        }));
+        PluginGUI.getInstance(this);
         PlayerPluginSettingsOverlay.registerPlayerPluginData(new ShopPlayerPluginData(getDescription("version")));
         PlayerPluginSettingsOverlay.registerPlayerPluginAdminSettings(
                 new PlayerPluginAdminSettings(name, getDescription("version"), () -> s.adminSettingsEntries(),
@@ -66,13 +72,20 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         if (service != null) {
             service.clear();
         }
+        if (zoneIndicatorManager != null) {
+            zoneIndicatorManager.stop();
+        }
     }
 
     @Override
     public void onSettingsChanged(Path settingsPath) {
         s.initSettings(settingsPath.toString());
         logger().setLevel(s.logLevel);
+        zoneService = new ShopZoneService(this, s.shopZonesFile);
         reloadSystemOffers();
+        if (zoneIndicatorManager != null) {
+            zoneIndicatorManager.refresh();
+        }
     }
 
     @EventMethod
@@ -96,18 +109,23 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         if (!cmdParts[0].equals("/" + s.shopCommand)) {
             return;
         }
+        if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("reload") && player.isAdmin()) {
+            int count = reloadSystemOffers();
+            reloadShopZones();
+            player.sendTextMessage(c.okay + t.get("TC_SHOP_RELOADED", player).replace("PH_COUNT", String.valueOf(count)));
+            return;
+        }
+        if (!isShopAvailableFor(player)) {
+            player.sendTextMessage(c.warning + shopUnavailableMessage(player));
+            return;
+        }
         if (cmdParts.length == 1 || cmdParts[1].equalsIgnoreCase("list")) {
-            sendOfferList(player);
+            openShopUI(player);
             return;
         }
         if (cmdParts[1].equalsIgnoreCase("buy") && cmdParts.length == 3) {
             ShopPurchaseResult result = purchase(player, cmdParts[2]);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            return;
-        }
-        if (cmdParts[1].equalsIgnoreCase("reload") && player.isAdmin()) {
-            int count = reloadSystemOffers();
-            player.sendTextMessage(c.okay + t.get("TC_SHOP_RELOADED", player).replace("PH_COUNT", String.valueOf(count)));
             return;
         }
         player.sendTextMessage(c.warning + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
@@ -126,11 +144,64 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
                 callback);
     }
 
+    public ShopOfferRegistrationResult registerOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String category,
+            String source,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback) {
+        return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
+                pluginIdentifier, callback);
+    }
+
+    public ShopOfferRegistrationResult registerOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback,
+            de.omegazirkel.risingworld.shop.ShopPriceResolver priceResolver) {
+        return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, pluginIdentifier,
+                callback, priceResolver);
+    }
+
+    public ShopOfferRegistrationResult registerOffer(
+            String id,
+            String title,
+            String description,
+            long price,
+            String currencyIdentifier,
+            String icon,
+            String category,
+            String source,
+            String pluginIdentifier,
+            ShopPurchaseCallback callback,
+            de.omegazirkel.risingworld.shop.ShopPriceResolver priceResolver) {
+        return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
+                pluginIdentifier, callback, priceResolver);
+    }
+
     public ShopOfferRegistrationResult unregisterOffer(String id, String pluginIdentifier) {
         return service.unregisterOffer(id, pluginIdentifier);
     }
 
+    public int unregisterOffers(String pluginIdentifier) {
+        return service.unregisterPluginOffers(pluginIdentifier);
+    }
+
     public ShopPurchaseResult purchase(Player player, String offerId) {
+        ShopOffer offer = findOffer(offerId);
+        if (offer != null && offer.isSystemOffer() && !isSystemShopAvailableFor(player)) {
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("TC_SHOP_SYSTEM_DISABLED", player));
+        }
         return service.purchase(player, offerId);
     }
 
@@ -142,6 +213,14 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         return service.listOffers();
     }
 
+    public List<ShopOffer> listPluginOffers() {
+        return service.listPluginOffers();
+    }
+
+    public List<ShopOffer> listSystemOffers() {
+        return service.listSystemOffers();
+    }
+
     public int reloadSystemOffers() {
         if (service == null || s == null) {
             return 0;
@@ -151,8 +230,91 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         return offers.size();
     }
 
-    private void sendOfferList(Player player) {
-        List<ShopOffer> offers = listOffers().stream().filter(ShopOffer::isEnabled).toList();
+    public void reloadShopZones() {
+        if (zoneService != null) {
+            zoneService.load();
+        }
+    }
+
+    public boolean isShopAvailableFor(Player player) {
+        if (player == null) {
+            return false;
+        }
+        if (!s.shopEnabled) {
+            return false;
+        }
+        if (player.isAdmin()) {
+            return true;
+        }
+        return !s.requireShopZone || (zoneService != null && zoneService.isInEnabledZone(player));
+    }
+
+    public boolean isSystemShopAvailableFor(Player player) {
+        if (player == null) {
+            return false;
+        }
+        return zoneService == null
+                ? s.systemShopEnabled
+                : zoneService.systemShopEnabledFor(player, s.systemShopEnabled);
+    }
+
+    public String shopUnavailableMessage(Player player) {
+        if (!s.shopEnabled) {
+            return t.get("TC_SHOP_DISABLED", player);
+        }
+        if (s.requireShopZone) {
+            return t.get("TC_SHOP_ZONE_REQUIRED", player);
+        }
+        return t.get("TC_SHOP_NO_OFFERS", player);
+    }
+
+    public ShopZoneService shopZoneService() {
+        return zoneService;
+    }
+
+    public Optional<ShopZone> currentShopZone(Player player) {
+        return zoneService == null || player == null ? Optional.empty() : zoneService.zoneAt(player);
+    }
+
+    public List<ShopZone> listShopZones() {
+        return zoneService == null ? List.of() : zoneService.listZones();
+    }
+
+    public ShopZone setZoneSystemShop(long areaId, int systemShop) {
+        return zoneService == null ? null : zoneService.setSystemShopMode(areaId, systemShop).orElse(null);
+    }
+
+    public boolean showShopZoneIndicator() {
+        return s != null && s.showShopZoneIndicator;
+    }
+
+    public String shopZoneIndicatorText(Player player, ShopZone zone) {
+        String systemShop = zone.systemShopEnabled(s.systemShopEnabled)
+                ? t.get("TC_SHOP_INDICATOR_SYSTEM_ON", player)
+                : t.get("TC_SHOP_INDICATOR_SYSTEM_OFF", player);
+        return t.get("TC_SHOP_INDICATOR", player)
+                .replace("PH_AREA", zone.getAreaName())
+                .replace("PH_SYSTEMSHOP", systemShop);
+    }
+
+    public void openShopUI(Player player) {
+        ShopOverlay existing = (ShopOverlay) player.getAttribute("oz.shop.ui.overlay");
+        if (existing != null) {
+            player.removeUIElement(existing);
+            player.deleteAttribute("oz.shop.ui.overlay");
+            CursorManager.hide(player);
+        }
+        ShopOverlay overlay = new ShopOverlay(this, player);
+        CursorManager.show(player);
+        player.addUIElement(overlay);
+        player.setAttribute("oz.shop.ui.overlay", overlay);
+    }
+
+    public void sendOfferList(Player player) {
+        List<ShopOffer> offers = listOffers().stream()
+                .filter(ShopOffer::isEnabled)
+                .filter(offer -> !offer.isSystemOffer() || isSystemShopAvailableFor(player))
+                .toList();
         if (offers.isEmpty()) {
             player.sendTextMessage(c.info + t.get("TC_SHOP_NO_OFFERS", player));
             return;
@@ -165,7 +327,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
             String label = offer.getItemName().isBlank() ? offer.getTitle()
                     : offer.getAmount() + "x " + offer.getItemName() + ":" + offer.getItemVariant();
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
-                    + offer.getPrice() + " " + currency + ")");
+                    + offer.getPrice(player) + " " + currency + ")");
         }
         player.sendTextMessage(c.text + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
     }
