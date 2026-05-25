@@ -4,6 +4,13 @@
 
 ## [unreleased]
 
+- feat: add shared Tools Info/Status panel content for Shop and route info/status commands to it
+- feat: group and localize Shop admin settings metadata
+- refactor: route Shop settings logging through the main `OZ.Shop` logger
+- feat: add default card layout for Shop offers with a per-player list/card preference
+- feat: move the shop-zone HUD signal into the shared Tools indicator panel
+- feat: require confirmation before removing shop-area status
+- fix: hide the create-shop-area radial action while already inside a shop area
 - feat: create `OZ - Shop` plugin from the Maven template
 - feat: add plugin offer registration and synchronous purchase callback API
 - feat: add Wallet-backed purchase execution with callback-failure refund attempt

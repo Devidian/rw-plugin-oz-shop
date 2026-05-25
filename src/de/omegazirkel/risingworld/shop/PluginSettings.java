@@ -34,7 +34,7 @@ public class PluginSettings {
     private Path settingsFile;
 
     private static OZLogger logger() {
-        return OZLogger.getInstance("OZ.Shop.Settings");
+        return Shop.logger();
     }
 
     public static PluginSettings getInstance(Shop p) {
@@ -112,6 +112,7 @@ public class PluginSettings {
 
     public List<AdminSettingsEntry> adminSettingsEntries() {
         return List.of(
+                AdminSettingsEntry.group("general", "General", "Logging, reload, command, and welcome behavior."),
                 entry("logLevel", "Log level", "Controls Shop logging verbosity.", logLevel, "ALL",
                         AdminSettingsType.STRING),
                 entry("reloadOnChange", "Reload on change",
@@ -121,11 +122,13 @@ public class PluginSettings {
                         "shop", AdminSettingsType.STRING),
                 entry("sendPluginWelcome", "Welcome message", "Shows a short Shop message when a player joins.",
                         enableWelcomeMessage, "false", AdminSettingsType.BOOLEAN),
+                AdminSettingsEntry.group("systemShop", "System shop", "System offer file and system-shop behavior."),
                 entry("systemOffersFile", "System offers file", "JSON file used for admin-managed system offers.",
                         systemOffersFile, "system-offers.json", AdminSettingsType.STRING),
                 entry("systemShopEnabled", "System shop enabled",
                         "Allows system-shop offers unless a shop area overrides this value.", systemShopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
+                AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
                 entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
                 entry("requireShopZone", "Require shop zone",

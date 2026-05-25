@@ -1,5 +1,6 @@
 # Roadmaps
 
+- [Roadmap Plan 02 Shop UI Modernization](roadmap-plan-02-shop-ui-modernization.md)
 - [Roadmap Plan 01 Shop V1](roadmap-plan-01-shop-v1.md)
 
 Large implementation plans and long-lived roadmap documents live here.

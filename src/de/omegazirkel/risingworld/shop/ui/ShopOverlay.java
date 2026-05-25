@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import de.omegazirkel.risingworld.Shop;
+import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
 import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopPurchaseResult;
 import de.omegazirkel.risingworld.shop.ShopZone;
@@ -14,17 +15,27 @@ import de.omegazirkel.risingworld.tools.ui.ButtonFactory;
 import de.omegazirkel.risingworld.tools.ui.CursorManager;
 import de.omegazirkel.risingworld.tools.ui.InfoButton;
 import de.omegazirkel.risingworld.tools.ui.OZUIElement;
+import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ui.table.TableCell;
 import de.omegazirkel.risingworld.tools.ui.table.TableRow;
 import de.omegazirkel.risingworld.tools.ui.table.TableScrollView;
 import net.risingworld.api.objects.Player;
+import net.risingworld.api.assets.TextureAsset;
 import net.risingworld.api.ui.UILabel;
 import net.risingworld.api.ui.UIElement;
+import net.risingworld.api.ui.UIScrollView;
+import net.risingworld.api.ui.UIScrollView.ScrollViewMode;
+import net.risingworld.api.ui.style.Align;
+import net.risingworld.api.ui.style.DisplayStyle;
+import net.risingworld.api.ui.style.FlexDirection;
 import net.risingworld.api.ui.style.Font;
+import net.risingworld.api.ui.style.Justify;
 import net.risingworld.api.ui.style.Pivot;
 import net.risingworld.api.ui.style.Position;
+import net.risingworld.api.ui.style.ScaleMode;
 import net.risingworld.api.ui.style.TextAnchor;
 import net.risingworld.api.ui.style.Unit;
+import net.risingworld.api.ui.style.Wrap;
 
 // TODO: refactor -> extend new BasePluginOverlayWithTabs from Tools to reduce code here
 public class ShopOverlay extends OZUIElement {
@@ -44,6 +55,7 @@ public class ShopOverlay extends OZUIElement {
     private OZUIElement body;
     private Tab activeTab = Tab.SYSTEM;
     private final WalletBridge walletBridge;
+    private ShopZone pendingRemoveZone;
 
     private enum Tab {
         SYSTEM,
@@ -79,6 +91,7 @@ public class ShopOverlay extends OZUIElement {
         setupHeader();
         setupTabs();
         setupBody();
+        setupRemoveConfirmation();
     }
 
     private void setupHeader() {
@@ -168,15 +181,23 @@ public class ShopOverlay extends OZUIElement {
 
         if (activeTab == Tab.SYSTEM) {
             if (plugin.isSystemShopAvailableFor(player)) {
-                setupOfferTable(plugin.listSystemOffers(), t.get("TC_SHOP_UI_EMPTY_SYSTEM", player));
+                setupOffers(plugin.listSystemOffers(), t.get("TC_SHOP_UI_EMPTY_SYSTEM", player));
             } else {
-                setupOfferTable(List.of(), t.get("TC_SHOP_SYSTEM_DISABLED", player));
+                setupOffers(List.of(), t.get("TC_SHOP_SYSTEM_DISABLED", player));
             }
         } else if (activeTab == Tab.PLUGIN) {
-            setupOfferTable(plugin.listPluginOffers(), t.get("TC_SHOP_UI_EMPTY_PLUGIN", player));
+            setupOffers(plugin.listPluginOffers(), t.get("TC_SHOP_UI_EMPTY_PLUGIN", player));
         } else {
             setupAdminTable();
         }
+    }
+
+    private void setupOffers(List<ShopOffer> offers, String emptyText) {
+        if (ShopPlayerPreferences.LAYOUT_LIST.equals(ShopPlayerPreferences.layout(player))) {
+            setupOfferTable(offers, emptyText);
+            return;
+        }
+        setupOfferCards(offers, emptyText);
     }
 
     private void setupOfferTable(List<ShopOffer> offers, String emptyText) {
@@ -200,26 +221,150 @@ public class ShopOverlay extends OZUIElement {
         body.addChild(table);
     }
 
+    private void setupOfferCards(List<ShopOffer> offers, String emptyText) {
+        UIScrollView scroll = new UIScrollView(ScrollViewMode.Vertical);
+        scroll.setPivot(Pivot.UpperLeft);
+        scroll.setPosition(0, 0, false);
+        scroll.style.width.set(100, Unit.Percent);
+        scroll.style.height.set(BODY_HEIGHT, Unit.Pixel);
+        scroll.style.paddingLeft.set(12);
+        scroll.style.paddingRight.set(12);
+        scroll.style.paddingTop.set(12);
+        scroll.style.paddingBottom.set(18);
+
+        OZUIElement wrapper = new OZUIElement();
+        wrapper.setPivot(Pivot.UpperLeft);
+        wrapper.style.width.set(100, Unit.Percent);
+        wrapper.style.height.set(100, Unit.Percent);
+        wrapper.style.display.set(DisplayStyle.Flex);
+        wrapper.style.flexDirection.set(FlexDirection.Row);
+        wrapper.style.flexWrap.set(Wrap.Wrap);
+        wrapper.style.alignContent.set(Align.FlexStart);
+        wrapper.style.justifyContent.set(Justify.FlexStart);
+        scroll.addChild(wrapper);
+
+        List<ShopOffer> enabled = offers.stream().filter(ShopOffer::isEnabled).toList();
+        if (enabled.isEmpty()) {
+            UILabel empty = label(emptyText, 15, Font.Default);
+            empty.setPivot(Pivot.UpperLeft);
+            empty.setPosition(12, 12, false);
+            empty.setSize(90, 40, true);
+            empty.setTextWrap(true);
+            wrapper.addChild(empty);
+        } else {
+            for (ShopOffer offer : enabled) {
+                wrapper.addChild(offerCard(offer));
+            }
+        }
+        body.addChild(scroll);
+    }
+
     private TableRow offerRow(ShopOffer offer) {
-        String title = offer.getItemName().isBlank()
+        return new TableRow(Arrays.asList(
+                labelCell(offerTitle(offer), 42f),
+                labelCell(offerPrice(offer), 18f),
+                labelCell(offerSource(offer), 22f),
+                new TableCell(buyButton(offer), 18f)));
+    }
+
+    private OZUIElement offerCard(ShopOffer offer) {
+        OZUIElement card = new OZUIElement();
+        card.setPivot(Pivot.UpperLeft);
+        card.style.width.set(260, Unit.Pixel);
+        card.style.height.set(158, Unit.Pixel);
+        card.style.marginLeft.set(6);
+        card.style.marginRight.set(6);
+        card.style.marginTop.set(6);
+        card.style.marginBottom.set(10);
+        card.setPadding(12);
+        card.setBackgroundColor(0.10f, 0.09f, 0.08f, 0.92f);
+        card.setBorder(1);
+        card.setBorderColor(0.95f, 0.75f, 0.25f, 0.42f);
+        card.setBorderEdgeRadius(6, false);
+
+        OZUIElement icon = offerIcon(offer);
+        card.addChild(icon);
+
+        UILabel title = label(offerTitle(offer), 15, Font.DefaultBold);
+        title.setPivot(Pivot.UpperLeft);
+        title.setPosition(58, 12, false);
+        title.setSize(185, 36, false);
+        title.setTextWrap(true);
+        title.setTextAlign(TextAnchor.UpperLeft);
+        card.addChild(title);
+
+        UILabel source = label(offerSource(offer), 12, Font.Default);
+        source.setPivot(Pivot.UpperLeft);
+        source.setPosition(58, 50, false);
+        source.setSize(185, 22, false);
+        source.setFontColor(0xC8C0B2FF);
+        card.addChild(source);
+
+        UILabel description = label(offer.getDescription(), 12, Font.Default);
+        description.setPivot(Pivot.UpperLeft);
+        description.setPosition(12, 76, false);
+        description.setSize(232, 34, false);
+        description.setFontColor(0xD8D0C0FF);
+        description.setTextWrap(true);
+        description.setTextAlign(TextAnchor.UpperLeft);
+        card.addChild(description);
+
+        UILabel price = label(offerPrice(offer), 14, Font.DefaultBold);
+        price.setPivot(Pivot.LowerLeft);
+        price.setPosition(12, 148, false);
+        price.setSize(128, 26, false);
+        price.setFontColor(0xF2C766FF);
+        card.addChild(price);
+
+        UIElement buy = buyButton(offer);
+        buy.setPivot(Pivot.LowerRight);
+        buy.setPosition(246, 148, false);
+        buy.setSize(88, 26, false);
+        card.addChild(buy);
+
+        return card;
+    }
+
+    private OZUIElement offerIcon(ShopOffer offer) {
+        TextureAsset asset = null;
+        if (!offer.getIcon().isBlank()) {
+            asset = AssetManager.getIcon(offer.getIcon());
+        }
+        if (asset == null) {
+            asset = AssetManager.getIcon("shop-icon");
+        }
+
+        OZUIElement icon = new OZUIElement();
+        icon.setPivot(Pivot.UpperLeft);
+        icon.setPosition(12, 12, false);
+        icon.setSize(36, 36, false);
+        icon.setBackgroundColor(0, 0, 0, 0);
+        if (asset != null) {
+            icon.style.backgroundImage.set(asset);
+            icon.style.backgroundImageScaleMode.set(ScaleMode.ScaleToFit);
+        }
+        return icon;
+    }
+
+    private String offerTitle(ShopOffer offer) {
+        return offer.getItemName().isBlank()
                 ? offer.getTitle()
                 : offer.getAmount() + "x " + offer.getItemName() + ":" + offer.getItemVariant();
+    }
+
+    private String offerPrice(ShopOffer offer) {
         String currency = offer.getCurrencyIdentifier().isBlank()
                 ? walletBridge.defaultCurrencyIdentifier()
                 : offer.getCurrencyIdentifier();
-                
-        String price;
         try {
-            price = offer.getPrice(player) + " " + currency;
+            return offer.getPrice(player) + " " + currency;
         } catch (RuntimeException ex) {
-            price = t.get("TC_SHOP_UI_PRICE_ERROR", player);
+            return t.get("TC_SHOP_UI_PRICE_ERROR", player);
         }
-        String source = offer.getSource().isBlank() ? offer.getPluginIdentifier() : offer.getSource();
-        return new TableRow(Arrays.asList(
-                labelCell(title, 42f),
-                labelCell(price, 18f),
-                labelCell(source, 22f),
-                new TableCell(buyButton(offer), 18f)));
+    }
+
+    private String offerSource(ShopOffer offer) {
+        return offer.getSource().isBlank() ? offer.getPluginIdentifier() : offer.getSource();
     }
 
     private UIElement buyButton(ShopOffer offer) {
@@ -294,10 +439,7 @@ public class ShopOverlay extends OZUIElement {
 
     private UIElement removeZoneButton(ShopZone zone) {
         InfoButton button = ButtonFactory.info(t.get("TC_SHOP_UI_REMOVE", player), event -> {
-            if (plugin.shopZoneService().deleteAreaZone(zone.getAreaId())) {
-                player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_AREA_REMOVED", player)
-                        .replace("PH_AREA", zone.getAreaName()));
-            }
+            pendingRemoveZone = zone;
             rebuild();
         });
         button.setPivot(Pivot.UpperLeft);
@@ -307,6 +449,68 @@ public class ShopOverlay extends OZUIElement {
         button.setBackgroundColor(0.78f, 0.16f, 0.12f, 1f);
         button.setHoverBackgroundColor(0xDD3228FF);
         return button;
+    }
+
+    private void setupRemoveConfirmation() {
+        if (pendingRemoveZone == null) {
+            return;
+        }
+
+        OZUIElement blocker = new OZUIElement();
+        blocker.setPivot(Pivot.UpperLeft);
+        blocker.setPosition(0, 0, true);
+        blocker.setSize(100, 100, true);
+        blocker.setBackgroundColor(0, 0, 0, 0.54f);
+        blocker.setClickable(true);
+
+        OZUIElement dialog = new OZUIElement();
+        dialog.setPivot(Pivot.MiddleCenter);
+        dialog.setPosition(50, 50, true);
+        dialog.setSize(420, 190, false);
+        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f);
+        dialog.setBorder(1);
+        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
+        dialog.setBorderEdgeRadius(6, false);
+
+        UILabel title = label(t.get("TC_SHOP_UI_REMOVE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        title.setPivot(Pivot.UpperLeft);
+        title.setPosition(18, 16, false);
+        title.setSize(380, 28, false);
+        dialog.addChild(title);
+
+        UILabel text = label(t.get("TC_SHOP_UI_REMOVE_CONFIRM_TEXT", player)
+                .replace("PH_AREA", pendingRemoveZone.getAreaName()), 14, Font.Default);
+        text.setPivot(Pivot.UpperLeft);
+        text.setPosition(18, 56, false);
+        text.setSize(380, 58, false);
+        text.setTextWrap(true);
+        text.setTextAlign(TextAnchor.UpperLeft);
+        dialog.addChild(text);
+
+        UIElement cancel = ButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+            pendingRemoveZone = null;
+            rebuild();
+        });
+        cancel.setPivot(Pivot.LowerLeft);
+        cancel.setPosition(18, 172, false);
+        cancel.setSize(150, 30, false);
+        dialog.addChild(cancel);
+
+        UIElement remove = ButtonFactory.danger(t.get("TC_SHOP_UI_REMOVE", player), event -> {
+            if (plugin.shopZoneService().deleteAreaZone(pendingRemoveZone.getAreaId())) {
+                player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_AREA_REMOVED", player)
+                        .replace("PH_AREA", pendingRemoveZone.getAreaName()));
+            }
+            pendingRemoveZone = null;
+            rebuild();
+        });
+        remove.setPivot(Pivot.LowerRight);
+        remove.setPosition(402, 172, false);
+        remove.setSize(150, 30, false);
+        dialog.addChild(remove);
+
+        blocker.addChild(dialog);
+        panel.addChild(blocker);
     }
 
     private TableRow textOnlyRow(String text) {

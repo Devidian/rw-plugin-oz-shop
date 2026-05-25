@@ -50,7 +50,7 @@ public class PluginGUI {
             }
             plugin.openShopUI(p);
         }));
-        if (player.isAdmin()) {
+        if (player.isAdmin() && plugin.currentShopZone(player).isEmpty()) {
             items.add(new MenuItem(AssetManager.getIcon("shop-icon"), t(player, "TC_MENU_SHOP_ZONE_CREATE"),
                     this::createOrEnableZone));
         }

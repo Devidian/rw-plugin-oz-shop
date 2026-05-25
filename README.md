@@ -20,7 +20,7 @@ Install or update these plugin packages together:
 - `OZWallet`: required for functional purchases and refunds
 - `OZShop`: shared system/plugin shop runtime
 
-Feature plugins such as GPS or LandClaim only need an update when they register new or changed Shop offers. Shop does not require Marketplace or LandClaim at runtime. The shop-zone HUD indicator is positioned to coexist with LandClaim area information, but it is implemented locally and remains optional through `showShopZoneIndicator`.
+Feature plugins such as GPS or LandClaim only need an update when they register new or changed Shop offers. Shop does not require Marketplace or LandClaim at runtime. The shop-zone HUD indicator is registered through the shared Tools indicator panel and remains optional through `showShopZoneIndicator`.
 
 ## Settings
 
@@ -45,7 +45,7 @@ showShopZoneIndicator=true
 
 `shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in `shopZonesFile` by `areaId`.
 
-`showShopZoneIndicator=true` shows a compact HUD indicator while players are inside a shop area. It is positioned below LandClaim's area-info overlay and displays the current shop-area name plus the effective system-shop state for that area.
+`showShopZoneIndicator=true` shows the Shop icon in the shared Tools indicator panel while players are inside a shop area.
 
 ## System Offers
 
@@ -212,7 +212,7 @@ For optional integrations where the consuming plugin must still compile and run 
 
 ## Shop UI
 
-`/shop`, `/shop list`, and the Shop radial menu entry open the shop UI. The UI has separate tabs for `Systemshop` and `Pluginshop`. Admins additionally see an `Admin` tab that lists configured shop areas and can remove the shop status from an area.
+`/shop`, `/shop list`, and the Shop radial menu entry open the shop UI. The UI has separate tabs for `Systemshop` and `Pluginshop`. Offers use the card layout by default; players can switch between card and list layout in the player plugin settings. Admins additionally see an `Admin` tab that lists configured shop areas and can remove the shop status from an area after confirmation.
 
 Direct command purchases remain available for fast workflows.
 
@@ -220,13 +220,14 @@ Direct command purchases remain available for fast workflows.
 
 - `/shop` or `/shop list`: open the shop UI
 - `/shop buy <offer-id>`: buy an offer
+- `/shop status` or `/shop info`: open the shared Tools Info/Status panel
 - `/shop reload`: admin-only reload of system offers and settings-backed file path
 
 ## Admin Shop Zones
 
-Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. If the admin is not standing inside an area, no shop area is created. The admin tab lists shop areas, removes shop status, and cycles each area's system-shop override through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones only control where the shared shop may be opened when `requireShopZone=true` and how system-shop offers are enabled in that area.
+Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. This create action is hidden when the current area is already a shop area. If the admin is not standing inside an area, no shop area is created. The admin tab lists shop areas, removes shop status after confirmation, and cycles each area's system-shop override through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones only control where the shared shop may be opened when `requireShopZone=true` and how system-shop offers are enabled in that area.
 
-Players see a small shop-area indicator below the LandClaim area info while they are in a configured shop area. Disabling `showShopZoneIndicator` hides this HUD element without changing shop access or purchases.
+Players see the Shop icon in the shared Tools indicator panel while they are in a configured shop area. Disabling `showShopZoneIndicator` hides this HUD indication without changing shop access or purchases.
 
 ## Validation
 

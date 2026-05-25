@@ -8,24 +8,31 @@ import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.ShopErrorCode;
 import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopOfferRegistrationResult;
+import de.omegazirkel.risingworld.shop.ShopPluginInfoStatusProvider;
 import de.omegazirkel.risingworld.shop.ShopPurchaseCallback;
 import de.omegazirkel.risingworld.shop.ShopPurchaseResult;
 import de.omegazirkel.risingworld.shop.ShopService;
 import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.ShopZoneService;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
-import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.shop.PluginGUI;
+import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
+import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.shop.ui.ShopOverlay;
 import de.omegazirkel.risingworld.shop.ui.ShopPlayerPluginData;
-import de.omegazirkel.risingworld.shop.ui.ShopZoneIndicatorManager;
+import de.omegazirkel.risingworld.shop.ui.ShopPlayerPluginSettings;
+import de.omegazirkel.risingworld.shop.ui.ShopZoneIndicatorProvider;
 import de.omegazirkel.risingworld.tools.Colors;
 import de.omegazirkel.risingworld.tools.FileChangeListener;
 import de.omegazirkel.risingworld.tools.I18n;
 import de.omegazirkel.risingworld.tools.OZLogger;
+import de.omegazirkel.risingworld.tools.PlayerSettings;
+import de.omegazirkel.risingworld.tools.db.SQLite;
 import de.omegazirkel.risingworld.tools.settings.PlayerPluginAdminSettings;
 import de.omegazirkel.risingworld.tools.ui.CursorManager;
 import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettingsOverlay;
+import de.omegazirkel.risingworld.tools.ui.PluginInfoStatusProviders;
+import de.omegazirkel.risingworld.tools.ui.SharedIndicators;
 import net.risingworld.api.Plugin;
 import net.risingworld.api.events.EventMethod;
 import net.risingworld.api.events.Listener;
@@ -39,8 +46,9 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
     private static PluginSettings s;
     private static ShopService service;
     private static ShopZoneService zoneService;
-    private static ShopZoneIndicatorManager zoneIndicatorManager;
     public static String name;
+    public static SQLite db;
+    public static PlayerSettings ps;
 
     public static OZLogger logger() {
         return OZLogger.getInstance("OZ.Shop");
@@ -52,18 +60,21 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         s = PluginSettings.getInstance(this);
         t = I18n.getInstance(this);
         s.initSettings();
+        db = new SQLite(this);
+        ps = new PlayerSettings(db.getConnection());
         service = new ShopService(new WalletBridge(this));
         zoneService = new ShopZoneService(this, s.shopZonesFile);
-        zoneIndicatorManager = new ShopZoneIndicatorManager(this);
         reloadSystemOffers();
         registerEventListener(this);
-        zoneIndicatorManager.start();
 
         PluginGUI.getInstance(this);
+        SharedIndicators.registerProvider(name, new ShopZoneIndicatorProvider(this));
+        PlayerPluginSettingsOverlay.registerPlayerPluginSettings(new ShopPlayerPluginSettings(getDescription("version")));
         PlayerPluginSettingsOverlay.registerPlayerPluginData(new ShopPlayerPluginData(getDescription("version")));
         PlayerPluginSettingsOverlay.registerPlayerPluginAdminSettings(
                 new PlayerPluginAdminSettings(name, getDescription("version"), () -> s.adminSettingsEntries(),
                         s::initSettings));
+        PluginInfoStatusProviders.registerProvider(new ShopPluginInfoStatusProvider(this, getDescription("version")));
         logger().info(getName() + " Plugin is enabled version:" + getDescription("version"));
     }
 
@@ -72,9 +83,10 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         if (service != null) {
             service.clear();
         }
-        if (zoneIndicatorManager != null) {
-            zoneIndicatorManager.stop();
+        if (name != null) {
+            PluginInfoStatusProviders.unregisterProvider(name);
         }
+        SharedIndicators.unregisterProvider(name);
     }
 
     @Override
@@ -83,14 +95,12 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         logger().setLevel(s.logLevel);
         zoneService = new ShopZoneService(this, s.shopZonesFile);
         reloadSystemOffers();
-        if (zoneIndicatorManager != null) {
-            zoneIndicatorManager.refresh();
-        }
     }
 
     @EventMethod
     public void onPlayerSpawnEvent(PlayerSpawnEvent event) {
         Player player = event.getPlayer();
+        ShopPlayerPreferences.load(player);
         if (s.enableWelcomeMessage) {
             player.sendTextMessage(t.get("TC_MSG_PLUGIN_WELCOME", player)
                     .replace("PH_PLUGIN_NAME", getDescription("name"))
@@ -107,6 +117,11 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         Player player = event.getPlayer();
         String[] cmdParts = event.getCommand().split(" ", 3);
         if (!cmdParts[0].equals("/" + s.shopCommand)) {
+            return;
+        }
+        if (cmdParts.length > 1
+                && (cmdParts[1].equalsIgnoreCase("status") || cmdParts[1].equalsIgnoreCase("info"))) {
+            PluginInfoStatusProviders.show(player, name);
             return;
         }
         if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("reload") && player.isAdmin()) {
@@ -272,6 +287,10 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         return zoneService;
     }
 
+    public boolean walletAvailable() {
+        return service != null && service.walletAvailable();
+    }
+
     public Optional<ShopZone> currentShopZone(Player player) {
         return zoneService == null || player == null ? Optional.empty() : zoneService.zoneAt(player);
     }
@@ -286,15 +305,6 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
 
     public boolean showShopZoneIndicator() {
         return s != null && s.showShopZoneIndicator;
-    }
-
-    public String shopZoneIndicatorText(Player player, ShopZone zone) {
-        String systemShop = zone.systemShopEnabled(s.systemShopEnabled)
-                ? t.get("TC_SHOP_INDICATOR_SYSTEM_ON", player)
-                : t.get("TC_SHOP_INDICATOR_SYSTEM_OFF", player);
-        return t.get("TC_SHOP_INDICATOR", player)
-                .replace("PH_AREA", zone.getAreaName())
-                .replace("PH_SYSTEMSHOP", systemShop);
     }
 
     public void openShopUI(Player player) {
