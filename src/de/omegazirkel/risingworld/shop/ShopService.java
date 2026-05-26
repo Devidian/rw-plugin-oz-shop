@@ -130,9 +130,9 @@ public class ShopService {
             }
             offers.put(normalizedId, new ShopOffer(normalizedId, offer.getTitle(), offer.getDescription(),
                     offer.getItemName(), offer.getItemTypeId(), offer.getItemVariant(), offer.getAmount(),
-                    offer.getPrice(), offer.getCurrencyIdentifier(), offer.getIcon(), offer.getCategory(),
-                    offer.getSource(), SYSTEM_PLUGIN, offer.isEnabled(), true, offer.getCallback(),
-                    offer.getPriceResolver()));
+                    offer.getBasePrice(), offer.getBuyPrice(), offer.getSellPrice(), offer.getCurrencyIdentifier(),
+                    offer.getIcon(), offer.getCategory(), offer.getSource(), SYSTEM_PLUGIN, offer.isBuyEnabled(),
+                    offer.isSellEnabled(), true, offer.getCallback(), offer.getPriceResolver()));
         }
     }
 
@@ -253,15 +253,16 @@ public class ShopService {
                 offer.getCurrencyIdentifier(), "OZ - Shop");
     }
 
-    static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, long price,
-            String currencyIdentifier, boolean enabled) {
+    static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, double basePrice,
+            long buyPrice, long sellPrice, String currencyIdentifier, boolean buyEnabled, boolean sellEnabled) {
         ItemDefinition definition = Definitions.getItemDefinition(itemName);
         Variant variant = definition == null ? null : definition.getVariant(itemVariant);
         String title = variant != null && variant.name != null && !variant.name.isBlank()
                 ? variant.name
                 : itemName + ":" + itemVariant;
-        return new ShopOffer(normalizeId(id), title, "", itemName, definition.id, itemVariant, amount, price,
-                currencyIdentifier, "", "system", "OZ - Shop", SYSTEM_PLUGIN, enabled, true, (player, offer) -> {
+        return new ShopOffer(normalizeId(id), title, "", itemName, definition.id, itemVariant, amount, basePrice,
+                buyPrice, sellPrice, currencyIdentifier, "", "system", "OZ - Shop", SYSTEM_PLUGIN, buyEnabled,
+                sellEnabled, true, (player, offer) -> {
                     Item item = player.getInventory().addItem(offer.getItemTypeId(), offer.getItemVariant(),
                             offer.getAmount());
                     if (item == null) {

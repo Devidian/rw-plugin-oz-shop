@@ -10,13 +10,16 @@ public class ShopOffer {
     private final short itemTypeId;
     private final int itemVariant;
     private final int amount;
-    private final long price;
+    private final double basePrice;
+    private final long buyPrice;
+    private final long sellPrice;
     private final String currencyIdentifier;
     private final String icon;
     private final String category;
     private final String source;
     private final String pluginIdentifier;
-    private final boolean enabled;
+    private final boolean buyEnabled;
+    private final boolean sellEnabled;
     private final boolean systemOffer;
     private final ShopPurchaseCallback callback;
     private final ShopPriceResolver priceResolver;
@@ -66,6 +69,15 @@ public class ShopOffer {
             int amount, long price, String currencyIdentifier, String icon, String category, String source,
             String pluginIdentifier, boolean enabled, boolean systemOffer, ShopPurchaseCallback callback,
             ShopPriceResolver priceResolver) {
+        this(id, title, description, itemName, itemTypeId, itemVariant, amount, price, price, price,
+                currencyIdentifier, icon, category, source, pluginIdentifier, false, enabled, systemOffer, callback,
+                priceResolver);
+    }
+
+    public ShopOffer(String id, String title, String description, String itemName, short itemTypeId, int itemVariant,
+            int amount, double basePrice, long buyPrice, long sellPrice, String currencyIdentifier, String icon,
+            String category, String source, String pluginIdentifier, boolean buyEnabled, boolean sellEnabled,
+            boolean systemOffer, ShopPurchaseCallback callback, ShopPriceResolver priceResolver) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -73,13 +85,16 @@ public class ShopOffer {
         this.itemTypeId = itemTypeId;
         this.itemVariant = itemVariant;
         this.amount = amount;
-        this.price = price;
+        this.basePrice = basePrice;
+        this.buyPrice = buyPrice;
+        this.sellPrice = sellPrice;
         this.currencyIdentifier = currencyIdentifier == null ? "" : currencyIdentifier.trim().toUpperCase();
         this.icon = icon == null ? "" : icon.trim();
         this.category = category == null ? "" : category.trim();
         this.source = source == null ? "" : source.trim();
         this.pluginIdentifier = pluginIdentifier == null ? "" : pluginIdentifier.trim();
-        this.enabled = enabled;
+        this.buyEnabled = buyEnabled;
+        this.sellEnabled = sellEnabled;
         this.systemOffer = systemOffer;
         this.callback = callback;
         this.priceResolver = priceResolver;
@@ -92,16 +107,21 @@ public class ShopOffer {
     public short getItemTypeId() { return itemTypeId; }
     public int getItemVariant() { return itemVariant; }
     public int getAmount() { return amount; }
-    public long getPrice() { return price; }
+    public double getBasePrice() { return basePrice; }
+    public long getBuyPrice() { return buyPrice; }
+    public long getSellPrice() { return sellPrice; }
+    public long getPrice() { return sellPrice; }
     public long getPrice(Player player) {
-        return priceResolver == null ? price : Math.max(0, priceResolver.price(player, this));
+        return priceResolver == null ? sellPrice : Math.max(0, priceResolver.price(player, this));
     }
     public String getCurrencyIdentifier() { return currencyIdentifier; }
     public String getIcon() { return icon; }
     public String getCategory() { return category; }
     public String getSource() { return source; }
     public String getPluginIdentifier() { return pluginIdentifier; }
-    public boolean isEnabled() { return enabled; }
+    public boolean isBuyEnabled() { return buyEnabled; }
+    public boolean isSellEnabled() { return sellEnabled; }
+    public boolean isEnabled() { return sellEnabled; }
     public boolean isSystemOffer() { return systemOffer; }
     ShopPurchaseCallback getCallback() { return callback; }
     ShopPriceResolver getPriceResolver() { return priceResolver; }

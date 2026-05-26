@@ -4,6 +4,12 @@
 
 ## [unreleased]
 
+## [0.1.0] - 2026-05-26
+
+- feat: seed first-release system offers from generated item definitions and recipe-based baseline prices
+- feat: add system-offer `basePrice`, `buyPrice`, `sellPrice`, `sellEnabled`, and `buyEnabled` fields
+- change: price system offers as single-item packages with rounded buy and sell prices
+- change: show capitalized item names instead of ids in Shop table, card, and command-list views
 - fix: use a Shop-specific shop-zone shared-indicator icon key
 - change: use the dedicated shop-zone shared-indicator icon for shop-zone signals
 - feat: add admin-controlled item and recipe definition exports for Shop planning

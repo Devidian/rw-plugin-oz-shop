@@ -335,11 +335,19 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
                     ? t.get("TC_SHOP_DEFAULT_CURRENCY", player)
                     : offer.getCurrencyIdentifier();
             String label = offer.getItemName().isBlank() ? offer.getTitle()
-                    : offer.getAmount() + "x " + offer.getItemName() + ":" + offer.getItemVariant();
+                    : offer.getAmount() + "x " + capitalized(offer.getItemName());
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice(player) + " " + currency + ")");
         }
         player.sendTextMessage(c.text + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
+    }
+
+    private static String capitalized(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.isBlank()) {
+            return "";
+        }
+        return Character.toUpperCase(trimmed.charAt(0)) + trimmed.substring(1);
     }
 
     public static ShopPurchaseResult unavailable(String message) {

@@ -61,21 +61,41 @@ public final class SystemOfferFile {
             String itemName = stringValue(object, "itemName");
             int itemVariant = intValue(object, "itemVariant");
             int amount = intValue(object, "amount");
-            long price = longValue(object, "price");
+            long legacyPrice = longValue(object, "price");
+            double basePrice = doubleValue(object, "basePrice");
+            long buyPrice = longValue(object, "buyPrice");
+            long sellPrice = longValue(object, "sellPrice");
+            if (sellPrice < 0 && legacyPrice >= 0) {
+                sellPrice = legacyPrice;
+            }
+            if (basePrice < 0.0d && legacyPrice >= 0 && amount > 0) {
+                basePrice = (double) legacyPrice / amount;
+            }
+            if (buyPrice < 0 && basePrice >= 0.0d) {
+                buyPrice = Math.round(basePrice * amount);
+            }
+            if (sellPrice < 0 && basePrice >= 0.0d) {
+                sellPrice = Math.round(basePrice * amount);
+            }
             Items.ItemDefinition def = Definitions.getItemDefinition(itemName);
-            if (def == null || id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0 || price < 0) {
+            if (def == null || id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0
+                    || basePrice < 0.0d || buyPrice < 0 || sellPrice < 0) {
                 Shop.logger().warn("Invalid offer" + (def == null ? " definition not found" : "")
                         + (itemName.isBlank() ? " no itemName set" : "<itemName:" + itemName + ">"));
                 continue;
             }
+            boolean legacyEnabled = booleanValue(object, "enabled", false);
             offers.add(ShopService.systemItemOffer(
                     id,
                     itemName,
                     itemVariant,
                     amount,
-                    price,
+                    basePrice,
+                    buyPrice,
+                    sellPrice,
                     stringValue(object, "currency"),
-                    booleanValue(object, "enabled", true)));
+                    booleanValue(object, "buyEnabled", false),
+                    booleanValue(object, "sellEnabled", legacyEnabled)));
         }
         return offers;
     }
@@ -105,9 +125,12 @@ public final class SystemOfferFile {
                             .append("    \"itemName\": \"").append(escape(definition.name)).append("\",\n")
                             .append("    \"itemVariant\": ").append(variantIndex).append(",\n")
                             .append("    \"amount\": 1,\n")
-                            .append("    \"price\": 100,\n")
+                            .append("    \"basePrice\": 100,\n")
+                            .append("    \"buyPrice\": 100,\n")
+                            .append("    \"sellPrice\": 250,\n")
                             .append("    \"currency\": \"\",\n")
-                            .append("    \"enabled\": false");
+                            .append("    \"sellEnabled\": false,\n")
+                            .append("    \"buyEnabled\": false");
                     if (variant != null && variant.name != null && !variant.name.isBlank()) {
                         json.append(",\n    \"_variantName\": \"").append(escape(variant.name)).append("\"");
                     }
@@ -236,6 +259,21 @@ public final class SystemOfferFile {
         return -1L;
     }
 
+    private static double doubleValue(Map<String, Object> object, String key) {
+        Object value = object.get(key);
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return Double.parseDouble(stringValue.trim());
+            } catch (NumberFormatException ex) {
+                return -1.0d;
+            }
+        }
+        return -1.0d;
+    }
+
     private static int intValue(Map<String, Object> object, String key) {
         long value = longValue(object, key);
         if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
@@ -352,7 +390,7 @@ public final class SystemOfferFile {
             throw error("Unterminated string");
         }
 
-        private Long parseNumber() {
+        private Number parseNumber() {
             int start = index;
             if (peek('-')) {
                 index++;
@@ -360,10 +398,19 @@ public final class SystemOfferFile {
             while (index < input.length() && Character.isDigit(input.charAt(index))) {
                 index++;
             }
+            boolean decimal = false;
+            if (peek('.')) {
+                decimal = true;
+                index++;
+                while (index < input.length() && Character.isDigit(input.charAt(index))) {
+                    index++;
+                }
+            }
             if (start == index) {
                 throw error("Expected JSON value");
             }
-            return Long.parseLong(input.substring(start, index));
+            String number = input.substring(start, index);
+            return decimal ? Double.parseDouble(number) : Long.parseLong(number);
         }
 
         private void skipWhitespace() {

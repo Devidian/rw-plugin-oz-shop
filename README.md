@@ -68,15 +68,18 @@ System-shop offers for built-in game items use JSON:
     "id": "example.info",
     "itemName": "ore",
     "itemVariant": 0,
-    "amount": 1,
-    "price": 100,
+    "amount": 2,
+    "basePrice": 40,
+    "buyPrice": 80,
+    "sellPrice": 200,
     "currency": "",
-    "enabled": false
+    "sellEnabled": false,
+    "buyEnabled": false
   }
 ]
 ```
 
-An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, displays the game's item icon through `getIcon(itemVariant)` when available, and adds `amount` items to the buyer inventory after successful payment.
+An empty `currency` uses Wallet's configured default currency. `basePrice` is the per-item baseline value, while `sellPrice` and `buyPrice` are whole-number package prices for the configured `amount`. `sellEnabled` controls whether players can buy the offer; `buyEnabled` is baseline data for future shop buyback and does not enable player-to-shop selling in this release. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, displays the game's item icon through `getIcon(itemVariant)` when available, and adds `amount` items to the buyer inventory after successful payment.
 
 ## Public API
 

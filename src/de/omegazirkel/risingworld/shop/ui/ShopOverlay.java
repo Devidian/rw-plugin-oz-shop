@@ -357,7 +357,7 @@ public class ShopOverlay extends OZUIElement {
     private String offerTitle(ShopOffer offer) {
         return offer.getItemName().isBlank()
                 ? offer.getTitle()
-                : offer.getAmount() + "x " + offer.getItemName() + ":" + offer.getItemVariant();
+                : offer.getAmount() + "x " + capitalized(offer.getItemName());
     }
 
     private String offerPrice(ShopOffer offer) {
@@ -373,6 +373,14 @@ public class ShopOverlay extends OZUIElement {
 
     private String offerSource(ShopOffer offer) {
         return offer.getSource().isBlank() ? offer.getPluginIdentifier() : offer.getSource();
+    }
+
+    private static String capitalized(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.isBlank()) {
+            return "";
+        }
+        return Character.toUpperCase(trimmed.charAt(0)) + trimmed.substring(1);
     }
 
     private UIElement buyButton(ShopOffer offer) {
