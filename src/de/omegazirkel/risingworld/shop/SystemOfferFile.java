@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 import de.omegazirkel.risingworld.Shop;
+import net.risingworld.api.definitions.Crafting.Recipe;
+import net.risingworld.api.definitions.Crafting.Recipe.Ingredient;
+import net.risingworld.api.definitions.Crafting.CraftingStation;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items;
 import net.risingworld.api.definitions.Items.ItemDefinition;
@@ -20,16 +23,20 @@ public final class SystemOfferFile {
     private SystemOfferFile() {
     }
 
-    public static List<ShopOffer> load(Shop plugin, String configuredFileName) {
+    public static List<ShopOffer> load(Shop plugin, String configuredFileName, boolean generateDefinitionExports) {
         Path pluginPath = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".");
         Path offerFile = pluginPath.resolve(configuredFileName == null || configuredFileName.isBlank()
                 ? "system-offers.json"
                 : configuredFileName);
         Path defaultOfferFile = offerFile.resolveSibling("system-offers.default.json");
-        Path exampleOfferFile = offerFile.resolveSibling("system-offer-example.json");
+        Path exportOfferFile = offerFile.resolveSibling("system-offer-export.json");
+        Path recipeExportFile = offerFile.resolveSibling("system-recipes-export.json");
 
         try {
-            createExampleFile(exampleOfferFile);
+            if (generateDefinitionExports) {
+                createOfferExportFile(exportOfferFile);
+                createRecipeExportFile(recipeExportFile);
+            }
             if (Files.notExists(offerFile) && Files.exists(defaultOfferFile)) {
                 Shop.logger().info("system-offers.json not found, copying from system-offers.default.json...");
                 Files.copy(defaultOfferFile, offerFile);
@@ -73,8 +80,8 @@ public final class SystemOfferFile {
         return offers;
     }
 
-    private static void createExampleFile(Path exampleOfferFile) throws IOException {
-        if (Files.exists(exampleOfferFile)) {
+    private static void createOfferExportFile(Path exportOfferFile) throws IOException {
+        if (Files.exists(exportOfferFile)) {
             return;
         }
         StringBuilder json = new StringBuilder("[\n");
@@ -109,11 +116,104 @@ public final class SystemOfferFile {
             }
         }
         json.append("\n]\n");
-        Files.writeString(exampleOfferFile, json.toString(), StandardCharsets.UTF_8);
+        Files.writeString(exportOfferFile, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void createRecipeExportFile(Path recipeExportFile) throws IOException {
+        if (Files.exists(recipeExportFile)) {
+            return;
+        }
+        StringBuilder json = new StringBuilder("[\n");
+        Recipe[] recipes = Definitions.getAllRecipes();
+        boolean first = true;
+        if (recipes != null) {
+            for (Recipe recipe : recipes) {
+                if (recipe == null || recipe.name == null || recipe.name.isBlank()) {
+                    continue;
+                }
+                if (!first) {
+                    json.append(",\n");
+                }
+                first = false;
+                json.append("  {\n")
+                        .append("    \"id\": ").append(recipe.id).append(",\n")
+                        .append("    \"name\": \"").append(escape(recipe.name)).append("\",\n")
+                        .append("    \"type\": \"").append(escape(string(recipe.type))).append("\",\n")
+                        .append("    \"amount\": ").append(recipe.amount).append(",\n")
+                        .append("    \"itemName\": \"").append(escape(recipe.itemDef == null ? "" : recipe.itemDef.name)).append("\",\n")
+                        .append("    \"itemTypeId\": ").append(recipe.itemDef == null ? 0 : recipe.itemDef.id).append(",\n")
+                        .append("    \"texture\": ").append(recipe.texture).append(",\n")
+                        .append("    \"category\": \"").append(escape(string(recipe.category))).append("\",\n")
+                        .append("    \"subCategory\": \"").append(escape(string(recipe.subCategory))).append("\",\n")
+                        .append("    \"hasVariants\": ").append(recipe.hasVariants).append(",\n")
+                        .append("    \"parent\": \"").append(escape(recipe.parent == null ? "" : recipe.parent.name)).append("\",\n")
+                        .append("    \"ingredients\": [");
+                appendIngredients(json, recipe.ingredients);
+                json.append("\n    ],\n")
+                        .append("    \"requiredCraftingStations\": [");
+                appendCraftingStations(json, recipe.requiredCraftingStations);
+                json.append("\n    ],\n")
+                        .append("    \"_rawIngredients\": \"").append(escape(recipe.rawingredientstring)).append("\",\n")
+                        .append("    \"_rawCraftingStations\": \"").append(escape(recipe.rawworkbenchesstring)).append("\"\n")
+                        .append("  }");
+            }
+        }
+        json.append("\n]\n");
+        Files.writeString(recipeExportFile, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void appendIngredients(StringBuilder json, Ingredient[] ingredients) {
+        if (ingredients == null || ingredients.length == 0) {
+            return;
+        }
+        boolean first = true;
+        for (Ingredient ingredient : ingredients) {
+            if (ingredient == null) {
+                continue;
+            }
+            json.append(first ? "\n" : ",\n")
+                    .append("      {\n")
+                    .append("        \"itemName\": \"").append(escape(ingredient.itemDef == null ? "" : ingredient.itemDef.name)).append("\",\n")
+                    .append("        \"itemTypeId\": ").append(ingredient.itemDef == null ? 0 : ingredient.itemDef.id).append(",\n")
+                    .append("        \"group\": \"").append(escape(string(ingredient.group))).append("\",\n")
+                    .append("        \"count\": ").append(ingredient.count).append(",\n")
+                    .append("        \"texture\": ").append(ingredient.texture).append(",\n")
+                    .append("        \"consume\": ").append(ingredient.consume).append("\n")
+                    .append("      }");
+            first = false;
+        }
+    }
+
+    private static void appendCraftingStations(StringBuilder json, CraftingStation[] stations) {
+        if (stations == null || stations.length == 0) {
+            return;
+        }
+        boolean first = true;
+        for (CraftingStation station : stations) {
+            if (station == null) {
+                continue;
+            }
+            json.append(first ? "\n" : ",\n")
+                    .append("      {\n")
+                    .append("        \"id\": ").append(station.id).append(",\n")
+                    .append("        \"name\": \"").append(escape(station.name)).append("\",\n")
+                    .append("        \"mainType\": \"").append(escape(string(station.maintype))).append("\",\n")
+                    .append("        \"type\": \"").append(escape(string(station.type))).append("\"\n")
+                    .append("      }");
+            first = false;
+        }
+    }
+
+    private static String string(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     private static String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        return (value == null ? "" : value)
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 
     private static String stringValue(Map<String, Object> object, String key) {

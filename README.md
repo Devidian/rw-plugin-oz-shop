@@ -33,15 +33,26 @@ shopCommand=shop
 sendPluginWelcome=false
 systemOffersFile=system-offers.json
 systemShopEnabled=true
+generateDefinitionExports=false
+dynamicEconomyEnabled=false
 shopEnabled=true
 requireShopZone=false
 shopZonesFile=shop-zones.json
 showShopZoneIndicator=true
 ```
 
-`systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing. The plugin also creates `system-offer-example.json` on startup if it is missing and fills it from `Definitions.getAllItemDefinitions()` so admins can copy exact item names and variants.
+`systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing.
+
+`generateDefinitionExports=true` writes generated reference files next to the system offers file when they are missing:
+
+- `system-offer-export.json`: generated item and variant offer reference from `Definitions.getAllItemDefinitions()`
+- `system-recipes-export.json`: generated crafting recipe reference from `Definitions.getAllRecipes()`
+
+These files are reference exports, not the editable offer file. Existing `system-offer-example.json` files are left untouched; new exports use `system-offer-export.json`.
 
 `systemShopEnabled=false` disables system-shop offers globally while keeping plugin-registered offers available. Shop areas may override that global system-shop setting with `systemShop`: `-1` inherits the global value, `0` disables system-shop offers in the area, and `1` enables them in the area.
+
+`dynamicEconomyEnabled=false` is a reserved gate for the optional future dynamic stock/pricing extension. Static system and plugin offers are unchanged while this work is disabled. Dynamic-economy defaults should be chosen only after a real `system-recipes-export.json` has been generated and inspected.
 
 `shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in `shopZonesFile` by `areaId`.
 
@@ -65,7 +76,7 @@ System-shop offers for built-in game items use JSON:
 ]
 ```
 
-An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, and adds `amount` items to the buyer inventory after successful payment.
+An empty `currency` uses Wallet's configured default currency. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, displays the game's item icon through `getIcon(itemVariant)` when available, and adds `amount` items to the buyer inventory after successful payment.
 
 ## Public API
 
@@ -212,7 +223,7 @@ For optional integrations where the consuming plugin must still compile and run 
 
 ## Shop UI
 
-`/shop`, `/shop list`, and the Shop radial menu entry open the shop UI. The UI has separate tabs for `Systemshop` and `Pluginshop`. Offers use the card layout by default; players can switch between card and list layout in the player plugin settings. Admins additionally see an `Admin` tab that lists configured shop areas and can remove the shop status from an area after confirmation.
+`/shop`, `/shop list`, and the Shop radial menu entry open the shop UI. The Shop radial menu also includes an `Info / Status` entry using the shared Tools info icon. The UI has separate tabs for `Systemshop` and `Pluginshop`. Offers use the card layout by default; players can switch between card and list layout in the player plugin settings. Admins additionally see an `Admin` tab that lists configured shop areas and can remove the shop status from an area after confirmation.
 
 Direct command purchases remain available for fast workflows.
 

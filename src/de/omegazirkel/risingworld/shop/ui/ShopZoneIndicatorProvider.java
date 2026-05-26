@@ -18,6 +18,6 @@ public class ShopZoneIndicatorProvider implements SharedIndicatorProvider {
 
     @Override
     public String getIcon(Player player) {
-        return "shop-icon";
+        return "icon-ki-zone-indicator-shop";
     }
 }

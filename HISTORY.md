@@ -4,6 +4,12 @@
 
 ## [unreleased]
 
+- fix: use a Shop-specific shop-zone shared-indicator icon key
+- change: use the dedicated shop-zone shared-indicator icon for shop-zone signals
+- feat: add admin-controlled item and recipe definition exports for Shop planning
+- feat: add a reserved dynamic-economy enable switch defaulting to disabled
+- feat: add Shop radial menu Info/Status entry using the shared Tools info icon
+- fix: display system-offer item icons from Rising World item definitions when available
 - feat: add shared Tools Info/Status panel content for Shop and route info/status commands to it
 - feat: group and localize Shop admin settings metadata
 - refactor: route Shop settings logging through the main `OZ.Shop` logger

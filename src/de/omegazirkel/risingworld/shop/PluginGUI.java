@@ -8,6 +8,7 @@ import de.omegazirkel.risingworld.tools.Colors;
 import de.omegazirkel.risingworld.tools.I18n;
 import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ui.MenuItem;
+import de.omegazirkel.risingworld.tools.ui.PluginInfoStatusProviders;
 import de.omegazirkel.risingworld.tools.ui.PluginMenuManager;
 import net.risingworld.api.objects.Player;
 
@@ -21,6 +22,7 @@ public class PluginGUI {
 
     public static PluginGUI getInstance(Shop plugin) {
         AssetManager.loadIconFromPlugin(plugin, "shop-icon");
+        AssetManager.loadIconFromPlugin(plugin, "icon-ki-zone-indicator-shop");
         PluginGUI gui = getInstance();
         gui.plugin = plugin;
         PluginMenuManager.registerPluginMenu(new MenuItem(AssetManager.getIcon("shop-icon"), "Shop", gui::openMainMenu));
@@ -54,6 +56,10 @@ public class PluginGUI {
             items.add(new MenuItem(AssetManager.getIcon("shop-icon"), t(player, "TC_MENU_SHOP_ZONE_CREATE"),
                     this::createOrEnableZone));
         }
+        items.add(new MenuItem(AssetManager.getIcon("icon-ki-info-status"), t(player, "TC_MENU_SHOP_INFO_STATUS"), p -> {
+            p.hideRadialMenu(true);
+            PluginInfoStatusProviders.show(p, Shop.name);
+        }));
         items.add(MenuItem.closeMenu(player));
         PluginMenuManager.showMenu(player, items);
     }

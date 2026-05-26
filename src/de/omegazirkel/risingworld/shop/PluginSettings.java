@@ -31,6 +31,8 @@ public class PluginSettings {
     public boolean requireShopZone = false;
     public String shopZonesFile = "shop-zones.json";
     public boolean showShopZoneIndicator = true;
+    public boolean generateDefinitionExports = false;
+    public boolean dynamicEconomyEnabled = false;
     private Path settingsFile;
 
     private static OZLogger logger() {
@@ -96,10 +98,16 @@ public class PluginSettings {
                     defaults.getProperty("shopZonesFile", "shop-zones.json"));
             showShopZoneIndicator = settings.getProperty("showShopZoneIndicator",
                     defaults.getProperty("showShopZoneIndicator", "true")).contentEquals("true");
+            generateDefinitionExports = settings.getProperty("generateDefinitionExports",
+                    defaults.getProperty("generateDefinitionExports", "false")).contentEquals("true");
+            dynamicEconomyEnabled = settings.getProperty("dynamicEconomyEnabled",
+                    defaults.getProperty("dynamicEconomyEnabled", "false")).contentEquals("true");
 
             logger().info(plugin.getName() + " Plugin settings loaded");
             logger().info("Shop command is /" + shopCommand);
             logger().info("System offers file is " + systemOffersFile);
+            logger().info("Game definition exports are " + (generateDefinitionExports ? "enabled" : "disabled"));
+            logger().info("Dynamic economy is " + (dynamicEconomyEnabled ? "enabled" : "disabled"));
             logger().info("System shop is " + (systemShopEnabled ? "enabled" : "disabled"));
             logger().info("Shop access is " + (shopEnabled ? "enabled" : "disabled")
                     + (requireShopZone ? " and zone-gated" : " globally available"));
@@ -128,6 +136,12 @@ public class PluginSettings {
                 entry("systemShopEnabled", "System shop enabled",
                         "Allows system-shop offers unless a shop area overrides this value.", systemShopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
+                entry("generateDefinitionExports", "Generate definition exports",
+                        "Writes generated item and recipe export JSON files next to system offers.",
+                        generateDefinitionExports, "false", AdminSettingsType.BOOLEAN),
+                entry("dynamicEconomyEnabled", "Dynamic economy enabled",
+                        "Reserved gate for optional dynamic stock and pricing; static offers remain unchanged.",
+                        dynamicEconomyEnabled, "false", AdminSettingsType.BOOLEAN),
                 AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
                 entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
                         AdminSettingsType.BOOLEAN),

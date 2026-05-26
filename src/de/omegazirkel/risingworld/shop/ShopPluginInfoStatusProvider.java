@@ -26,6 +26,7 @@ public class ShopPluginInfoStatusProvider implements PluginInfoStatusProvider {
         PluginSettings settings = PluginSettings.getInstance();
         return t().get("TC_SHOP_INFO_PANEL_INFO", player)
                 .replace("PH_PLUGIN_NAME", pluginName)
+                .replace("PH_VERSION", version)
                 .replace("PH_PLUGIN_CMD", settings.shopCommand);
     }
 
@@ -34,18 +35,16 @@ public class ShopPluginInfoStatusProvider implements PluginInfoStatusProvider {
         PluginSettings settings = PluginSettings.getInstance();
         ShopZone currentZone = plugin.currentShopZone(player).orElse(null);
         return t().get("TC_SHOP_INFO_PANEL_STATUS", player)
-                .replace("PH_VERSION", version)
                 .replace("PH_WALLET_STATUS", available(plugin.walletAvailable()))
                 .replace("PH_SHOP_ENABLED", String.valueOf(settings.shopEnabled))
                 .replace("PH_SYSTEM_SHOP_ENABLED", String.valueOf(settings.systemShopEnabled))
+                .replace("PH_DEFINITION_EXPORTS", String.valueOf(settings.generateDefinitionExports))
+                .replace("PH_DYNAMIC_ECONOMY", String.valueOf(settings.dynamicEconomyEnabled))
                 .replace("PH_REQUIRE_SHOP_ZONE", String.valueOf(settings.requireShopZone))
                 .replace("PH_CURRENT_ZONE", currentZone == null ? "-" : currentZone.getAreaName())
                 .replace("PH_SHOP_ZONES", String.valueOf(plugin.listShopZones().size()))
                 .replace("PH_SYSTEM_OFFERS", String.valueOf(plugin.listSystemOffers().size()))
-                .replace("PH_PLUGIN_OFFERS", String.valueOf(plugin.listPluginOffers().size()))
-                .replace("PH_LOG_LEVEL", settings.logLevel)
-                .replace("PH_RELOAD_ON_CHANGE", String.valueOf(settings.reloadOnChange))
-                .replace("PH_WELCOME_MESSAGE", String.valueOf(settings.enableWelcomeMessage));
+                .replace("PH_PLUGIN_OFFERS", String.valueOf(plugin.listPluginOffers().size()));
     }
 
     private I18n t() {

@@ -19,6 +19,8 @@ import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ui.table.TableCell;
 import de.omegazirkel.risingworld.tools.ui.table.TableRow;
 import de.omegazirkel.risingworld.tools.ui.table.TableScrollView;
+import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.objects.Player;
 import net.risingworld.api.assets.TextureAsset;
 import net.risingworld.api.ui.UILabel;
@@ -327,7 +329,13 @@ public class ShopOverlay extends OZUIElement {
 
     private OZUIElement offerIcon(ShopOffer offer) {
         TextureAsset asset = null;
-        if (!offer.getIcon().isBlank()) {
+        if (offer.isSystemOffer() && !offer.getItemName().isBlank()) {
+            ItemDefinition definition = Definitions.getItemDefinition(offer.getItemName());
+            if (definition != null) {
+                asset = definition.getIcon(offer.getItemVariant());
+            }
+        }
+        if (asset == null && !offer.getIcon().isBlank()) {
             asset = AssetManager.getIcon(offer.getIcon());
         }
         if (asset == null) {

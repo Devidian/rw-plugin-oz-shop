@@ -240,7 +240,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         if (service == null || s == null) {
             return 0;
         }
-        List<ShopOffer> offers = SystemOfferFile.load(this, s.systemOffersFile);
+        List<ShopOffer> offers = SystemOfferFile.load(this, s.systemOffersFile, s.generateDefinitionExports);
         service.replaceSystemOffers(offers);
         return offers.size();
     }
