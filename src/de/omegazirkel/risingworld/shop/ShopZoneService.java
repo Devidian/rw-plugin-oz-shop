@@ -5,6 +5,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -19,31 +24,25 @@ import net.risingworld.api.objects.Player;
 
 public class ShopZoneService {
     private final Path zonesFile;
+    private final Connection connection;
     private final Map<Long, ShopZone> zones = new LinkedHashMap<>();
 
-    public ShopZoneService(Shop plugin, String configuredFileName) {
+    public ShopZoneService(Shop plugin, Connection connection, String configuredFileName) {
+        this.connection = connection;
         Path pluginPath = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".");
         this.zonesFile = pluginPath.resolve(configuredFileName == null || configuredFileName.isBlank()
                 ? "shop-zones.json"
                 : configuredFileName);
+        initialize();
         load();
     }
 
     public synchronized void load() {
         zones.clear();
-        if (Files.notExists(zonesFile)) {
-            save();
-            return;
-        }
         try {
-            String json = Files.readString(zonesFile, StandardCharsets.UTF_8);
-            for (Map<String, Object> object : new JsonObjects(json).parseArray()) {
-                ShopZone zone = fromJson(object);
-                if (zone.getAreaId() > 0) {
-                    zones.put(zone.getAreaId(), zone);
-                }
-            }
-        } catch (IOException | IllegalArgumentException ex) {
+            importJsonIfDatabaseEmpty();
+            loadFromDatabase();
+        } catch (IOException | SQLException | IllegalArgumentException ex) {
             Shop.logger().error("Could not load shop zones: " + ex.getMessage());
         }
     }
@@ -80,9 +79,9 @@ public class ShopZoneService {
         ShopZone zone = existing == null
                 ? new ShopZone(area.getID(), areaName(area), player.getName(), System.currentTimeMillis())
                 : new ShopZone(area.getID(), areaName(area), existing.getCreatedBy(), existing.getCreatedAt(),
-                        existing.getSystemShop());
+                        existing.getSystemShop(), existing.getSystemOffersFile());
         zones.put(area.getID(), zone);
-        save();
+        save(zone);
         return Optional.of(zone);
     }
 
@@ -92,9 +91,42 @@ public class ShopZoneService {
             return Optional.empty();
         }
         ShopZone updated = new ShopZone(existing.getAreaId(), existing.getAreaName(), existing.getCreatedBy(),
-                existing.getCreatedAt(), ShopZone.normalizeMode(systemShop));
+                existing.getCreatedAt(), ShopZone.normalizeMode(systemShop), existing.getSystemOffersFile());
         zones.put(areaId, updated);
-        save();
+        save(updated);
+        return Optional.of(updated);
+    }
+
+    public synchronized Optional<ShopZone> setZoneName(long areaId, String name) {
+        ShopZone existing = zones.get(areaId);
+        if (existing == null) {
+            return Optional.empty();
+        }
+        String zoneName = name == null || name.trim().isBlank() ? "Area #" + areaId : name.trim();
+        ShopZone updated = new ShopZone(existing.getAreaId(), zoneName, existing.getCreatedBy(),
+                existing.getCreatedAt(), existing.getSystemShop(), existing.getSystemOffersFile());
+        zones.put(areaId, updated);
+        save(updated);
+        return Optional.of(updated);
+    }
+
+    public synchronized Optional<ShopZone> syncCurrentZoneName(Player player) {
+        Area area = player == null ? null : player.getCurrentArea();
+        if (area == null || area.getID() <= 0L) {
+            return Optional.empty();
+        }
+        return setZoneName(area.getID(), areaName(area));
+    }
+
+    public synchronized Optional<ShopZone> setSystemOffersFile(long areaId, String systemOffersFile) {
+        ShopZone existing = zones.get(areaId);
+        if (existing == null) {
+            return Optional.empty();
+        }
+        ShopZone updated = new ShopZone(existing.getAreaId(), existing.getAreaName(), existing.getCreatedBy(),
+                existing.getCreatedAt(), existing.getSystemShop(), systemOffersFile);
+        zones.put(areaId, updated);
+        save(updated);
         return Optional.of(updated);
     }
 
@@ -107,38 +139,121 @@ public class ShopZoneService {
     public synchronized boolean deleteAreaZone(long areaId) {
         boolean removed = zones.remove(areaId) != null;
         if (removed) {
-            save();
+            delete(areaId);
         }
         return removed;
     }
 
-    private void save() {
-        try {
-            Files.createDirectories(zonesFile.getParent());
-            Files.writeString(zonesFile, toJson(), StandardCharsets.UTF_8);
-        } catch (IOException ex) {
+    private void initialize() {
+        if (connection == null) {
+            return;
+        }
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS shop_zones (
+                        area_id BIGINT PRIMARY KEY,
+                        area_name TEXT NOT NULL,
+                        created_by TEXT NOT NULL,
+                        created_at BIGINT NOT NULL,
+                        system_shop INTEGER NOT NULL DEFAULT -1,
+                        system_offers_file TEXT NOT NULL DEFAULT ''
+                    );
+                    """);
+            if (!columnExists("shop_zones", "system_offers_file")) {
+                statement.execute("""
+                        ALTER TABLE shop_zones
+                        ADD COLUMN system_offers_file TEXT NOT NULL DEFAULT '';
+                        """);
+            }
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not initialize shop-zone database: " + ex.getMessage());
+        }
+    }
+
+    private boolean columnExists(String table, String column) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + table + ");");
+                ResultSet result = statement.executeQuery()) {
+            while (result.next()) {
+                if (column.equalsIgnoreCase(result.getString("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void loadFromDatabase() throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT area_id, area_name, created_by, created_at, system_shop, system_offers_file
+                FROM shop_zones
+                ORDER BY area_name COLLATE NOCASE ASC, area_id ASC;
+                """);
+                ResultSet result = statement.executeQuery()) {
+            while (result.next()) {
+                ShopZone zone = new ShopZone(
+                        result.getLong("area_id"),
+                        result.getString("area_name"),
+                        result.getString("created_by"),
+                        result.getLong("created_at"),
+                        result.getInt("system_shop"),
+                        result.getString("system_offers_file"));
+                if (zone.getAreaId() > 0) {
+                    zones.put(zone.getAreaId(), zone);
+                }
+            }
+        }
+    }
+
+    private void importJsonIfDatabaseEmpty() throws IOException, SQLException {
+        if (Files.notExists(zonesFile) || !databaseEmpty()) {
+            return;
+        }
+        String json = Files.readString(zonesFile, StandardCharsets.UTF_8);
+        for (Map<String, Object> object : new JsonObjects(json).parseArray()) {
+            ShopZone zone = fromJson(object);
+            if (zone.getAreaId() > 0) {
+                save(zone);
+            }
+        }
+    }
+
+    private boolean databaseEmpty() throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS count FROM shop_zones;");
+                ResultSet result = statement.executeQuery()) {
+            return !result.next() || result.getInt("count") == 0;
+        }
+    }
+
+    private void save(ShopZone zone) {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO shop_zones(area_id, area_name, created_by, created_at, system_shop, system_offers_file)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(area_id) DO UPDATE SET
+                    area_name=excluded.area_name,
+                    created_by=excluded.created_by,
+                    created_at=excluded.created_at,
+                    system_shop=excluded.system_shop,
+                    system_offers_file=excluded.system_offers_file;
+                """)) {
+            statement.setLong(1, zone.getAreaId());
+            statement.setString(2, zone.getAreaName());
+            statement.setString(3, zone.getCreatedBy());
+            statement.setLong(4, zone.getCreatedAt());
+            statement.setInt(5, zone.getSystemShop());
+            statement.setString(6, zone.getSystemOffersFile());
+            statement.executeUpdate();
+        } catch (SQLException ex) {
             Shop.logger().error("Could not save shop zones: " + ex.getMessage());
         }
     }
 
-    private String toJson() {
-        StringBuilder json = new StringBuilder("[\n");
-        boolean first = true;
-        for (ShopZone zone : listZones()) {
-            if (!first) {
-                json.append(",\n");
-            }
-            first = false;
-            json.append("  {\n")
-                    .append("    \"areaId\": ").append(zone.getAreaId()).append(",\n")
-                    .append("    \"areaName\": \"").append(escape(zone.getAreaName())).append("\",\n")
-                    .append("    \"createdBy\": \"").append(escape(zone.getCreatedBy())).append("\",\n")
-                    .append("    \"createdAt\": ").append(zone.getCreatedAt()).append(",\n")
-                    .append("    \"systemShop\": ").append(zone.getSystemShop()).append("\n")
-                    .append("  }");
+    private void delete(long areaId) {
+        try (PreparedStatement statement = connection.prepareStatement("DELETE FROM shop_zones WHERE area_id = ?;")) {
+            statement.setLong(1, areaId);
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not delete shop zone: " + ex.getMessage());
         }
-        json.append("\n]\n");
-        return json.toString();
     }
 
     private ShopZone fromJson(Map<String, Object> object) {
@@ -147,15 +262,12 @@ public class ShopZoneService {
                 stringValue(object, "areaName"),
                 stringValue(object, "createdBy"),
                 longValue(object, "createdAt", 0L),
-                (int) longValue(object, "systemShop", -1L));
+                (int) longValue(object, "systemShop", -1L),
+                stringValue(object, "systemOffersFile"));
     }
 
     private static String areaName(Area area) {
         return area.getName() == null || area.getName().isBlank() ? "Area #" + area.getID() : area.getName();
-    }
-
-    private static String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static String stringValue(Map<String, Object> object, String key) {

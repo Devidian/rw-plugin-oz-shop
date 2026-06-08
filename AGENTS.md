@@ -31,7 +31,8 @@ If `OZ - Wallet` is missing or not loaded, this plugin may load but purchases mu
 - Keep purchase orchestration in Shop and economy state in Wallet.
 - Keep plugin-specific purchase fulfillment in the registering feature plugin callback.
 - Use `rw-plugin-oz-tools` helpers for shared runtime concerns.
-- Keep system item offers in JSON with `id`, `itemName`, `itemVariant`, `amount`, `basePrice`, `buyPrice`, `sellPrice`, `currency`, `sellEnabled`, and `buyEnabled`.
+- Keep the complete system item catalog in `src/system-offers.complete.json`; generate the packaged `system-offers.default.json` with enabled classified T0-T11 offers only.
+- Keep system item offers in JSON with `id`, `itemName`, `itemVariant`, `amount`, `basePrice`, `stockMode`, economy fields, and `isEnabled`; legacy `sellEnabled` and `buyEnabled` are deprecated compatibility input only.
 - Copy `system-offers.default.json` on first run/update and generate `system-offer-example.json` from `Definitions.getAllItemDefinitions()` when missing.
 - Treat public result objects, `ShopPurchaseCallback`, and main-class public API methods as sibling-plugin compatibility surface.
 - Keep `README.md`, `HISTORY.md`, and `PLANS.md` aligned with behavior changes.

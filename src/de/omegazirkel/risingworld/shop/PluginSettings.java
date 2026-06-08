@@ -26,6 +26,7 @@ public class PluginSettings {
     public String shopCommand = "shop";
     public boolean enableWelcomeMessage = false;
     public String systemOffersFile = "system-offers.json";
+    public String systemShopCurrency = "";
     public boolean systemShopEnabled = true;
     public boolean shopEnabled = true;
     public boolean requireShopZone = false;
@@ -88,6 +89,8 @@ public class PluginSettings {
                     .contentEquals("true");
             systemOffersFile = settings.getProperty("systemOffersFile",
                     defaults.getProperty("systemOffersFile", "system-offers.json"));
+            systemShopCurrency = settings.getProperty("systemShopCurrency",
+                    defaults.getProperty("systemShopCurrency", "")).trim().toUpperCase();
             systemShopEnabled = settings.getProperty("systemShopEnabled",
                     defaults.getProperty("systemShopEnabled", "true")).contentEquals("true");
             shopEnabled = settings.getProperty("shopEnabled", defaults.getProperty("shopEnabled", "true"))
@@ -106,6 +109,7 @@ public class PluginSettings {
             logger().info(plugin.getName() + " Plugin settings loaded");
             logger().info("Shop command is /" + shopCommand);
             logger().info("System offers file is " + systemOffersFile);
+            logger().info("System shop currency is " + (systemShopCurrency.isBlank() ? "Wallet default" : systemShopCurrency));
             logger().info("Game definition exports are " + (generateDefinitionExports ? "enabled" : "disabled"));
             logger().info("Dynamic economy is " + (dynamicEconomyEnabled ? "enabled" : "disabled"));
             logger().info("System shop is " + (systemShopEnabled ? "enabled" : "disabled"));
@@ -133,6 +137,9 @@ public class PluginSettings {
                 AdminSettingsEntry.group("systemShop", "System shop", "System offer file and system-shop behavior."),
                 entry("systemOffersFile", "System offers file", "JSON file used for admin-managed system offers.",
                         systemOffersFile, "system-offers.json", AdminSettingsType.STRING),
+                entry("systemShopCurrency", "System shop currency",
+                        "Central Wallet currency for all system-shop offers; empty uses Wallet default or legacy offer currency.",
+                        systemShopCurrency, "", AdminSettingsType.STRING),
                 entry("systemShopEnabled", "System shop enabled",
                         "Allows system-shop offers unless a shop area overrides this value.", systemShopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
@@ -140,7 +147,7 @@ public class PluginSettings {
                         "Writes generated item and recipe export JSON files next to system offers.",
                         generateDefinitionExports, "false", AdminSettingsType.BOOLEAN),
                 entry("dynamicEconomyEnabled", "Dynamic economy enabled",
-                        "Reserved gate for optional dynamic stock and pricing; static offers remain unchanged.",
+                        "Enables stock-based buy/sell price multipliers; stock rules stay active when disabled.",
                         dynamicEconomyEnabled, "false", AdminSettingsType.BOOLEAN),
                 AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
                 entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",

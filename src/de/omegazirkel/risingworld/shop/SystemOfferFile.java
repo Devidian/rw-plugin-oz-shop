@@ -6,11 +6,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import de.omegazirkel.risingworld.Shop;
+import net.risingworld.api.definitions.Clothing.ClothingDefinition;
+import net.risingworld.api.definitions.Constructions.ConstructionDefinition;
 import net.risingworld.api.definitions.Crafting.Recipe;
 import net.risingworld.api.definitions.Crafting.Recipe.Ingredient;
 import net.risingworld.api.definitions.Crafting.CraftingStation;
@@ -18,12 +23,19 @@ import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items;
 import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
+import net.risingworld.api.definitions.Objects.ObjectDefinition;
+import net.risingworld.api.definitions.Plants.PlantDefinition;
 
 public final class SystemOfferFile {
     private SystemOfferFile() {
     }
 
     public static List<ShopOffer> load(Shop plugin, String configuredFileName, boolean generateDefinitionExports) {
+        return load(plugin, configuredFileName, generateDefinitionExports, "");
+    }
+
+    public static List<ShopOffer> load(Shop plugin, String configuredFileName, boolean generateDefinitionExports,
+            String systemShopCurrency) {
         Path pluginPath = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".");
         Path offerFile = pluginPath.resolve(configuredFileName == null || configuredFileName.isBlank()
                 ? "system-offers.json"
@@ -46,16 +58,17 @@ public final class SystemOfferFile {
                 return List.of();
             }
             String json = Files.readString(offerFile, StandardCharsets.UTF_8);
-            return parseOffers(json);
+            return parseOffers(json, systemShopCurrency);
         } catch (IOException | IllegalArgumentException ex) {
             Shop.logger().error("Could not load system offers: " + ex.getMessage());
             return List.of();
         }
     }
 
-    private static List<ShopOffer> parseOffers(String json) {
+    private static List<ShopOffer> parseOffers(String json, String systemShopCurrency) {
         List<Map<String, Object>> objects = new JsonObjects(json).parseArray();
         List<ShopOffer> offers = new ArrayList<>();
+        String centralCurrency = systemShopCurrency == null ? "" : systemShopCurrency.trim().toUpperCase();
         for (Map<String, Object> object : objects) {
             String id = stringValue(object, "id");
             String itemName = stringValue(object, "itemName");
@@ -65,6 +78,21 @@ public final class SystemOfferFile {
             double basePrice = doubleValue(object, "basePrice");
             long buyPrice = longValue(object, "buyPrice");
             long sellPrice = longValue(object, "sellPrice");
+            long stock = longValue(object, "stock");
+            long targetStock = longValue(object, "targetStock");
+            long stockLimit = longValue(object, "stockLimit");
+            double drainRate = doubleValue(object, "drainRate");
+            double refillRate = doubleValue(object, "refillRate");
+            ShopStockMode stockMode = ShopStockMode.from(stringValue(object, "stockMode"));
+            double minPriceMultiplier = doubleValue(object, "minPriceMultiplier");
+            double maxPriceMultiplier = doubleValue(object, "maxPriceMultiplier");
+            double spreadPercent = doubleValue(object, "spreadPercent");
+            double drainPercent = doubleValue(object, "drainPercent");
+            long drainMax = longValue(object, "drainMax");
+            double restockPercent = doubleValue(object, "restockPercent");
+            long restockMax = longValue(object, "restockMax");
+            long perPlayerDailySellLimit = longValue(object, "perPlayerDailySellLimit");
+            long globalDailySellLimit = longValue(object, "globalDailySellLimit");
             if (sellPrice < 0 && legacyPrice >= 0) {
                 sellPrice = legacyPrice;
             }
@@ -72,19 +100,19 @@ public final class SystemOfferFile {
                 basePrice = (double) legacyPrice / amount;
             }
             if (buyPrice < 0 && basePrice >= 0.0d) {
-                buyPrice = Math.round(basePrice * amount);
+                buyPrice = (long) Math.floor(basePrice * amount);
             }
             if (sellPrice < 0 && basePrice >= 0.0d) {
-                sellPrice = Math.round(basePrice * amount);
+                sellPrice = (long) Math.ceil(basePrice * amount);
             }
-            Items.ItemDefinition def = Definitions.getItemDefinition(itemName);
-            if (def == null || id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0
+            boolean knownDefinition = isKnownOfferDefinition(itemName);
+            if (!knownDefinition || id.isBlank() || itemName.isBlank() || itemVariant < 0 || amount <= 0
                     || basePrice < 0.0d || buyPrice < 0 || sellPrice < 0) {
-                Shop.logger().warn("Invalid offer" + (def == null ? " definition not found" : "")
+                Shop.logger().warn("Invalid offer" + (!knownDefinition ? " definition not found" : "")
                         + (itemName.isBlank() ? " no itemName set" : "<itemName:" + itemName + ">"));
                 continue;
             }
-            boolean legacyEnabled = booleanValue(object, "enabled", false);
+            boolean enabled = enabledValue(object);
             offers.add(ShopService.systemItemOffer(
                     id,
                     itemName,
@@ -93,9 +121,23 @@ public final class SystemOfferFile {
                     basePrice,
                     buyPrice,
                     sellPrice,
-                    stringValue(object, "currency"),
-                    booleanValue(object, "buyEnabled", false),
-                    booleanValue(object, "sellEnabled", legacyEnabled)));
+                    centralCurrency.isBlank() ? stringValue(object, "currency") : centralCurrency,
+                    enabled,
+                    Math.max(0L, stock),
+                    Math.max(0L, targetStock),
+                    Math.max(0L, stockLimit),
+                    Math.max(0.0d, drainRate),
+                    Math.max(0.0d, refillRate),
+                    stockMode,
+                    minPriceMultiplier > 0.0d ? minPriceMultiplier : 0.25d,
+                    maxPriceMultiplier > 0.0d ? maxPriceMultiplier : 4.0d,
+                    spreadPercent >= 0.0d ? spreadPercent : 25.0d,
+                    Math.max(0.0d, drainPercent),
+                    Math.max(0L, drainMax),
+                    Math.max(0.0d, restockPercent),
+                    Math.max(0L, restockMax),
+                    Math.max(0L, perPlayerDailySellLimit),
+                    Math.max(0L, globalDailySellLimit)));
         }
         return offers;
     }
@@ -107,39 +149,251 @@ public final class SystemOfferFile {
         StringBuilder json = new StringBuilder("[\n");
         ItemDefinition[] definitions = Definitions.getAllItemDefinitions();
         boolean first = true;
+        Set<String> exportedOffers = new HashSet<>();
         if (definitions != null) {
             for (ItemDefinition definition : definitions) {
                 if (definition == null || definition.name == null || definition.name.isBlank()) {
                     continue;
                 }
+                DefinitionExport[] resolvedDefinitions = resolveDefinitionExports(definition.name);
+                if (resolvedDefinitions.length > 0) {
+                    first = appendResolvedDefinitionOffers(json, first, exportedOffers, definition.name,
+                            resolvedDefinitions);
+                    continue;
+                }
                 int variations = Math.max(1, definition.variations);
                 for (int variantIndex = 0; variantIndex < variations; variantIndex++) {
                     Variant variant = definition.getVariant(variantIndex);
+                    if (!exportedOffers.add(offerKey(definition.name, variantIndex))) {
+                        continue;
+                    }
                     if (!first) {
                         json.append(",\n");
                     }
                     first = false;
-                    String id = definition.name + "." + variantIndex;
-                    json.append("  {\n")
-                            .append("    \"id\": \"").append(escape(id)).append("\",\n")
-                            .append("    \"itemName\": \"").append(escape(definition.name)).append("\",\n")
-                            .append("    \"itemVariant\": ").append(variantIndex).append(",\n")
-                            .append("    \"amount\": 1,\n")
-                            .append("    \"basePrice\": 100,\n")
-                            .append("    \"buyPrice\": 100,\n")
-                            .append("    \"sellPrice\": 250,\n")
-                            .append("    \"currency\": \"\",\n")
-                            .append("    \"sellEnabled\": false,\n")
-                            .append("    \"buyEnabled\": false");
-                    if (variant != null && variant.name != null && !variant.name.isBlank()) {
-                        json.append(",\n    \"_variantName\": \"").append(escape(variant.name)).append("\"");
-                    }
-                    json.append("\n  }");
+                    appendOfferJson(json, definition.name, variantIndex, variant == null ? "" : variant.name,
+                            "", "", -1, -1);
                 }
             }
         }
         json.append("\n]\n");
         Files.writeString(exportOfferFile, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void appendOfferJson(StringBuilder json, String itemName, int itemVariant, String variantName,
+            String sourceItemName, String definitionType, int definitionId, int objectId) {
+        String id = itemName + "." + itemVariant;
+        json.append("  {\n")
+                .append("    \"id\": \"").append(escape(id)).append("\",\n")
+                .append("    \"itemName\": \"").append(escape(itemName)).append("\",\n")
+                .append("    \"itemVariant\": ").append(itemVariant).append(",\n")
+                .append("    \"amount\": 1,\n")
+                .append("    \"basePrice\": 100,\n")
+                .append("    \"stock\": 100,\n")
+                .append("    \"targetStock\": 100,\n")
+                .append("    \"stockLimit\": 1000,\n")
+                .append("    \"stockMode\": \"STATIC\",\n")
+                .append("    \"minPriceMultiplier\": 0.25,\n")
+                .append("    \"maxPriceMultiplier\": 4.0,\n")
+                .append("    \"spreadPercent\": 25,\n")
+                .append("    \"drainPercent\": 0,\n")
+                .append("    \"drainMax\": 0,\n")
+                .append("    \"restockPercent\": 0,\n")
+                .append("    \"restockMax\": 0,\n")
+                .append("    \"perPlayerDailySellLimit\": 0,\n")
+                .append("    \"globalDailySellLimit\": 0,\n")
+                .append("    \"isEnabled\": false");
+        if (variantName != null && !variantName.isBlank()) {
+            json.append(",\n    \"_variantName\": \"").append(escape(variantName)).append("\"");
+        }
+        if (sourceItemName != null && !sourceItemName.isBlank()) {
+            json.append(",\n    \"_sourceItemName\": \"").append(escape(sourceItemName)).append("\"");
+        }
+        if (definitionType != null && !definitionType.isBlank()) {
+            json.append(",\n    \"_definitionType\": \"").append(escape(definitionType)).append("\"");
+        }
+        if (definitionId >= 0) {
+            json.append(",\n    \"_definitionId\": ").append(definitionId);
+        }
+        if (objectId >= 0) {
+            json.append(",\n    \"_objectId\": ").append(objectId);
+        }
+        json.append("\n  }");
+    }
+
+    private static boolean isKnownOfferDefinition(String itemName) {
+        return Definitions.getItemDefinition(itemName) != null
+                || Definitions.getObjectDefinition(itemName) != null
+                || Definitions.getConstructionDefinition(itemName) != null
+                || Definitions.getClothingDefinition(itemName) != null
+                || Definitions.getPlantDefinition(itemName) != null;
+    }
+
+    private static boolean hasRelatedItem(String relatedItem, String itemName) {
+        return relatedItem != null && relatedItem.equalsIgnoreCase(itemName);
+    }
+
+    private static DefinitionExport[] resolveDefinitionExports(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return new DefinitionExport[0];
+        }
+        if (itemName.toLowerCase(Locale.ROOT).startsWith("objectkit")) {
+            ObjectDefinition[] definitions = Definitions.getAllObjectDefinitions();
+            List<DefinitionExport> result = new ArrayList<>();
+            if (definitions != null) {
+                for (ObjectDefinition definition : definitions) {
+                    if (definition != null && definition.name != null && !definition.name.isBlank()
+                            && hasRelatedItem(definition.relateditem, itemName)) {
+                        result.add(DefinitionExport.object(definition));
+                    }
+                }
+            }
+            addObjectKitVariantDefinitions(result, itemName);
+            return result.toArray(DefinitionExport[]::new);
+        }
+        if (itemName.equalsIgnoreCase("constructionitem")) {
+            ConstructionDefinition[] definitions = Definitions.getAllConstructionDefinitions();
+            List<DefinitionExport> result = new ArrayList<>();
+            if (definitions != null) {
+                for (ConstructionDefinition definition : definitions) {
+                    if (definition != null && definition.name != null && !definition.name.isBlank()
+                            && hasRelatedItem(definition.relateditem, itemName)) {
+                        result.add(DefinitionExport.construction(definition));
+                    }
+                }
+            }
+            return result.toArray(DefinitionExport[]::new);
+        }
+        if (itemName.equalsIgnoreCase("clothingitem")) {
+            ClothingDefinition[] definitions = Definitions.getAllClothingDefinitions();
+            List<DefinitionExport> result = new ArrayList<>();
+            if (definitions != null) {
+                for (ClothingDefinition definition : definitions) {
+                    if (definition != null && definition.name != null && !definition.name.isBlank()
+                            && hasRelatedItem(definition.relateditem, itemName)) {
+                        result.add(DefinitionExport.clothing(definition));
+                    }
+                }
+            }
+            return result.toArray(DefinitionExport[]::new);
+        }
+        if (itemName.equalsIgnoreCase("plantitem")) {
+            PlantDefinition[] definitions = Definitions.getAllPlantDefinitions();
+            List<DefinitionExport> result = new ArrayList<>();
+            if (definitions != null) {
+                for (PlantDefinition definition : definitions) {
+                    if (definition != null && definition.name != null && !definition.name.isBlank()
+                            && referencesItem(definition, itemName)) {
+                        result.add(DefinitionExport.plant(definition));
+                    }
+                }
+            }
+            return result.toArray(DefinitionExport[]::new);
+        }
+        return new DefinitionExport[0];
+    }
+
+    private static void addObjectKitVariantDefinitions(List<DefinitionExport> result, String itemName) {
+        Set<Integer> knownObjectIds = new HashSet<>();
+        for (DefinitionExport export : result) {
+            if (export.objectId() >= 0) {
+                knownObjectIds.add(export.objectId());
+            }
+        }
+        ItemDefinition itemDefinition = Definitions.getItemDefinition(itemName);
+        if (itemDefinition == null) {
+            return;
+        }
+        int variations = Math.max(1, itemDefinition.variations);
+        for (int variantIndex = 0; variantIndex < variations; variantIndex++) {
+            Variant variant = itemDefinition.getVariant(variantIndex);
+            ObjectDefinition definition = variant == null || variant.name == null || variant.name.isBlank()
+                    ? null
+                    : Definitions.getObjectDefinition(variant.name);
+            if (definition == null) {
+                definition = Definitions.getObjectDefinition(variantIndex);
+            }
+            if (definition == null || definition.name == null || definition.name.isBlank()) {
+                continue;
+            }
+            int objectId = Short.toUnsignedInt(definition.id);
+            if (knownObjectIds.add(objectId)) {
+                result.add(DefinitionExport.object(definition));
+            }
+        }
+    }
+
+    private static boolean referencesItem(PlantDefinition definition, String itemName) {
+        return hasRelatedItem(definition.pickupitem, itemName)
+                || hasRelatedItem(definition.harvestitem, itemName)
+                || hasRelatedItem(definition.destroyitem, itemName)
+                || hasRelatedItem(definition.sapling, itemName);
+    }
+
+    private static boolean appendResolvedDefinitionOffers(StringBuilder json, boolean first, Set<String> exportedOffers,
+            String sourceItemName, DefinitionExport[] definitions) {
+        for (DefinitionExport definition : definitions) {
+            for (int itemVariant : definition.itemVariants()) {
+                if (!exportedOffers.add(offerKey(definition.name(), itemVariant))) {
+                    continue;
+                }
+                if (!first) {
+                    json.append(",\n");
+                }
+                first = false;
+                appendOfferJson(json, definition.name(), itemVariant, definition.variantName(itemVariant),
+                        sourceItemName, definition.definitionType(), definition.id(), definition.objectId());
+            }
+        }
+        return first;
+    }
+
+    private static String offerKey(String itemName, int itemVariant) {
+        return (itemName == null ? "" : itemName.toLowerCase(Locale.ROOT)) + "." + itemVariant;
+    }
+
+    private record DefinitionExport(String name, int variations, int[] explicitItemVariants, String definitionType, int id, int objectId,
+            Object source) {
+        static DefinitionExport object(ObjectDefinition definition) {
+            int id = Short.toUnsignedInt(definition.id);
+            return new DefinitionExport(definition.name, definition.variations, null, "object", id,
+                    id, definition);
+        }
+
+        static DefinitionExport construction(ConstructionDefinition definition) {
+            return new DefinitionExport(definition.name, 1, definition.supportedtextures, "construction",
+                    Byte.toUnsignedInt(definition.id), -1, definition);
+        }
+
+        static DefinitionExport clothing(ClothingDefinition definition) {
+            return new DefinitionExport(definition.name, definition.variations, null, "clothing",
+                    Short.toUnsignedInt(definition.id), -1, definition);
+        }
+
+        static DefinitionExport plant(PlantDefinition definition) {
+            return new DefinitionExport(definition.name, 1, null, "plant", Short.toUnsignedInt(definition.id), -1,
+                    definition);
+        }
+
+        int[] itemVariants() {
+            if (explicitItemVariants != null && explicitItemVariants.length > 0) {
+                return explicitItemVariants;
+            }
+            int variationCount = Math.max(1, variations);
+            int[] result = new int[variationCount];
+            for (int index = 0; index < variationCount; index++) {
+                result[index] = index;
+            }
+            return result;
+        }
+
+        String variantName(int itemVariant) {
+            if (source instanceof ObjectDefinition definition) {
+                ObjectDefinition.Variant variant = definition.getVariant(itemVariant);
+                return variant == null ? "" : variant.name;
+            }
+            return "";
+        }
     }
 
     private static void createRecipeExportFile(Path recipeExportFile) throws IOException {
@@ -284,7 +538,29 @@ public final class SystemOfferFile {
 
     private static boolean booleanValue(Map<String, Object> object, String key, boolean defaultValue) {
         Object value = object.get(key);
-        return value instanceof Boolean ? (Boolean) value : defaultValue;
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (value instanceof String stringValue) {
+            String normalized = stringValue.trim().toLowerCase(Locale.ROOT);
+            if ("true".equals(normalized) || "yes".equals(normalized) || "1".equals(normalized)) {
+                return true;
+            }
+            if ("false".equals(normalized) || "no".equals(normalized) || "0".equals(normalized)) {
+                return false;
+            }
+        }
+        return defaultValue;
+    }
+
+    static boolean enabledValue(Map<String, Object> object) {
+        if (object.containsKey("isEnabled")) {
+            return booleanValue(object, "isEnabled", false);
+        }
+        if (object.containsKey("enabled")) {
+            return booleanValue(object, "enabled", false);
+        }
+        return booleanValue(object, "sellEnabled", false) || booleanValue(object, "buyEnabled", false);
     }
 
     private static final class JsonObjects {

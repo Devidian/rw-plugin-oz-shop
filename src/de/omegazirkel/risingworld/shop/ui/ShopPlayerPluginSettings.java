@@ -24,10 +24,11 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
             @Override
             protected void redrawContent() {
                 flexWrapper.removeAllChilds();
-                flexWrapper.addChild(playerSettingLayout(uiPlayer));
+                flexWrapper.addChild(layoutSetting(uiPlayer));
+                flexWrapper.addChild(shortcutSetting(uiPlayer));
             }
 
-            protected OZUIElement playerSettingLayout(Player uiPlayer) {
+            protected OZUIElement layoutSetting(Player uiPlayer) {
                 OZUIElement element = defaultSettingsContainer();
                 element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_LAYOUT", uiPlayer)));
                 String currentValue = ShopPlayerPreferences.layout(uiPlayer);
@@ -37,6 +38,17 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
                             listLayout ? ShopPlayerPreferences.LAYOUT_CARD : ShopPlayerPreferences.LAYOUT_LIST);
                     redrawContent();
                 }, t().get("TC_BTN_LAYOUT_CARD", uiPlayer), t().get("TC_BTN_LAYOUT_LIST", uiPlayer)));
+                return element;
+            }
+
+            protected OZUIElement shortcutSetting(Player uiPlayer) {
+                OZUIElement element = defaultSettingsContainer();
+                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_SHORTCUT", uiPlayer)));
+                boolean visible = ShopPlayerPreferences.shortcutVisible(uiPlayer);
+                element.addChild(switchButtons(uiPlayer, visible, event -> {
+                    ShopPlayerPreferences.setShortcutVisible(uiPlayer, !visible);
+                    redrawContent();
+                }));
                 return element;
             }
         };

@@ -25,7 +25,8 @@ public class PluginGUI {
         AssetManager.loadIconFromPlugin(plugin, "icon-ki-zone-indicator-shop");
         PluginGUI gui = getInstance();
         gui.plugin = plugin;
-        PluginMenuManager.registerPluginMenu(new MenuItem(AssetManager.getIcon("shop-icon"), "Shop", gui::openMainMenu));
+        PluginMenuManager.registerPluginMenu(new MenuItem(Shop.name, AssetManager.getIcon("shop-icon"), "Shop",
+                gui::openMainMenu));
         return gui;
     }
 
@@ -37,21 +38,20 @@ public class PluginGUI {
     }
 
     public void openMainMenu(Player uiPlayer) {
-        if (plugin != null) {
-            showShopMenu(uiPlayer);
+        if (plugin == null) {
+            return;
         }
+        if (uiPlayer.isAdmin()) {
+            showShopMenu(uiPlayer);
+            return;
+        }
+        openDirectShop(uiPlayer);
     }
 
     private void showShopMenu(Player player) {
         List<MenuItem> items = new ArrayList<>();
-        items.add(new MenuItem(AssetManager.getIcon("shop-icon"), t(player, "TC_MENU_SHOP_LIST"), p -> {
-            p.hideRadialMenu(true);
-            if (!plugin.isShopAvailableFor(p)) {
-                p.sendTextMessage(c.warning + plugin.shopUnavailableMessage(p));
-                return;
-            }
-            plugin.openShopUI(p);
-        }));
+        items.add(new MenuItem(AssetManager.getIcon("shop-icon"), t(player, "TC_MENU_SHOP_LIST"),
+                this::openDirectShop));
         if (player.isAdmin() && plugin.currentShopZone(player).isEmpty()) {
             items.add(new MenuItem(AssetManager.getIcon("shop-icon"), t(player, "TC_MENU_SHOP_ZONE_CREATE"),
                     this::createOrEnableZone));
@@ -64,9 +64,18 @@ public class PluginGUI {
         PluginMenuManager.showMenu(player, items);
     }
 
+    private void openDirectShop(Player player) {
+        player.hideRadialMenu(true);
+        if (!plugin.isShopAvailableFor(player)) {
+            player.sendTextMessage(c.warning + plugin.shopUnavailableMessage(player));
+            return;
+        }
+        plugin.executeDelayed(0.05f, () -> plugin.openShopUI(player));
+    }
+
     private void createOrEnableZone(Player player) {
         player.hideRadialMenu(true);
-        plugin.shopZoneService().createOrEnableCurrentZone(player).ifPresentOrElse(zone -> {
+        plugin.createOrEnableCurrentZone(player).ifPresentOrElse(zone -> {
             player.sendTextMessage(c.okay + t(player, "TC_SHOP_ZONE_CREATED")
                     .replace("PH_AREA", zone.getAreaName())
                     .replace("PH_AREA_ID", String.valueOf(zone.getAreaId())));

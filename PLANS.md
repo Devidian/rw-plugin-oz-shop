@@ -3,6 +3,7 @@
 Planning is stored in repository-local docs.
 
 - Active implementation tasks: [docs/active/](docs/active/)
+- System-offer default conversion audit: [docs/active/system-offers-default-conversion-audit.md](docs/active/system-offers-default-conversion-audit.md)
 - Roadmaps and larger plans: [docs/roadmaps/](docs/roadmaps/)
 - Completed phase summaries: [docs/phase-archive.md](docs/phase-archive.md)
 - Planning and documentation standards: [docs/policies/repository-policy.md](docs/policies/repository-policy.md)

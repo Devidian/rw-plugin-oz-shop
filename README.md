@@ -7,10 +7,12 @@ Shared shop and purchase API plugin for Rising World.
 - plugin offer registration API
 - system-shop offer loading from JSON
 - Wallet-backed purchase execution
+- quantity buy/sell flows for system offers
+- SQLite-backed shop zones, stock, and trade stats
 - synchronous purchase callbacks
 - lightweight `/shop` command for listing and buying offers
 
-`rw-plugin-oz-tools` is a hard runtime dependency. `rw-plugin-oz-wallet` is required for functional purchases. If Wallet is missing, Shop loads but purchases are disabled and admins receive a warning on spawn.
+`rw-plugin-oz-tools` 0.21.0 or newer is a hard runtime dependency. `rw-plugin-oz-wallet` is required for functional purchases and system-shop buyback payouts. If Wallet is missing, Shop loads but purchases are disabled and admins receive a warning on spawn.
 
 ## Installation / Update Scope
 
@@ -32,6 +34,7 @@ reloadOnChange=true
 shopCommand=shop
 sendPluginWelcome=false
 systemOffersFile=system-offers.json
+systemShopCurrency=
 systemShopEnabled=true
 generateDefinitionExports=false
 dynamicEconomyEnabled=false
@@ -43,18 +46,24 @@ showShopZoneIndicator=true
 
 `systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing.
 
+The checked-in `src/system-offers.complete.json` is the complete reference catalog. During packaging, `scripts/generate-system-offers.sh` creates the runtime `system-offers.default.json` and numbered tier files from enabled T0-T11 offers only. Invalid and unclassified offers remain available in the packaged complete reference file but are excluded from the runtime default and tier files.
+
+At server startup, Shop resolves the icons of all active loaded system offers once so the first player opening the shop does not trigger the full icon-loading cost.
+
+`systemShopCurrency` optionally sets one central currency for all system-shop offer files. Leave it empty to use Wallet's default currency or legacy per-offer `currency` values during migration.
+
 `generateDefinitionExports=true` writes generated reference files next to the system offers file when they are missing:
 
-- `system-offer-export.json`: generated item and variant offer reference from `Definitions.getAllItemDefinitions()`
+- `system-offer-export.json`: generated item and variant offer reference from `Definitions.getAllItemDefinitions()`, resolving object kits, including large object kits, plus generic construction, clothing, and plant item references to concrete definition names where possible
 - `system-recipes-export.json`: generated crafting recipe reference from `Definitions.getAllRecipes()`
 
 These files are reference exports, not the editable offer file. Existing `system-offer-example.json` files are left untouched; new exports use `system-offer-export.json`.
 
 `systemShopEnabled=false` disables system-shop offers globally while keeping plugin-registered offers available. Shop areas may override that global system-shop setting with `systemShop`: `-1` inherits the global value, `0` disables system-shop offers in the area, and `1` enables them in the area.
 
-`dynamicEconomyEnabled=false` is a reserved gate for the optional future dynamic stock/pricing extension. Static system and plugin offers are unchanged while this work is disabled. Dynamic-economy defaults should be chosen only after a real `system-recipes-export.json` has been generated and inspected.
+System-shop stock state is always maintained for configured offers. Positive scoped stock limits cap system-shop purchases and reject player sales that would exceed the scoped stock limit before items are removed or Wallet payouts happen. Optional per-player and global daily sell limits reject player sales before inventory removal or Wallet payouts. Automatic drain/restock ticks run for `SYSTEM_SUPPLIED` and `HYBRID` offers. `dynamicEconomyEnabled=false` disables only stock-dependent price multipliers: buy and sell prices are calculated from `basePrice` plus the configured spread, so selling to the system pays less than buying from it, but current stock does not affect the price. When enabled, dynamic system-shop prices use `stock / targetStock` with configured min/max multipliers and the same enforced buy/sell spread; bulk trades are priced as a sequence of per-item stock changes. System-offer definition fields are authoritative from JSON on every load/reload, including mode, target/max stock, price multipliers, spread, tick settings, and sell limits. SQLite stores only scoped runtime stock plus trade and daily sell counters; legacy DB economy override columns remain for compatibility but are ignored for definition behavior. `/shop stock` can set the current scoped runtime stock. Edit the system-offers JSON and run `/shop reload` for mode, limit, tick, pricing, or sell-limit changes. `stock=0` remains unlimited for migration safety.
 
-`shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in `shopZonesFile` by `areaId`.
+`shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in world-scoped SQLite; `shopZonesFile` is retained as a one-time import source when the SQLite table is empty.
 
 `showShopZoneIndicator=true` shows the Shop icon in the shared Tools indicator panel while players are inside a shop area.
 
@@ -70,16 +79,26 @@ System-shop offers for built-in game items use JSON:
     "itemVariant": 0,
     "amount": 2,
     "basePrice": 40,
-    "buyPrice": 80,
-    "sellPrice": 200,
-    "currency": "",
-    "sellEnabled": false,
-    "buyEnabled": false
+    "stockMode": "STATIC",
+    "minPriceMultiplier": 0.25,
+    "maxPriceMultiplier": 4.0,
+    "spreadPercent": 25,
+    "drainPercent": 0,
+    "drainMax": 0,
+    "restockPercent": 0,
+    "restockMax": 0,
+    "perPlayerDailySellLimit": 0,
+    "globalDailySellLimit": 0,
+    "isEnabled": false
   }
 ]
 ```
 
-An empty `currency` uses Wallet's configured default currency. `basePrice` is the per-item baseline value, while `sellPrice` and `buyPrice` are whole-number package prices for the configured `amount`. `sellEnabled` controls whether players can buy the offer; `buyEnabled` is baseline data for future shop buyback and does not enable player-to-shop selling in this release. For system offers, Shop resolves `itemName` with `Definitions.getItemDefinition(name)`, reads the selected variant with `getVariant(itemVariant)`, displays the game's item icon through `getIcon(itemVariant)` when available, and adds `amount` items to the buyer inventory after successful payment.
+`basePrice` is the per-item baseline value. Player purchases round the package price up from `basePrice * amount`; player sales round payouts down from `basePrice * amount`. `isEnabled` is the active flag for the offer. Buy/sell capability is derived from `stockMode`: `STATIC` and `SYSTEM_SUPPLIED` let players buy from the system only, while `PLAYER_SUPPLIED` and `HYBRID` also let players sell matching items back to the system. Legacy `buyPrice`, `sellPrice`, `price`, `currency`, `enabled`, `sellEnabled`, and `buyEnabled` fields are still read as migration overrides, but generated/default offers now omit them; legacy `sellEnabled || buyEnabled` maps to `isEnabled` when no new flag is present. `perPlayerDailySellLimit` and `globalDailySellLimit` are item-unit limits for player sales into the system shop and only apply to modes that allow player sales; `0` disables the respective limit. `STATIC` stock is unlimited for player purchases. `stockMode=SYSTEM_SUPPLIED` and `stockMode=HYBRID` enable automatic ticks; `STATIC` and `PLAYER_SUPPLIED` do not tick automatically. `SYSTEM_SUPPLIED` offers have an effective minimum restock of one unit per hourly tick when no restock setting is configured. `drainPercent`, `drainMax`, `restockPercent`, and `restockMax` apply per real-time day against `targetStock` for automatic ticks. Changes to these definition fields take effect after `/shop reload` without deleting old economy DB rows. For system offers, Shop resolves item and object variants where available, displays the game's item icon through `getIcon(itemVariant)` when available, and adds `amount` items to the buyer inventory after successful payment. Generic `constructionitem` and `clothingitem` offers remain invalid until their names and icons can be resolved reliably.
+
+Default economy classification and raw material pricing rules are documented in `docs/economy/`.
+
+Admins can assign a different system-offer file to the current shop area with `/shop zoneoffers <file>` and reset to the global default with `/shop zoneoffers default`.
 
 ## Public API
 
@@ -141,6 +160,10 @@ public ShopOfferRegistrationResult unregisterOffer(String id, String pluginIdent
 public int unregisterOffers(String pluginIdentifier);
 
 public ShopPurchaseResult purchase(Player player, String offerId);
+
+public ShopPurchaseResult purchase(Player player, String offerId, int quantity);
+
+public ShopPurchaseResult sell(Player player, String offerId, int quantity);
 
 public ShopOffer findOffer(String offerId);
 
@@ -226,20 +249,24 @@ For optional integrations where the consuming plugin must still compile and run 
 
 ## Shop UI
 
-`/shop`, `/shop list`, and the Shop radial menu entry open the shop UI. The Shop radial menu also includes an `Info / Status` entry using the shared Tools info icon. The UI has separate tabs for `Systemshop` and `Pluginshop`. Offers use the card layout by default; players can switch between card and list layout in the player plugin settings. Admins additionally see an `Admin` tab that lists configured shop areas and can remove the shop status from an area after confirmation.
+`/shop` and `/shop list` open the shop UI. The shared `/ozt` and inventory shortcut entry opens the admin radial menu for admins and the direct shop overlay for normal players. The Shop radial menu also includes an `Info / Status` entry using the shared Tools info icon. The UI has separate tabs for `Systemshop` and `Pluginshop`. The Systemshop tab includes a name search and selecting an offer updates the detail panel without rebuilding the full offer list. Offers use the card layout by default; players can switch between card and list layout in the player plugin settings. Players can also hide the Shop shortcut from `/ozt` and the inventory shortcut panel. Admins standing inside an existing area additionally see a `Zone` tab for configuring the current area as a Shop-Zone, editing the stored zone name, syncing it from the Rising World area name, setting/resetting the zone system-offer file, choosing the zone systemshop mode, removing the zone, and resetting current-zone stocks to target. Admins also see an `Admin` tab that lists configured shop areas and can remove the shop status from an area after confirmation. Use explicit close controls until Rising World exposes custom-overlay Escape handling.
 
 Direct command purchases remain available for fast workflows.
 
 ## Player Commands
 
 - `/shop` or `/shop list`: open the shop UI
-- `/shop buy <offer-id>`: buy an offer
+- `/shop buy <offer-id> [quantity]`: buy a system offer quantity; plugin offers accept only quantity `1`
+- `/shop sell <offer-id> [quantity]`: sell matching items to a buy-enabled system offer
 - `/shop status` or `/shop info`: open the shared Tools Info/Status panel
 - `/shop reload`: admin-only reload of system offers and settings-backed file path
+- `/shop zoneoffers <file|default>`: admin-only set/reset the current shop area's system-offer file
+- `/shop stock <offer-id> <stock>`: admin-only configure scoped dynamic stock
+- `/shop economy <offer-id> key=value...`: deprecated. System-offer economy definitions are JSON-authoritative; edit the system-offers file and run `/shop reload`.
 
 ## Admin Shop Zones
 
-Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. This create action is hidden when the current area is already a shop area. If the admin is not standing inside an area, no shop area is created. The admin tab lists shop areas, removes shop status after confirmation, and cycles each area's system-shop override through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones only control where the shared shop may be opened when `requireShopZone=true` and how system-shop offers are enabled in that area.
+Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. This create action is hidden when the current area is already a shop area. If the admin is not standing inside an area, no shop area is created. The `Zone` tab is available only to admins standing in an existing area and focuses on the current area. For a non-Shop area it shows the area name/id and a mark-as-shop action. For an existing Shop-Zone it edits the stored display name, syncs that name from the current Rising World area, updates or clears the zone-specific system-offer file, switches systemshop mode between inherit/disabled/enabled, removes the current zone after confirmation, and resets current-zone system-offer stocks to target after confirmation. The admin tab remains the global shop-area list, removes shop status after confirmation, and cycles each area's system-shop override through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones only control where the shared shop may be opened when `requireShopZone=true` and how system-shop offers are enabled in that area.
 
 Players see the Shop icon in the shared Tools indicator panel while they are in a configured shop area. Disabling `showShopZoneIndicator` hides this HUD indication without changing shop access or purchases.
 

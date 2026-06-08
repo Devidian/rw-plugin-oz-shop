@@ -42,3 +42,7 @@ Supporting repositories/plugins: `<repo or none>`
 - [ ] Update README
 - [ ] Update HISTORY
 ```
+
+## Current Active Tasks
+
+- [Roadmap Plan 04 Dynamic Economy Gap Plan](roadmap-plan-04-dynamic-economy-gap-plan.md)
