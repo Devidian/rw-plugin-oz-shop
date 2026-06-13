@@ -2,7 +2,9 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## [unreleased]
+## [0.2.1] - 2026-06-13 | Sword offer classification
+
+- fix: classify and enable the common `sword2` system offer
 
 ## [0.2.0] - 2026-06-08 | Dynamic economy and shop zones
 
