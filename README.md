@@ -42,6 +42,7 @@ shopEnabled=true
 requireShopZone=false
 shopZonesFile=shop-zones.json
 showShopZoneIndicator=true
+exposeShopZones=true
 ```
 
 `systemOffersFile` points to an admin-editable JSON file in the plugin directory. On first run, `system-offers.default.json` is copied to that path when the file is missing.
@@ -66,6 +67,8 @@ System-shop stock state is always maintained for configured offers. Positive sco
 `shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in world-scoped SQLite; `shopZonesFile` is retained as a one-time import source when the SQLite table is empty.
 
 `showShopZoneIndicator=true` shows the Shop icon in the shared Tools indicator panel while players are inside a shop area.
+
+`exposeShopZones=true` allows bridge or future native route layers to expose read-only SQLite shop-zone metadata for manager views. The export uses `created_at` as the `lastChange` cursor and reads the world-scoped `shop_zones` table.
 
 ## System Offers
 

@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## Unreleased
+
+- feat: add route-ready shop-zone export DTOs, service, and exposure setting for manager bridges
+
 ## [0.2.1] - 2026-06-13 | Sword offer classification
 
 - fix: classify and enable the common `sword2` system offer

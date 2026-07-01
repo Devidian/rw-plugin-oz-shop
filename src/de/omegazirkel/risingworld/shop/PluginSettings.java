@@ -34,6 +34,7 @@ public class PluginSettings {
     public boolean showShopZoneIndicator = true;
     public boolean generateDefinitionExports = false;
     public boolean dynamicEconomyEnabled = false;
+    public boolean exposeShopZones = true;
     private Path settingsFile;
 
     private static OZLogger logger() {
@@ -105,8 +106,10 @@ public class PluginSettings {
                     defaults.getProperty("generateDefinitionExports", "false")).contentEquals("true");
             dynamicEconomyEnabled = settings.getProperty("dynamicEconomyEnabled",
                     defaults.getProperty("dynamicEconomyEnabled", "false")).contentEquals("true");
+            exposeShopZones = settings.getProperty("exposeShopZones",
+                    defaults.getProperty("exposeShopZones", "true")).contentEquals("true");
 
-            logger().info(plugin.getName() + " Plugin settings loaded");
+            logger().info((plugin == null ? "OZShop" : plugin.getName()) + " Plugin settings loaded");
             logger().info("Shop command is /" + shopCommand);
             logger().info("System offers file is " + systemOffersFile);
             logger().info("System shop currency is " + (systemShopCurrency.isBlank() ? "Wallet default" : systemShopCurrency));
@@ -159,7 +162,11 @@ public class PluginSettings {
                         shopZonesFile, "shop-zones.json", AdminSettingsType.STRING),
                 entry("showShopZoneIndicator", "Show shop-zone indicator",
                         "Shows a compact HUD indicator below the LandClaim area info while players are in a shop area.",
-                        showShopZoneIndicator, "true", AdminSettingsType.BOOLEAN));
+                        showShopZoneIndicator, "true", AdminSettingsType.BOOLEAN),
+                AdminSettingsEntry.group("exportRoutes", "Export routes", "Route-ready read exposure for manager bridges."),
+                entry("exposeShopZones", "Expose shop zones",
+                        "Allows bridge/native route layers to expose SQLite shop-zone metadata.",
+                        exposeShopZones, "true", AdminSettingsType.BOOLEAN));
     }
 
     private AdminSettingsEntry entry(String key, String label, String description, Object value, String defaultValue,
