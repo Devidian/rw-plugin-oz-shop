@@ -8,10 +8,12 @@ import java.util.Map;
 import java.util.Set;
 
 import de.omegazirkel.risingworld.tools.ui.AssetManager;
+import de.omegazirkel.risingworld.tools.ToolsPlayerPreferences;
 import net.risingworld.api.assets.TextureAsset;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Objects.ObjectDefinition;
+import net.risingworld.api.objects.Player;
 
 public final class ShopOfferIcons {
     private static final Map<String, TextureAsset> ICONS = new HashMap<>();
@@ -21,22 +23,26 @@ public final class ShopOfferIcons {
     }
 
     public static synchronized TextureAsset resolve(ShopOffer offer) {
+        return resolve(null, offer);
+    }
+
+    public static synchronized TextureAsset resolve(Player player, ShopOffer offer) {
         if (offer == null) {
-            return fallbackIcon();
+            return fallbackIcon(player);
         }
-        String key = cacheKey(offer);
+        String key = cacheKey(player, offer);
         TextureAsset cached = ICONS.get(key);
         if (cached != null) {
             return cached;
         }
         if (MISSING.contains(key)) {
-            return fallbackIcon();
+            return fallbackIcon(player);
         }
 
-        TextureAsset asset = resolveOfferIcon(offer);
+        TextureAsset asset = resolveOfferIcon(player, offer);
         if (asset == null) {
             MISSING.add(key);
-            return fallbackIcon();
+            return fallbackIcon(player);
         }
         ICONS.put(key, asset);
         return asset;
@@ -66,7 +72,7 @@ public final class ShopOfferIcons {
         return new PreloadResult(loaded, failed, durationMillis);
     }
 
-    private static TextureAsset resolveOfferIcon(ShopOffer offer) {
+    private static TextureAsset resolveOfferIcon(Player player, ShopOffer offer) {
         if (offer.isSystemOffer() && !offer.getItemName().isBlank()) {
             ObjectDefinition objectDefinition = ShopItemNames.objectDefinition(offer.getItemName(),
                     offer.getItemVariant());
@@ -89,18 +95,22 @@ public final class ShopOfferIcons {
                 }
             }
         }
-        return offer.getIcon().isBlank() ? null : AssetManager.getIcon(offer.getIcon());
+        return offer.getIcon().isBlank() ? null : AssetManager.getIcon(player, offer.getIcon());
     }
 
-    private static TextureAsset fallbackIcon() {
-        return AssetManager.getIcon("shop-icon");
+    private static TextureAsset fallbackIcon(Player player) {
+        return AssetManager.getIcon(player, "shop-icon");
     }
 
     private static String cacheKey(ShopOffer offer) {
+        return cacheKey(null, offer);
+    }
+
+    private static String cacheKey(Player player, ShopOffer offer) {
         if (offer.isSystemOffer() && !offer.getItemName().isBlank()) {
             return "system:" + offer.getItemName().toLowerCase(Locale.ROOT) + ":" + offer.getItemVariant();
         }
-        return "asset:" + offer.getIcon();
+        return "asset:" + AssetManager.normalizeStyle(ToolsPlayerPreferences.iconStyle(player)) + ":" + offer.getIcon();
     }
 
     public record PreloadResult(int loaded, int failed, long durationMillis) {
