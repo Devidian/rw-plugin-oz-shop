@@ -288,7 +288,7 @@ public class ShopOverlay extends OZUIElement {
         entry.setBorderColor(0.95f, 0.75f, 0.25f, 0.48f);
         entry.setBorderEdgeRadius(4, false);
 
-        TextureAsset iconAsset = currency.iconKey().isBlank() ? AssetManager.getIcon(player, "icon-ki-coin-default")
+        TextureAsset iconAsset = currency.iconKey().isBlank() ? AssetManager.getIcon(player, "coin-default")
                 : AssetManager.getIcon(player, currency.iconKey());
         OZUIElement icon = new OZUIElement();
         icon.setPivot(Pivot.UpperLeft);

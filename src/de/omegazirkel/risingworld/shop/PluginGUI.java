@@ -21,11 +21,11 @@ public class PluginGUI {
     }
 
     public static PluginGUI getInstance(Shop plugin) {
-        AssetManager.loadIconFromPlugin(plugin, "shop-icon");
-        AssetManager.loadIconFromPlugin(plugin, "icon-ki-zone-indicator-shop");
+        AssetManager.loadIconFromPlugin(plugin, "oz-shop");
+        AssetManager.loadIconFromPlugin(plugin, "zone-shop-indicator");
         PluginGUI gui = getInstance();
         gui.plugin = plugin;
-        PluginMenuManager.registerPluginMenu(new MenuItem(Shop.name, "shop-icon", "Shop",
+        PluginMenuManager.registerPluginMenu(new MenuItem(Shop.name, "oz-shop", "Shop",
                 gui::openMainMenu));
         return gui;
     }
@@ -50,13 +50,13 @@ public class PluginGUI {
 
     private void showShopMenu(Player player) {
         List<MenuItem> items = new ArrayList<>();
-        items.add(new MenuItem("shop-icon", t(player, "TC_MENU_SHOP_LIST"),
+        items.add(new MenuItem("oz-shop", t(player, "TC_MENU_SHOP_LIST"),
                 this::openDirectShop));
         if (player.isAdmin() && plugin.currentShopZone(player).isEmpty()) {
-            items.add(new MenuItem("shop-icon", t(player, "TC_MENU_SHOP_ZONE_CREATE"),
+            items.add(new MenuItem("oz-shop", t(player, "TC_MENU_SHOP_ZONE_CREATE"),
                     this::createOrEnableZone));
         }
-        items.add(new MenuItem("icon-ki-info-status", t(player, "TC_MENU_SHOP_INFO_STATUS"), p -> {
+        items.add(new MenuItem("info-status", t(player, "TC_MENU_SHOP_INFO_STATUS"), p -> {
             p.hideRadialMenu(true);
             PluginInfoStatusProviders.show(p, Shop.name);
         }));

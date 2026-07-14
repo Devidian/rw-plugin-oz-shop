@@ -2,8 +2,9 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## Unreleased
+## [0.2.3] - 2026-07-14 | Icon set and export polish
 
+- change: rename Shop icon keys to their final semantic names
 - feat: add route-ready shop-zone export DTOs, service, and exposure setting for manager bridges
 
 ## [0.2.1] - 2026-06-13 | Sword offer classification

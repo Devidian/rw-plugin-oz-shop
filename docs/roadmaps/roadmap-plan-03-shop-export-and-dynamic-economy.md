@@ -56,5 +56,5 @@ Keep generated exports and dynamic economy independent. Dynamic economy should r
 - Phase 4 complete: `system-recipes-export.json` can be generated from `Definitions.getAllRecipes()` with item, ingredient, station, category, and raw recipe metadata for later balancing.
 - Phase 5 complete: `local.res/system-offer-export.json` and `local.res/system-recipes-export.json` were inspected. The exports contain 6,378 generated offer references and 658 recipes; the generated offer file is reference coverage data, while production stock, drain/refill, and spread defaults remain admin-configured because recipe categories and grouped ingredients are too broad for safe automatic global defaults.
 - Phases 6-9 completed through Plan 04: dynamic economy remains opt-in, while stock modes, dynamic pricing, spread, sell limits, persistence, player selling, admin controls, and UI diagnostics are implemented.
-- Phase 10 complete: the Shop radial menu has an `Info / Status` entry using the Tools-registered `icon-ki-info-status` icon.
+- Phase 10 complete: the Shop radial menu has an `Info / Status` entry using the Tools-registered `info-status` icon.
 - Validation passed with `scripts/verify-plugin-api.sh --summary`, `mvn -B test`, and `mvn -B -DskipTests package`.

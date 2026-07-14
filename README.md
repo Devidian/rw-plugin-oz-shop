@@ -218,7 +218,7 @@ public final class ExampleShopIntegration {
                 "Adds one example token to the buyer.",
                 250L,
                 "",
-                "shop-icon",
+                "oz-shop",
                 "Pluginshop",
                 OWNER,
                 OWNER,

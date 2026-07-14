@@ -99,7 +99,7 @@ public final class ShopOfferIcons {
     }
 
     private static TextureAsset fallbackIcon(Player player) {
-        return AssetManager.getIcon(player, "shop-icon");
+        return AssetManager.getIcon(player, "oz-shop");
     }
 
     private static String cacheKey(ShopOffer offer) {
