@@ -21,11 +21,13 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
-    public void targetTickAmountsRespectPercentCapsAndMinimumHour() {
+    public void targetTickAmountsRespectPercentCapsAndHourlyReconciliation() {
         assertEquals(50L, ShopEconomyStore.targetRateAmount(1_000L, 10.0d, 50L, 1.0d));
         assertEquals(25L, ShopEconomyStore.targetRateAmount(1_000L, 10.0d, 50L, 0.5d));
         assertEquals(0L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 0L, 0.5d));
-        assertEquals(5L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 5L, 24.0d));
+        assertEquals(120L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 5L, 24.0d));
+        assertEquals(1L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 1.0d));
+        assertEquals(10L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 10.0d));
     }
 
     @Test

@@ -2,6 +2,11 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.0] - 2026-07-15 | Hourly stock replenishment
+
+- fix: apply configured restock percentages per elapsed hourly reconciliation step
+- fix: enforce `restockMax` as a per-hour cap while reconciling overdue stock
+
 ## [0.2.3] - 2026-07-14 | Icon set and export polish
 
 - change: rename Shop icon keys to their final semantic names

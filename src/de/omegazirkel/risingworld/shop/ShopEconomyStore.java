@@ -606,11 +606,10 @@ public class ShopEconomyStore {
         if (targetStock <= 0L || percent <= 0.0d || elapsedHours < 1.0d) {
             return 0L;
         }
-        double elapsedDays = elapsedHours / 24.0d;
-        double raw = targetStock * (percent / 100.0d) * elapsedDays;
+        double raw = targetStock * (percent / 100.0d) * elapsedHours;
         long rounded = (long) Math.ceil(raw);
         if (max > 0L) {
-            return Math.min(rounded, max);
+            return Math.min(rounded, (long) Math.ceil(max * elapsedHours));
         }
         return rounded;
     }
