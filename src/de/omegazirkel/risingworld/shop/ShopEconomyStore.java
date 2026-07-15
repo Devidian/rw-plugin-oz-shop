@@ -3,6 +3,7 @@ package de.omegazirkel.risingworld.shop;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.function.LongSupplier;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
@@ -52,10 +53,21 @@ public class ShopEconomyStore {
     }
 
     private final Connection connection;
+    private final LongSupplier clock;
+    private long tickIntervalMillis = ONE_HOUR_MILLIS;
 
     public ShopEconomyStore(Connection connection) {
+        this(connection, System::currentTimeMillis);
+    }
+
+    ShopEconomyStore(Connection connection, LongSupplier clock) {
         this.connection = connection;
+        this.clock = clock;
         initialize();
+    }
+
+    public void setTickIntervalHours(int hours) {
+        tickIntervalMillis = Math.max(1, hours) * ONE_HOUR_MILLIS;
     }
 
     public void reconcile(Collection<ShopOffer> offers, Collection<ShopZone> zones) {
@@ -88,7 +100,7 @@ public class ShopEconomyStore {
         applyTick(effectiveScope, offer);
         long amount = Math.max(0, offer.getAmount());
         long stockLimit = Math.max(0L, offer.getDefaultStockLimit());
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         try (PreparedStatement state = connection.prepareStatement("""
                 UPDATE shop_offer_economy_state
                 SET stock = CASE WHEN ? > 0 OR stock > 0 THEN MAX(0, stock - ?) ELSE stock END,
@@ -127,7 +139,7 @@ public class ShopEconomyStore {
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
         long amount = Math.max(0, offer.getAmount());
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         try (PreparedStatement stats = connection.prepareStatement("""
                 UPDATE shop_offer_trade_stats
                 SET sold_amount = sold_amount + ?,
@@ -500,7 +512,7 @@ public class ShopEconomyStore {
         if (!automaticTicksEnabled(offer)) {
             return;
         }
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         long stock;
         long targetStock;
         long stockLimit;
@@ -547,7 +559,7 @@ public class ShopEconomyStore {
             return;
         }
         long elapsedMillis = now - lastTickAt;
-        if (elapsedMillis < ONE_HOUR_MILLIS) {
+        if (elapsedMillis < tickIntervalMillis) {
             return;
         }
         double elapsedHours = elapsedMillis / (double) ONE_HOUR_MILLIS;
@@ -607,9 +619,9 @@ public class ShopEconomyStore {
             return 0L;
         }
         double raw = targetStock * (percent / 100.0d) * elapsedHours;
-        long rounded = (long) Math.ceil(raw);
+        long rounded = (long) Math.floor(raw);
         if (max > 0L) {
-            return Math.min(rounded, (long) Math.ceil(max * elapsedHours));
+            return Math.min(rounded, (long) Math.floor(max * elapsedHours));
         }
         return rounded;
     }

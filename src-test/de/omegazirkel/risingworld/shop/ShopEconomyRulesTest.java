@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +29,48 @@ public class ShopEconomyRulesTest {
         assertEquals(120L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 5L, 24.0d));
         assertEquals(1L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 1.0d));
         assertEquals(10L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 10.0d));
+    }
+
+    @Test
+    public void fractionalChangesAccumulateUntilTheConfiguredTickCanChangeStock() throws Exception {
+        long[] now = { 1_000L };
+        ShopOffer offer = offer(ShopStockMode.SYSTEM_SUPPLIED).economyConfigCopy(10L, 10L, 0.0d, 0.0d,
+                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 5.0d, 0L, 0L, 0L);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.configure("global", offer.getId(), 0L, 0.0d, 0.0d);
+            setLastTick(connection, offer.getId(), now[0]);
+
+            now[0] += 3_600_000L;
+            store.applyTicks(java.util.List.of(offer), java.util.List.of());
+            assertEquals(0L, store.stateFor("global", offer).stock());
+            assertEquals(1_000L, lastTick(connection, offer.getId()));
+
+            now[0] += 3_600_000L;
+            store.applyTicks(java.util.List.of(offer), java.util.List.of());
+            assertEquals(1L, store.stateFor("global", offer).stock());
+            assertEquals(now[0], lastTick(connection, offer.getId()));
+        }
+    }
+
+    private static void setLastTick(Connection connection, String offerId, long tick) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE shop_offer_economy_state SET last_tick_at = ? WHERE scope = 'global' AND offer_id = ?")) {
+            statement.setLong(1, tick);
+            statement.setString(2, offerId);
+            statement.executeUpdate();
+        }
+    }
+
+    private static long lastTick(Connection connection, String offerId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT last_tick_at FROM shop_offer_economy_state WHERE scope = 'global' AND offer_id = ?")) {
+            statement.setString(1, offerId);
+            try (java.sql.ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1);
+            }
+        }
     }
 
     @Test

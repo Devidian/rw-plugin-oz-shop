@@ -931,6 +931,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
 
     private void reconcileEconomyState() {
         if (economyStore != null && service != null) {
+            economyStore.setTickIntervalHours(s.economyTickIntervalHours);
             economyStore.reconcile(service.listSystemOffers(), listShopZones());
         }
     }
@@ -948,7 +949,8 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
             return;
         }
         stopEconomyTimer();
-        economyTimer = new Timer(3600f, 3600f, -1, () -> {
+        float intervalSeconds = Math.max(1, s.economyTickIntervalHours) * 3600f;
+        economyTimer = new Timer(intervalSeconds, intervalSeconds, -1, () -> {
             if (s == null || economyStore == null) {
                 return;
             }

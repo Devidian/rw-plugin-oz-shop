@@ -34,6 +34,7 @@ public class PluginSettings {
     public boolean showShopZoneIndicator = true;
     public boolean generateDefinitionExports = false;
     public boolean dynamicEconomyEnabled = false;
+    public int economyTickIntervalHours = 1;
     public boolean exposeShopZones = true;
     private Path settingsFile;
 
@@ -106,6 +107,8 @@ public class PluginSettings {
                     defaults.getProperty("generateDefinitionExports", "false")).contentEquals("true");
             dynamicEconomyEnabled = settings.getProperty("dynamicEconomyEnabled",
                     defaults.getProperty("dynamicEconomyEnabled", "false")).contentEquals("true");
+            economyTickIntervalHours = Math.max(1, Integer.parseInt(settings.getProperty("economyTickIntervalHours",
+                    defaults.getProperty("economyTickIntervalHours", "1"))));
             exposeShopZones = settings.getProperty("exposeShopZones",
                     defaults.getProperty("exposeShopZones", "true")).contentEquals("true");
 
@@ -152,6 +155,9 @@ public class PluginSettings {
                 entry("dynamicEconomyEnabled", "Dynamic economy enabled",
                         "Enables stock-based buy/sell price multipliers; stock rules stay active when disabled.",
                         dynamicEconomyEnabled, "false", AdminSettingsType.BOOLEAN),
+                entry("economyTickIntervalHours", "Economy tick interval hours",
+                        "Hours between automatic stock reconciliation ticks. Fractions accumulate until at least one item changes.",
+                        economyTickIntervalHours, "1", AdminSettingsType.INTEGER),
                 AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
                 entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
