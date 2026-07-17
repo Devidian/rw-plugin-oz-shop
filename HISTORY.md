@@ -2,6 +2,11 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.2] - 2026-07-17 | Durability-adjusted system buyback
+
+- fix: calculate system-shop buyback payouts per removed item's durability and reject zero-durability items
+- fix: restore durability, status and modifier when a failed Wallet deposit rolls back a shop buyback
+
 ## [0.3.1] - 2026-07-17 | Configurable stock reconciliation
 
 - feat: make the automatic stock reconciliation interval configurable in hours, defaulting to one hour

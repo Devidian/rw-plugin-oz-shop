@@ -12,6 +12,7 @@ import de.omegazirkel.risingworld.shop.ShopItemNames;
 import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopOfferIcons;
 import de.omegazirkel.risingworld.shop.ShopPurchaseResult;
+import de.omegazirkel.risingworld.shop.ShopService;
 import de.omegazirkel.risingworld.shop.ShopStockMode;
 import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.WalletBridge;
@@ -948,6 +949,10 @@ public class ShopOverlay extends OZUIElement {
         ShopOffer pricedOffer = offer.isSystemOffer() ? plugin.dynamicEconomyOffer(player, offer, 1) : offer;
         String currency = currencyIdentifier(offer);
         if (action == OfferAction.SELL) {
+            if (offer.isSystemOffer()) {
+                ShopService.SellQuote quote = plugin.sellQuote(player, offer, 1);
+                return (quote.sellable() ? quote.payout() : 0L) + " " + currency;
+            }
             return pricedOffer.getBuyPrice() + " " + currency;
         }
         try {
@@ -961,6 +966,12 @@ public class ShopOverlay extends OZUIElement {
         ShopOffer pricedOffer = offer.isSystemOffer() ? plugin.dynamicEconomyOffer(player, offer, 1) : offer;
         double units = Math.max(1, pricedOffer.getAmount());
         try {
+            if (offer.isSystemOffer() && action == OfferAction.SELL) {
+                ShopService.SellQuote quote = plugin.sellQuote(player, offer, 1);
+                double price = quote.sellable() ? quote.payout() / (double) quote.amount() : 0.0d;
+                return formatUnitAmount(price) + " " + currencyIdentifier(offer)
+                        + t.get("TC_SHOP_UI_UNIT_PRICE_SUFFIX", player);
+            }
             double price = offer.isSystemOffer()
                     ? systemUnitPrice(pricedOffer, action)
                     : (action == OfferAction.SELL
@@ -1136,12 +1147,13 @@ public class ShopOverlay extends OZUIElement {
         if (offer == null || !offer.canPlayerSellToSystem()) {
             return "";
         }
-        ShopOffer pricedOffer = plugin.dynamicEconomyOffer(player, offer, quantityForAmount(offer, amountText));
+        int quantity = quantityForAmount(offer, amountText);
+        ShopService.SellQuote quote = plugin.sellQuote(player, offer, quantity);
         String currency = currencyIdentifier(offer);
         return t.get("TC_SHOP_UI_SELL_PREVIEW", player)
-                .replace("PH_PRICE", quantityForAmount(offer, amountText) <= 0
+                .replace("PH_PRICE", quantity <= 0 || !quote.sellable()
                         ? "0 " + currency
-                        : pricedOffer.getBuyPrice() + " " + currency);
+                        : quote.payout() + " " + currency);
     }
 
     private String systemBuyPreviewText(ShopOffer offer, String amountText) {

@@ -12,6 +12,7 @@ import net.risingworld.api.definitions.Clothing.ClothingDefinition;
 import net.risingworld.api.definitions.Constructions.ConstructionDefinition;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items.ItemDefinition;
+import net.risingworld.api.definitions.Items.Modifier;
 import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
 import net.risingworld.api.definitions.Objects.ObjectDefinition;
 import net.risingworld.api.definitions.Plants.PlantDefinition;
@@ -271,12 +272,16 @@ public class ShopService {
         if (!wallet.isAvailable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.WALLET_UNAVAILABLE, "OZ - Wallet is not available.");
         }
-        long payout = effectiveOffer.getBuyPrice();
-        if (payout < 0) {
+        SellQuote quote = quoteSell(player, effectiveOffer);
+        if (!quote.sellable()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
+        }
+        long payout = quote.payout();
+        if (payout < 0L) {
             return ShopPurchaseResult.failure(ShopErrorCode.PRICE_RESOLUTION_FAILED,
                     "Could not resolve offer payout.");
         }
-        ShopPurchaseResult removed = removeItems(player, effectiveOffer);
+        ShopPurchaseResult removed = removeItems(player, effectiveOffer, quote);
         if (!removed.success) {
             return removed;
         }
@@ -286,14 +291,39 @@ public class ShopService {
                 : wallet.deposit(player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(),
                         effectiveOffer.getCurrencyIdentifier(), "OZ - Shop");
         if (!deposit.success()) {
-            ShopPurchaseResult returned = addSystemOfferItem(player, effectiveOffer);
+            ShopPurchaseResult returned = restoreRemovedItems(player, effectiveOffer, quote);
             if (!returned.success) {
                 Shop.logger().error("Shop sale rollback failed for " + effectiveOffer.getId()
                         + ": could not return removed items.");
             }
             return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, deposit.message());
         }
-        return ShopPurchaseResult.success("Sale completed.", effectiveOffer);
+        return ShopPurchaseResult.success("Sale completed.", quote.payoutOffer(effectiveOffer));
+    }
+
+    /** Plans the exact sellable inventory entries before inventory or Wallet mutation. */
+    public SellQuote quoteSell(Player player, ShopOffer offer) {
+        if (player == null || player.getInventory() == null || offer == null) return SellQuote.invalid("Inventory is unavailable.");
+        int remaining = offer.getAmount();
+        long unitPayout = Math.max(0L, offer.getBuyPrice() / Math.max(1, offer.getAmount()));
+        List<SellSelection> selections = new ArrayList<>();
+        long payout = 0L;
+        for (SlotType slotType : SlotType.values()) {
+            for (int slot = 0; slot < player.getInventory().getSlotCount(slotType) && remaining > 0; slot++) {
+                Item item = player.getInventory().getItem(slot, slotType);
+                if (!matchesSystemOfferItem(item, offer)) continue;
+                int amount = Math.min(remaining, item.getStack());
+                int maxDurability = maxDurability(item);
+                if (maxDurability > 0 && item.getDurability() <= 0) continue;
+                long itemPayout = durabilityAdjustedPayout(unitPayout, item.getDurability(), maxDurability);
+                selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item)));
+                payout += itemPayout * amount;
+                remaining -= amount;
+            }
+        }
+        if (selections.isEmpty()) return SellQuote.invalid("No sellable item with remaining durability is available.");
+        return new SellQuote(selections, payout, offer.getAmount() - remaining,
+                remaining == 0 ? "" : "Only items with remaining durability can be sold.");
     }
 
     private ShopPurchaseResult failAfterPayment(Player player, ShopOffer offer, long price, String failureMessage) {
@@ -322,48 +352,43 @@ public class ShopService {
                 offer.getCurrencyIdentifier(), "OZ - Shop");
     }
 
-    private ShopPurchaseResult removeItems(Player player, ShopOffer offer) {
+    private ShopPurchaseResult removeItems(Player player, ShopOffer offer, SellQuote quote) {
         Inventory inventory = player.getInventory();
-        if (countMatchingItems(inventory, offer) < offer.getAmount()) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
-                    "You do not have enough matching items in your inventory.");
-        }
-        int remaining = offer.getAmount();
-        for (SlotType slotType : SlotType.values()) {
-            int slots = inventory.getSlotCount(slotType);
-            for (int slot = 0; slot < slots; slot++) {
-                Item item = inventory.getItem(slot, slotType);
-                if (!matchesSystemOfferItem(item, offer)) {
-                    continue;
-                }
-                int remove = Math.min(remaining, item.getStack());
-                if (!inventory.removeItem(slot, slotType, remove)) {
-                    return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
-                            "Could not remove item from inventory.");
-                }
-                remaining -= remove;
-                if (remaining == 0) {
-                    inventory.syncWithClient();
-                    return ShopPurchaseResult.success("Items removed.", offer);
-                }
+        List<SellSelection> removed = new ArrayList<>();
+        for (SellSelection selection : quote.selections()) {
+            Item item = inventory.getItem(selection.slot(), selection.slotType());
+            if (!matchesSystemOfferItem(item, offer) || !sameState(item, selection.state())
+                    || item.getStack() < selection.amount()
+                    || !inventory.removeItem(selection.slot(), selection.slotType(), selection.amount())) {
+                restoreSelections(inventory, offer, removed);
+                return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, "Could not remove item from inventory.");
             }
+            removed.add(selection);
         }
-        return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
-                "You do not have enough matching items in your inventory.");
+        inventory.syncWithClient();
+        return ShopPurchaseResult.success("Items removed.", offer);
     }
 
-    private int countMatchingItems(Inventory inventory, ShopOffer offer) {
-        int amount = 0;
-        for (SlotType slotType : SlotType.values()) {
-            int slots = inventory.getSlotCount(slotType);
-            for (int slot = 0; slot < slots; slot++) {
-                Item item = inventory.getItem(slot, slotType);
-                if (matchesSystemOfferItem(item, offer)) {
-                    amount += Math.max(0, item.getStack());
-                }
+    private ShopPurchaseResult restoreRemovedItems(Player player, ShopOffer offer, SellQuote quote) {
+        return restoreSelections(player.getInventory(), offer, quote.selections())
+                ? ShopPurchaseResult.success("Items restored.", offer)
+                : ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, "Could not restore sold items.");
+    }
+
+    private static boolean restoreSelections(Inventory inventory, ShopOffer offer, List<SellSelection> selections) {
+        for (int i = selections.size() - 1; i >= 0; i--) {
+            SellSelection selection = selections.get(i);
+            Item current = inventory.getItem(selection.slot(), selection.slotType());
+            if (current != null && current.isValid() && sameState(current, selection.state())) {
+                current.setStack(selection.originalStack());
+                continue;
             }
+            Item restored = addSystemOfferItemToSlot(inventory, offer, selection.amount(), selection.slot(), selection.slotType());
+            if (restored == null || !restored.isValid()) return false;
+            applyState(restored, selection.state());
         }
-        return amount;
+        inventory.syncWithClient();
+        return true;
     }
 
     static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, double basePrice,
@@ -615,6 +640,36 @@ public class ShopService {
         return Math.max(1, offer.getAmount());
     }
 
+    static int maxDurability(Item item) {
+        ItemDefinition definition = item == null ? null : item.getDefinition();
+        if (definition == null && item != null) definition = Definitions.getItemDefinition(item.getTypeID());
+        return definition == null ? 0 : Math.max(0, definition.durability);
+    }
+
+    static long durabilityAdjustedPayout(long unitPayout, int durability, int maxDurability) {
+        if (maxDurability <= 0) return Math.max(0L, unitPayout);
+        if (durability <= 0) return 0L;
+        return (long) Math.floor(Math.max(0L, unitPayout)
+                * Math.min(1.0d, durability / (double) maxDurability));
+    }
+
+    private static ItemState snapshot(Item item) {
+        return new ItemState(item.getDurability(), item.getStatus(), item.getModifier() == null ? "" : item.getModifier().name());
+    }
+
+    private static boolean sameState(Item item, ItemState state) {
+        String modifier = item.getModifier() == null ? "" : item.getModifier().name();
+        return item.getDurability() == state.durability() && item.getStatus() == state.status()
+                && modifier.equals(state.modifier());
+    }
+
+    private static void applyState(Item item, ItemState state) {
+        item.setDurability(state.durability());
+        item.setStatus(state.status());
+        try { item.setModifier(state.modifier().isBlank() ? null : Modifier.valueOf(state.modifier())); }
+        catch (IllegalArgumentException ignored) { item.setModifier(null); }
+    }
+
     private static void rollbackInventoryAdd(Inventory inventory, List<StackChange> stackChanges,
             List<CreatedSlot> createdSlots) {
         for (CreatedSlot createdSlot : createdSlots) {
@@ -708,5 +763,35 @@ public class ShopService {
     }
 
     private record CreatedSlot(int slot, SlotType slotType) {
+    }
+
+    private record ItemState(int durability, short status, String modifier) {
+    }
+
+    private record SellSelection(int slot, SlotType slotType, int originalStack, int amount, ItemState state) {
+    }
+
+    public static final class SellQuote {
+        private final List<SellSelection> selections;
+        private final long payout;
+        private final int amount;
+        private final String message;
+
+        private SellQuote(List<SellSelection> selections, long payout, int amount, String message) {
+            this.selections = List.copyOf(selections);
+            this.payout = payout;
+            this.amount = amount;
+            this.message = message == null ? "" : message;
+        }
+
+        public static SellQuote invalid(String message) { return new SellQuote(List.of(), 0L, 0, message); }
+        List<SellSelection> selections() { return selections; }
+        public long payout() { return payout; }
+        public int amount() { return amount; }
+        public String message() { return message; }
+        public boolean sellable() { return !selections.isEmpty() && amount > 0; }
+        ShopOffer payoutOffer(ShopOffer offer) {
+            return offer.economyCopy(amount, offer.getBasePrice(), payout, offer.getSellPrice());
+        }
     }
 }

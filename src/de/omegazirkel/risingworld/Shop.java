@@ -345,6 +345,11 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
         return result;
     }
 
+    public ShopService.SellQuote sellQuote(Player player, ShopOffer offer, int quantity) {
+        if (offer == null || !offer.isSystemOffer()) return ShopService.SellQuote.invalid("System offer not found.");
+        return service.quoteSell(player, dynamicEconomyOffer(player, offer, Math.max(1, quantity)));
+    }
+
     public ShopOffer findOffer(String offerId) {
         return service.findOffer(offerId).orElse(null);
     }

@@ -14,6 +14,15 @@ import org.junit.Test;
 
 public class ShopEconomyRulesTest {
     @Test
+    public void durabilityAdjustedPayoutIsLinearPerItemAndFloorsWholeCurrency() {
+        assertEquals(100L, ShopService.durabilityAdjustedPayout(100L, 100, 100));
+        assertEquals(10L, ShopService.durabilityAdjustedPayout(100L, 10, 100));
+        assertEquals(3L, ShopService.durabilityAdjustedPayout(35L, 10, 100));
+        assertEquals(0L, ShopService.durabilityAdjustedPayout(100L, 0, 100));
+        assertEquals(100L, ShopService.durabilityAdjustedPayout(100L, 0, 0));
+    }
+
+    @Test
     public void automaticTicksOnlyRunForSuppliedModes() {
         assertFalse(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.STATIC)));
         assertFalse(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.PLAYER_SUPPLIED)));
