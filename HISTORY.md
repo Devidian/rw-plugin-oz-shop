@@ -2,7 +2,7 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## Unreleased
+## [0.3.1] - 2026-07-17 | Configurable stock reconciliation
 
 - feat: make the automatic stock reconciliation interval configurable in hours, defaulting to one hour
 - fix: retain fractional drain/restock time until a whole-item stock change occurs

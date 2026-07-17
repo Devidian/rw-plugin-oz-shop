@@ -55,36 +55,13 @@ public class ShopService {
             ShopPurchaseCallback callback,
             ShopPriceResolver priceResolver) {
         return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, "", pluginIdentifier,
-                pluginIdentifier, callback, priceResolver);
+                pluginIdentifier, callback, priceResolver, null);
     }
 
     public synchronized ShopOfferRegistrationResult registerPluginOffer(
-            String id,
-            String title,
-            String description,
-            long price,
-            String currencyIdentifier,
-            String icon,
-            String category,
-            String source,
-            String pluginIdentifier,
-            ShopPurchaseCallback callback) {
-        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
-                pluginIdentifier, callback, null);
-    }
-
-    public synchronized ShopOfferRegistrationResult registerPluginOffer(
-            String id,
-            String title,
-            String description,
-            long price,
-            String currencyIdentifier,
-            String icon,
-            String category,
-            String source,
-            String pluginIdentifier,
-            ShopPurchaseCallback callback,
-            ShopPriceResolver priceResolver) {
+            String id, String title, String description, long price, String currencyIdentifier, String icon,
+            String category, String source, String pluginIdentifier, ShopPurchaseCallback callback,
+            ShopPriceResolver priceResolver, ShopOfferLocalization localization) {
         String normalizedId = normalizeId(id);
         String normalizedPlugin = normalizePlugin(pluginIdentifier);
         if (normalizedId.isBlank() || normalizedPlugin.isBlank() || isBlank(title) || price < 0 || callback == null) {
@@ -99,8 +76,24 @@ public class ShopService {
         ShopOffer offer = new ShopOffer(normalizedId, title.trim(), safe(description), price, currencyIdentifier, icon,
                 safe(category), isBlank(source) ? normalizedPlugin : safe(source), normalizedPlugin, true, false,
                 callback, priceResolver);
+        offer.setLocalization(localization);
         offers.put(normalizedId, offer);
         return ShopOfferRegistrationResult.success("Offer registered.", offer);
+    }
+
+    public synchronized ShopOfferRegistrationResult registerPluginOffer(
+            String id, String title, String description, long price, String currencyIdentifier, String icon,
+            String category, String source, String pluginIdentifier, ShopPurchaseCallback callback) {
+        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
+                pluginIdentifier, callback, null, null);
+    }
+
+    public synchronized ShopOfferRegistrationResult registerPluginOffer(
+            String id, String title, String description, long price, String currencyIdentifier, String icon,
+            String category, String source, String pluginIdentifier, ShopPurchaseCallback callback,
+            ShopPriceResolver priceResolver) {
+        return registerPluginOffer(id, title, description, price, currencyIdentifier, icon, category, source,
+                pluginIdentifier, callback, priceResolver, null);
     }
 
     public synchronized ShopOfferRegistrationResult unregisterOffer(String id, String pluginIdentifier) {

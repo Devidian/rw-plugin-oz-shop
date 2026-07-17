@@ -37,6 +37,7 @@ public class ShopOffer {
     private final long globalDailySellLimit;
     private final ShopPurchaseCallback callback;
     private final ShopPriceResolver priceResolver;
+    private ShopOfferLocalization localization;
 
     public ShopOffer(String id, String title, String description, long price, String currencyIdentifier, String icon,
             String pluginIdentifier, boolean enabled, boolean systemOffer, ShopPurchaseCallback callback) {
@@ -180,6 +181,12 @@ public class ShopOffer {
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
+    public String getTitle(Player player) {
+        return localization == null ? title : localized(localization.title(player), title);
+    }
+    public String getDescription(Player player) {
+        return localization == null ? description : localized(localization.description(player), description);
+    }
     public String getItemName() { return itemName; }
     public short getItemTypeId() { return itemTypeId; }
     public int getItemVariant() { return itemVariant; }
@@ -230,6 +237,10 @@ public class ShopOffer {
     public long getGlobalDailySellLimit() { return globalDailySellLimit; }
     ShopPurchaseCallback getCallback() { return callback; }
     ShopPriceResolver getPriceResolver() { return priceResolver; }
+    void setLocalization(ShopOfferLocalization localization) { this.localization = localization; }
+    private static String localized(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
 
     public ShopOffer economyCopy(int amount, double basePrice, long buyPrice, long sellPrice) {
         return new ShopOffer(id, title, description, itemName, itemTypeId, itemVariant, Math.max(1, amount),

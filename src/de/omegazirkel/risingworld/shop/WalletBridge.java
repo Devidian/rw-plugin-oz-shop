@@ -50,6 +50,13 @@ public class WalletBridge {
                 new Object[] { playerDbId, value, reason, currencyIdentifier, pluginIdentifier });
     }
 
+    public WalletCallResult transferIdempotent(int payerDbId, int payeeDbId, long value, String reason,
+            String currencyIdentifier, String pluginIdentifier, String correlationId) {
+        return call("transferIdempotent",
+                new Class<?>[] { int.class, int.class, long.class, String.class, String.class, String.class, String.class },
+                new Object[] { payerDbId, payeeDbId, value, reason, currencyIdentifier, pluginIdentifier, correlationId });
+    }
+
     public String defaultCurrencyIdentifier() {
         Plugin walletPlugin = owner.getPluginByName("OZ - Wallet");
         if (walletPlugin == null) {

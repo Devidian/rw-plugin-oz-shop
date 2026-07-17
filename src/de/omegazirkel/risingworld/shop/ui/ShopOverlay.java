@@ -202,7 +202,13 @@ public class ShopOverlay extends OZUIElement {
             }
             rebuild();
         });
-        if (activeTab == tab) {
+        if (tab == Tab.ADMIN && activeTab == tab) {
+            button.setBackgroundColor(0.19f, 0.10f, 0.03f, 0.92f);
+            button.setBorderColor(1.0f, 0.48f, 0.12f, 0.86f);
+        } else if (tab == Tab.ADMIN) {
+            button.setBackgroundColor(0.16f, 0.07f, 0.03f, 0.58f);
+            button.setBorderColor(1.0f, 0.48f, 0.12f, 0.42f);
+        } else if (activeTab == tab) {
             button.setBackgroundColor(0.08f, 0.08f, 0.08f, 0.84f);
             button.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         } else {
@@ -891,7 +897,7 @@ public class ShopOverlay extends OZUIElement {
         source.setFontColor(0xC8C0B2FF);
         card.addChild(source);
 
-        UILabel description = label(offer.getDescription(), 12, Font.Default);
+        UILabel description = label(offer.getDescription(player), 12, Font.Default);
         description.setPivot(Pivot.UpperLeft);
         description.setPosition(12, 76, false);
         description.setSize(232, 34, false);
@@ -933,9 +939,9 @@ public class ShopOverlay extends OZUIElement {
 
     private String offerTitle(ShopOffer offer) {
         if (offer.getItemName().isBlank()) {
-            return offer.getTitle();
+            return offer.getTitle(player);
         }
-        return ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle());
+        return ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player));
     }
 
     private String offerPrice(ShopOffer offer, OfferAction action) {
@@ -1290,7 +1296,7 @@ public class ShopOverlay extends OZUIElement {
         ShopOffer displayOffer = plugin.configuredSystemOffer(player, offer);
         return offerTitle(displayOffer).toLowerCase(Locale.ROOT).contains(filter)
                 || displayOffer.getItemName().toLowerCase(Locale.ROOT).contains(filter)
-                || displayOffer.getTitle().toLowerCase(Locale.ROOT).contains(filter);
+                || displayOffer.getTitle(player).toLowerCase(Locale.ROOT).contains(filter);
     }
 
     private void applySystemCardStyle(OZUIElement card, boolean selected) {

@@ -247,6 +247,23 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
     }
 
     public ShopOfferRegistrationResult registerOffer(
+            String id, String title, String description, long price, String currencyIdentifier, String icon,
+            String pluginIdentifier, ShopPurchaseCallback callback,
+            de.omegazirkel.risingworld.shop.ShopOfferLocalization localization) {
+        return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, "",
+                pluginIdentifier, pluginIdentifier, callback, null, localization);
+    }
+
+    public ShopOfferRegistrationResult registerOffer(
+            String id, String title, String description, long price, String currencyIdentifier, String icon,
+            String pluginIdentifier, ShopPurchaseCallback callback,
+            de.omegazirkel.risingworld.shop.ShopPriceResolver priceResolver,
+            de.omegazirkel.risingworld.shop.ShopOfferLocalization localization) {
+        return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, "",
+                pluginIdentifier, pluginIdentifier, callback, priceResolver, localization);
+    }
+
+    public ShopOfferRegistrationResult registerOffer(
             String id,
             String title,
             String description,
@@ -763,9 +780,9 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
             String currency = offer.getCurrencyIdentifier().isBlank()
                     ? t.get("TC_SHOP_DEFAULT_CURRENCY", player)
                     : offer.getCurrencyIdentifier();
-            String label = offer.getItemName().isBlank() ? offer.getTitle()
+            String label = offer.getItemName().isBlank() ? offer.getTitle(player)
                     : offer.getAmount() + "x "
-                            + ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle());
+                            + ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player));
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice(player) + " " + currency + ")");
         }
