@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.4] - 2026-07-20 | Settings translations
+
+- fix: localize all registered Shop admin settings
+
 ## [0.3.3] - 2026-07-20 | Update metadata
 
 - change: publish the canonical GitHub release source for OZ Tools update management
