@@ -18,9 +18,9 @@ import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.tools.Colors;
 import de.omegazirkel.risingworld.tools.I18n;
-import de.omegazirkel.risingworld.tools.ui.ButtonFactory;
+import de.omegazirkel.risingworld.tools.ui.AdvancedButtonFactory;
 import de.omegazirkel.risingworld.tools.ui.CursorManager;
-import de.omegazirkel.risingworld.tools.ui.InfoButton;
+import de.omegazirkel.risingworld.tools.ui.AdvancedButton;
 import de.omegazirkel.risingworld.tools.ui.OZUIElement;
 import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ui.table.TableCell;
@@ -81,8 +81,8 @@ public class ShopOverlay extends OZUIElement {
     private ShopOffer selectedSystemEffectiveOffer;
     private UILabel selectedSystemBuyPreviewLabel;
     private UILabel selectedSystemSellPreviewLabel;
-    private InfoButton selectedSystemBuyButton;
-    private InfoButton selectedSystemSellButton;
+    private AdvancedButton selectedSystemBuyButton;
+    private AdvancedButton selectedSystemSellButton;
     private int selectedSystemInventoryAmount;
     private String systemOfferFilter = "";
 
@@ -458,7 +458,7 @@ public class ShopOverlay extends OZUIElement {
         searchField.setMaxCharacters(80);
         body.addChild(searchField);
 
-        InfoButton apply = ButtonFactory.info(t.get("TC_SHOP_UI_SEARCH_APPLY", player), event -> {
+        AdvancedButton apply = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SEARCH_APPLY", player), event -> {
             searchField.getCurrentText(player, text -> {
                 systemOfferFilter = text == null ? "" : text.trim();
                 selectedSystemOffer = null;
@@ -470,7 +470,7 @@ public class ShopOverlay extends OZUIElement {
         apply.setSize(92, 30, false);
         body.addChild(apply);
 
-        InfoButton clear = ButtonFactory.info(t.get("TC_SHOP_UI_SEARCH_CLEAR", player), event -> {
+        AdvancedButton clear = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SEARCH_CLEAR", player), event -> {
             systemOfferFilter = "";
             selectedSystemOffer = null;
             rebuild();
@@ -702,7 +702,7 @@ public class ShopOverlay extends OZUIElement {
         options.addChild(optionActions);
 
         if (effectiveOffer.canPlayerBuyFromSystem()) {
-            InfoButton buy = ButtonFactory.info(t.get("TC_SHOP_UI_BUY_SELECTED", player),
+            AdvancedButton buy = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_BUY_SELECTED", player),
                     event -> executeSystemAction(effectiveOffer, amountField, false));
             buy.setPivot(Pivot.UpperLeft);
             buy.setPosition(0, 12, false);
@@ -743,7 +743,7 @@ public class ShopOverlay extends OZUIElement {
         options.addChild(selectedSystemSellPreviewLabel);
 
         if (effectiveOffer.canPlayerSellToSystem()) {
-            InfoButton sell = ButtonFactory.info(t.get("TC_SHOP_UI_SELL_SELECTED", player),
+            AdvancedButton sell = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SELL_SELECTED", player),
                     event -> executeSystemAction(effectiveOffer, amountField, true));
 
             selectedSystemSellButton = sell;
@@ -779,7 +779,7 @@ public class ShopOverlay extends OZUIElement {
                 .replace("PH_MAX", String.valueOf(offer.getRestockMax())));
         addAdminEconomyLine(options, x, 100, adminNextTickLabel(plugin.economyTickStatusFor(player, offer)));
 
-        InfoButton reset = ButtonFactory.info(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player),
+        AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player),
                 event -> showResetStockConfirmation(offer, state));
         reset.setPivot(Pivot.UpperLeft);
         reset.setPosition(x + 286, 42, false);
@@ -832,13 +832,13 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = ButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
         cancel.setPivot(Pivot.LowerLeft);
         cancel.setPosition(18, 192, false);
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement confirm = ButtonFactory.ok(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player), event -> {
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player), event -> {
             panel.removeChild(blocker);
             ShopPurchaseResult result = plugin.resetSystemOfferStockToTarget(player, offer);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
@@ -1020,8 +1020,8 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement actionButton(ShopOffer offer, OfferAction action) {
-        InfoButton button = ButtonFactory
-                .info(t.get(action == OfferAction.SELL ? "TC_SHOP_UI_SELL" : "TC_SHOP_UI_BUY", player), event -> {
+        AdvancedButton button = AdvancedButtonFactory
+                .defaultButton(t.get(action == OfferAction.SELL ? "TC_SHOP_UI_SELL" : "TC_SHOP_UI_BUY", player), event -> {
                     ShopPurchaseResult result = action == OfferAction.SELL
                             ? plugin.sell(player, offer.getId(), 1)
                             : plugin.purchase(player, offer.getId());
@@ -1215,7 +1215,7 @@ public class ShopOverlay extends OZUIElement {
         refreshButtonParent(selectedSystemSellButton);
     }
 
-    private void refreshButtonParent(InfoButton button) {
+    private void refreshButtonParent(AdvancedButton button) {
         // workaround, remove and readd button because styling is broken after switching
         // from enabled to disabled and back
         UIElement parent = button.getParent();
@@ -1225,7 +1225,7 @@ public class ShopOverlay extends OZUIElement {
         }
     }
 
-    private void styleBuyButton(InfoButton button) {
+    private void styleBuyButton(AdvancedButton button) {
         button.setBackgroundColor(0.54f, 0.38f, 0.07f, 0.96f);
         button.setBorderColor(0.95f, 0.75f, 0.25f, 0.62f);
         button.setHoverBackgroundColor(0xA07016F5);
@@ -1233,7 +1233,7 @@ public class ShopOverlay extends OZUIElement {
         button.setHoverBorderWidth(1);
     }
 
-    private void styleSellButton(InfoButton button) {
+    private void styleSellButton(AdvancedButton button) {
         button.setBackgroundColor(0.12f, 0.40f, 0.16f, 0.96f);
         button.setBorderColor(0.50f, 0.88f, 0.50f, 0.58f);
         button.setHoverBackgroundColor(0x2B7A35F5);
@@ -1241,7 +1241,7 @@ public class ShopOverlay extends OZUIElement {
         button.setHoverBorderWidth(1);
     }
 
-    private void styleDisabledButton(InfoButton button) {
+    private void styleDisabledButton(AdvancedButton button) {
         button.setBackgroundColor(0.10f, 0.10f, 0.10f, 0.45f);
         button.setBorderColor(0.45f, 0.45f, 0.45f, 0.35f);
         button.setHoverBackgroundColor(0x1A1A1A73);
@@ -1249,7 +1249,7 @@ public class ShopOverlay extends OZUIElement {
         button.setHoverBorderWidth(1);
     }
 
-    private void styleResetButton(InfoButton button) {
+    private void styleResetButton(AdvancedButton button) {
         button.setBackgroundColor(0.46f, 0.18f, 0.12f, 0.96f);
         button.setHoverBackgroundColor(0x8A3024F5);
         button.setBorderColor(0.95f, 0.42f, 0.32f, 0.58f);
@@ -1413,7 +1413,7 @@ public class ShopOverlay extends OZUIElement {
         addZoneLine(18, 88, t.get("TC_SHOP_UI_ZONE_AREA_ID", player)
                 .replace("PH_AREA_ID", String.valueOf(area.getID())));
 
-        InfoButton create = ButtonFactory.info(t.get("TC_MENU_SHOP_ZONE_CREATE", player), event -> {
+        AdvancedButton create = AdvancedButtonFactory.defaultButton(t.get("TC_MENU_SHOP_ZONE_CREATE", player), event -> {
             plugin.createOrEnableCurrentZone(player).ifPresentOrElse(zone -> {
                 player.sendTextMessage(c.okay + t.get("TC_SHOP_ZONE_CREATED", player)
                         .replace("PH_AREA", zone.getAreaName())
@@ -1504,7 +1504,7 @@ public class ShopOverlay extends OZUIElement {
                     pendingRemoveZone = zone;
                     rebuild();
                 });
-        if (remove instanceof InfoButton removeButton) {
+        if (remove instanceof AdvancedButton removeButton) {
             styleResetButton(removeButton);
         }
         body.addChild(remove);
@@ -1529,7 +1529,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement zoneButton(String text, int x, int y, int width, java.util.function.Consumer<Object> action) {
-        InfoButton button = ButtonFactory.info(text, event -> action.accept(event));
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(text, event -> action.accept(event));
         button.setPivot(Pivot.UpperLeft);
         button.setPosition(x, y, false);
         button.setSize(width, 30, false);
@@ -1538,7 +1538,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement systemShopModeButton(ShopZone zone, int mode, int x, int y) {
-        InfoButton button = ButtonFactory.info(systemShopModeLabel(mode), event -> {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(systemShopModeLabel(mode), event -> {
             ShopZone updated = plugin.setZoneSystemShop(zone.getAreaId(), mode);
             if (updated != null) {
                 player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_SYSTEMSHOP_UPDATED", player)
@@ -1617,7 +1617,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement systemShopButton(ShopZone zone) {
-        InfoButton button = ButtonFactory.info(systemShopLabel(zone), event -> {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(systemShopLabel(zone), event -> {
             int next = zone.getSystemShop() == -1 ? 0 : zone.getSystemShop() == 0 ? 1 : -1;
             ShopZone updated = plugin.setZoneSystemShop(zone.getAreaId(), next);
             if (updated != null) {
@@ -1643,7 +1643,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement removeZoneButton(ShopZone zone) {
-        InfoButton button = ButtonFactory.info(t.get("TC_SHOP_UI_REMOVE", player), event -> {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_REMOVE", player), event -> {
             pendingRemoveZone = zone;
             rebuild();
         });
@@ -1692,7 +1692,7 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = ButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
             pendingRemoveZone = null;
             rebuild();
         });
@@ -1701,7 +1701,7 @@ public class ShopOverlay extends OZUIElement {
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement remove = ButtonFactory.danger(t.get("TC_SHOP_UI_REMOVE", player), event -> {
+        UIElement remove = AdvancedButtonFactory.danger(t.get("TC_SHOP_UI_REMOVE", player), event -> {
             if (plugin.shopZoneService().deleteAreaZone(pendingRemoveZone.getAreaId())) {
                 plugin.reloadShopZones();
                 player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_AREA_REMOVED", player)
@@ -1761,7 +1761,7 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = ButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
             pendingResetZoneStocks = false;
             rebuild();
         });
@@ -1770,7 +1770,7 @@ public class ShopOverlay extends OZUIElement {
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement confirm = ButtonFactory.ok(t.get("TC_SHOP_UI_ZONE_RESET_STOCKS", player), event -> {
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_ZONE_RESET_STOCKS", player), event -> {
             pendingResetZoneStocks = false;
             ShopPurchaseResult result = plugin.resetCurrentZoneStocksToTarget(player);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);

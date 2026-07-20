@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.5] - 2026-07-20 | Advanced button controls
+
+- change: use the stable shared OZ button controls in Shop overlays
+
 ## [0.3.4] - 2026-07-20 | Settings translations
 
 - fix: localize all registered Shop admin settings
