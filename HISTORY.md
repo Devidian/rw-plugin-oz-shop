@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.3] - 2026-07-20 | Update metadata
+
+- change: publish the canonical GitHub release source for OZ Tools update management
+
 ## [0.3.2] - 2026-07-17 | Durability-adjusted system buyback
 
 - fix: calculate system-shop buyback payouts per removed item's durability and reject zero-durability items

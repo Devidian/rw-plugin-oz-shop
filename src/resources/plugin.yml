@@ -1,9 +1,9 @@
 name: "OZ - Shop"
 main: de.omegazirkel.risingworld.Shop
-version: 0.3.2
+version: 0.3.3
 author: "Maik 'Devidian' Laschober"
 team: "Omega Zirkel"
 description: "Shared shop and purchase API for Rising World plugins"
 license: N/A
-website: N/A
+website: https://api.github.com/repos/Devidian/rw-plugin-oz-shop/releases/latest
 loadorder: -90
