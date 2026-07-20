@@ -73,6 +73,7 @@ public class ShopOverlay extends OZUIElement {
     private ShopOffer selectedSystemOffer;
     private OZUIElement systemOptions;
     private OZUIElement selectedSystemCard;
+    private UILabel selectedSystemCardStockLabel;
     private UITextField selectedSystemAmountField;
     private UITextField zoneNameField;
     private UITextField zoneOfferFileField;
@@ -563,11 +564,13 @@ public class ShopOverlay extends OZUIElement {
             }
             selectedSystemOffer = offer;
             selectedSystemCard = card;
+            selectedSystemCardStockLabel = stock;
             applySystemCardStyle(card, true);
             refreshSystemOptions();
         });
         if (selected) {
             selectedSystemCard = card;
+            selectedSystemCardStockLabel = stock;
         }
         return card;
     }
@@ -842,7 +845,7 @@ public class ShopOverlay extends OZUIElement {
             panel.removeChild(blocker);
             ShopPurchaseResult result = plugin.resetSystemOfferStockToTarget(player, offer);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            rebuild();
+            refreshSystemOptions();
         });
         confirm.setPivot(Pivot.LowerRight);
         confirm.setPosition(422, 192, false);
@@ -1040,24 +1043,33 @@ public class ShopOverlay extends OZUIElement {
             int amount = parseStrictPositiveInt(amountText);
             int quantity = quantityForAmount(offer, amountText);
             if (amount <= 0 || quantity <= 0) {
-                rebuild();
+                refreshSystemOptions();
                 return;
             }
             if (!sellToSystem && !canBuySelectedSystemAmount(offer, amountText)) {
-                rebuild();
+                refreshSystemOptions();
                 return;
             }
             if (sellToSystem && requiredSystemSellAmount(offer, amountText) > inventoryAmount(offer)) {
                 player.sendTextMessage(c.warning + t.get("TC_SHOP_UI_NOT_IN_INVENTORY", player));
-                rebuild();
+                refreshSystemOptions();
                 return;
             }
             ShopPurchaseResult result = sellToSystem
                     ? plugin.sell(player, offer.getId(), quantity)
                     : plugin.purchase(player, offer.getId(), quantity);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            rebuild();
+            refreshSelectedSystemTradeState(offer);
         });
+    }
+
+    private void refreshSelectedSystemTradeState(ShopOffer offer) {
+        ShopOffer effectiveOffer = plugin.configuredSystemOffer(player, offer);
+        if (selectedSystemCardStockLabel != null) {
+            selectedSystemCardStockLabel.setText(t.get("TC_SHOP_UI_STOCK", player)
+                    .replace("PH_STOCK", stockLabel(effectiveOffer, plugin.economyStateFor(player, effectiveOffer))));
+        }
+        refreshSystemOptions();
     }
 
     public void onAmountFieldChanged(UITextField field, String newText) {
@@ -1090,8 +1102,7 @@ public class ShopOverlay extends OZUIElement {
             int slots = inventory.getSlotCount(slotType);
             for (int slot = 0; slot < slots; slot++) {
                 Item item = inventory.getItem(slot, slotType);
-                if (item != null && item.isValid() && item.getTypeID() == offer.getItemTypeId()
-                        && item.getVariant() == offer.getItemVariant()) {
+                if (ShopItemNames.matches(item, offer.getItemName(), offer.getItemVariant(), offer.getItemTypeId())) {
                     amount += Math.max(0, item.getStack());
                 }
             }

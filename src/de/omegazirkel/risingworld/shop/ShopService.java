@@ -685,34 +685,8 @@ public class ShopService {
     }
 
     private static boolean matchesSystemOfferItem(Item item, ShopOffer offer) {
-        if (item == null || !item.isValid()) {
-            return false;
-        }
-        ObjectDefinition objectDefinition = objectDefinition(offer);
-        if (objectDefinition != null && item instanceof Item.ObjectItem objectItem) {
-            String objectName = objectItem.getObjectName();
-            return objectName != null && objectName.equalsIgnoreCase(objectDefinition.name)
-                    && item.getVariant() == objectVariant(offer, objectDefinition);
-        }
-        ConstructionDefinition constructionDefinition = Definitions.getConstructionDefinition(offer.getItemName());
-        if (constructionDefinition != null && item instanceof Item.ConstructionItem constructionItem) {
-            String constructionName = constructionItem.getConstructionName();
-            return constructionName != null && constructionName.equalsIgnoreCase(constructionDefinition.name)
-                    && item.getVariant() == offer.getItemVariant();
-        }
-        ClothingDefinition clothingDefinition = Definitions.getClothingDefinition(offer.getItemName());
-        if (clothingDefinition != null && item instanceof Item.ClothingItem clothingItem) {
-            String clothingName = clothingItem.getClothingName();
-            return clothingName != null && clothingName.equalsIgnoreCase(clothingDefinition.name)
-                    && item.getVariant() == offer.getItemVariant();
-        }
-        PlantDefinition plantDefinition = Definitions.getPlantDefinition(offer.getItemName());
-        if (plantDefinition != null) {
-            String itemName = item.getName();
-            return itemName != null && itemName.equalsIgnoreCase(plantDefinition.name)
-                    && item.getVariant() == offer.getItemVariant();
-        }
-        return item.getTypeID() == offer.getItemTypeId() && item.getVariant() == offer.getItemVariant();
+        return offer != null && ShopItemNames.matches(item, offer.getItemName(), offer.getItemVariant(),
+                offer.getItemTypeId());
     }
 
     private static ObjectDefinition objectDefinition(ShopOffer offer) {

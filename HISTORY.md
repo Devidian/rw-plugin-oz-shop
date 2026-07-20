@@ -2,6 +2,11 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.6] - 2026-07-20 | Focused system-shop refresh
+
+- fix: recognize hybrid Anvil inventory items when selling to the system shop
+- fix: update only the selected offer and its detail area after a system-shop trade
+
 ## [0.3.5] - 2026-07-20 | Advanced button controls
 
 - change: use the stable shared OZ button controls in Shop overlays

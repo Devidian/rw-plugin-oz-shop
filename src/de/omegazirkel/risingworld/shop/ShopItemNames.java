@@ -9,6 +9,7 @@ import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Items.ItemDefinition.Variant;
 import net.risingworld.api.definitions.Objects.ObjectDefinition;
 import net.risingworld.api.definitions.Plants.PlantDefinition;
+import net.risingworld.api.objects.Item;
 
 public final class ShopItemNames {
     private ShopItemNames() {
@@ -69,6 +70,36 @@ public final class ShopItemNames {
             return itemVariant;
         }
         return Definitions.getObjectDefinition(itemName) != null ? itemVariant : 0;
+    }
+
+    /** Matches the inventory representation used for the resolved offer. */
+    public static boolean matches(Item item, String itemName, int itemVariant, short itemTypeId) {
+        if (item == null || !item.isValid()) return false;
+        ObjectDefinition objectDefinition = objectDefinition(itemName, itemVariant);
+        if (objectDefinition != null && item instanceof Item.ObjectItem objectItem) {
+            String objectName = objectItem.getObjectName();
+            return objectName != null && objectName.equalsIgnoreCase(objectDefinition.name)
+                    && item.getVariant() == objectVariant(itemName, itemVariant, objectDefinition);
+        }
+        ConstructionDefinition constructionDefinition = Definitions.getConstructionDefinition(itemName);
+        if (constructionDefinition != null && item instanceof Item.ConstructionItem constructionItem) {
+            String constructionName = constructionItem.getConstructionName();
+            return constructionName != null && constructionName.equalsIgnoreCase(constructionDefinition.name)
+                    && item.getVariant() == itemVariant;
+        }
+        ClothingDefinition clothingDefinition = Definitions.getClothingDefinition(itemName);
+        if (clothingDefinition != null && item instanceof Item.ClothingItem clothingItem) {
+            String clothingName = clothingItem.getClothingName();
+            return clothingName != null && clothingName.equalsIgnoreCase(clothingDefinition.name)
+                    && item.getVariant() == itemVariant;
+        }
+        PlantDefinition plantDefinition = Definitions.getPlantDefinition(itemName);
+        if (plantDefinition != null) {
+            String resolvedName = item.getName();
+            return resolvedName != null && resolvedName.equalsIgnoreCase(plantDefinition.name)
+                    && item.getVariant() == itemVariant;
+        }
+        return item.getTypeID() == itemTypeId && item.getVariant() == itemVariant;
     }
 
     private static String objectVariantDisplayName(String itemName, int itemVariant) {
