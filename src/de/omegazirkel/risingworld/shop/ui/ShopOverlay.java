@@ -1004,7 +1004,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private Locale playerLocale() {
-        String language = player.getSystemLanguage();
+        String language = de.omegazirkel.risingworld.OZTools.getPlayerLanguage(player);
         if (language == null || language.isBlank()) {
             return Locale.ROOT;
         }
