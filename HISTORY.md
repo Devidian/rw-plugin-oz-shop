@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## Unreleased
+
+- refactor: use the central OZ Tools Wallet bridge
+
 ## [0.3.8] - 2026-07-24 | System-shop inventory and buyback improvements
 
 - feat: add a system-shop search toggle that limits offers to items currently held in the player's inventory
