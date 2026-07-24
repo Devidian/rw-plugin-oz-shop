@@ -36,6 +36,10 @@ If `OZ - Wallet` is missing or not loaded, this plugin may load but purchases mu
 - Copy `system-offers.default.json` on first run/update and generate `system-offer-example.json` from `Definitions.getAllItemDefinitions()` when missing.
 - Treat public result objects, `ShopPurchaseCallback`, and main-class public API methods as sibling-plugin compatibility surface.
 - Keep `README.md`, `HISTORY.md`, and `PLANS.md` aligned with behavior changes.
+- Keep the `plugin.yml` entry class as the sole Rising World `Listener` and sole
+  `registerEventListener(...)` target. It may only wire lifecycle, delegate
+  events/settings, and expose thin compatibility facades; feature workflows,
+  persistence, UI, integrations, and timers belong in thematic classes.
 
 ## Validation
 
