@@ -2,6 +2,14 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.3.8] - 2026-07-24 | System-shop inventory and buyback improvements
+
+- feat: add a system-shop search toggle that limits offers to items currently held in the player's inventory
+- fix: localize successful system-shop purchase and sale chat notifications
+- change: classify formerly unclassified valid system offers as enabled T0 Trash / Common loot
+- feat: add the drain-only `LOOT` stock mode and assign it to all T0 offers
+- feat: price system-shop buybacks by item durability and modifier, with a sale confirmation breakdown
+
 ## [0.3.6] - 2026-07-20 | Focused system-shop refresh
 
 - fix: recognize hybrid Anvil inventory items when selling to the system shop

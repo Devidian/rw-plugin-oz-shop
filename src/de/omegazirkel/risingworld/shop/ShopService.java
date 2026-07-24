@@ -305,9 +305,9 @@ public class ShopService {
     public SellQuote quoteSell(Player player, ShopOffer offer) {
         if (player == null || player.getInventory() == null || offer == null) return SellQuote.invalid("Inventory is unavailable.");
         int remaining = offer.getAmount();
-        long unitPayout = Math.max(0L, offer.getBuyPrice() / Math.max(1, offer.getAmount()));
+        double unitPayout = Math.max(0L, offer.getBuyPrice()) / (double) Math.max(1, offer.getAmount());
         List<SellSelection> selections = new ArrayList<>();
-        long payout = 0L;
+        double payout = 0.0d;
         for (SlotType slotType : SlotType.values()) {
             for (int slot = 0; slot < player.getInventory().getSlotCount(slotType) && remaining > 0; slot++) {
                 Item item = player.getInventory().getItem(slot, slotType);
@@ -315,14 +315,19 @@ public class ShopService {
                 int amount = Math.min(remaining, item.getStack());
                 int maxDurability = maxDurability(item);
                 if (maxDurability > 0 && item.getDurability() <= 0) continue;
-                long itemPayout = durabilityAdjustedPayout(unitPayout, item.getDurability(), maxDurability);
-                selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item)));
+                Modifier modifier = item.getModifier();
+                double itemPayout = conditionAdjustedPayoutExact(unitPayout, item.getDurability(), maxDurability,
+                        modifier);
+                selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item),
+                        maxDurability, modifier == null ? "Normal" : modifier.name(),
+                        modifierPayoutMultiplier(modifier), floorPayout(unitPayout * amount),
+                        floorPayout(itemPayout * amount)));
                 payout += itemPayout * amount;
                 remaining -= amount;
             }
         }
         if (selections.isEmpty()) return SellQuote.invalid("No sellable item with remaining durability is available.");
-        return new SellQuote(selections, payout, offer.getAmount() - remaining,
+        return new SellQuote(selections, floorPayout(payout), offer.getAmount() - remaining,
                 remaining == 0 ? "" : "Only items with remaining durability can be sold.");
     }
 
@@ -647,10 +652,37 @@ public class ShopService {
     }
 
     static long durabilityAdjustedPayout(long unitPayout, int durability, int maxDurability) {
+        return conditionAdjustedPayout(unitPayout, durability, maxDurability, Modifier.Normal);
+    }
+
+    static long conditionAdjustedPayout(long unitPayout, int durability, int maxDurability, Modifier modifier) {
+        return floorPayout(conditionAdjustedPayoutExact(unitPayout, durability, maxDurability, modifier));
+    }
+
+    static double conditionAdjustedPayoutExact(double unitPayout, int durability, int maxDurability, Modifier modifier) {
         if (maxDurability <= 0) return Math.max(0L, unitPayout);
         if (durability <= 0) return 0L;
-        return (long) Math.floor(Math.max(0L, unitPayout)
-                * Math.min(1.0d, durability / (double) maxDurability));
+        return Math.max(0.0d, unitPayout)
+                * Math.min(1.0d, durability / (double) maxDurability)
+                * modifierPayoutMultiplier(modifier);
+    }
+
+    private static long floorPayout(double payout) {
+        if (!Double.isFinite(payout) || payout >= Long.MAX_VALUE) return Long.MAX_VALUE;
+        return payout <= 0.0d ? 0L : (long) Math.floor(payout + 1.0E-9d);
+    }
+
+    static double modifierPayoutMultiplier(Modifier modifier) {
+        Modifier effective = modifier == null ? Modifier.Normal : modifier;
+        if (effective == Modifier.Normal) return 1.0d;
+        if (effective == Modifier.Broken) return 0.1d;
+        int firstBetter = Modifier.Nice.ordinal();
+        int godly = Modifier.Godly.ordinal();
+        double multiplier = effective.ordinal() < firstBetter
+                ? 0.1d + 0.9d * (effective.ordinal() - Modifier.Broken.ordinal())
+                        / (firstBetter - Modifier.Broken.ordinal() - 1)
+                : 1.1d + 8.9d * (effective.ordinal() - firstBetter) / (double) (godly - firstBetter);
+        return Math.max(0.1d, Math.min(10.0d, multiplier));
     }
 
     private static ItemState snapshot(Item item) {
@@ -742,7 +774,9 @@ public class ShopService {
     private record ItemState(int durability, short status, String modifier) {
     }
 
-    private record SellSelection(int slot, SlotType slotType, int originalStack, int amount, ItemState state) {
+    private record SellSelection(int slot, SlotType slotType, int originalStack, int amount, ItemState state,
+            int maxDurability, String modifier, double modifierMultiplier, long basePayout,
+            long adjustedPayout) {
     }
 
     public static final class SellQuote {
@@ -764,8 +798,22 @@ public class ShopService {
         public int amount() { return amount; }
         public String message() { return message; }
         public boolean sellable() { return !selections.isEmpty() && amount > 0; }
+        public boolean requiresConditionConfirmation() {
+            return selections.stream().anyMatch(selection -> selection.maxDurability() > 0
+                    || !"Normal".equals(selection.modifier()));
+        }
+        public List<SellQuoteLine> lines() {
+            return selections.stream().map(selection -> new SellQuoteLine(selection.amount(),
+                    selection.state().durability(), selection.maxDurability(), selection.modifier(),
+                    selection.modifierMultiplier(), selection.basePayout(), selection.adjustedPayout()))
+                    .toList();
+        }
         ShopOffer payoutOffer(ShopOffer offer) {
             return offer.economyCopy(amount, offer.getBasePrice(), payout, offer.getSellPrice());
         }
+    }
+
+    public record SellQuoteLine(int amount, int durability, int maxDurability, String modifier,
+            double modifierMultiplier, long basePayout, long payout) {
     }
 }

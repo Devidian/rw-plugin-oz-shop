@@ -216,7 +216,9 @@ public class ShopOffer {
     public boolean isEnabled() { return enabled; }
     public boolean canPlayerBuyFromSystem() { return enabled; }
     public boolean canPlayerSellToSystem() {
-        return enabled && (stockMode == ShopStockMode.PLAYER_SUPPLIED || stockMode == ShopStockMode.HYBRID);
+        return enabled && (stockMode == ShopStockMode.PLAYER_SUPPLIED
+                || stockMode == ShopStockMode.LOOT
+                || stockMode == ShopStockMode.HYBRID);
     }
     public boolean usesPlayerSellLimits() { return canPlayerSellToSystem(); }
     public boolean isSystemOffer() { return systemOffer; }

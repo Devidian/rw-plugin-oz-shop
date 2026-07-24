@@ -3,6 +3,7 @@ package de.omegazirkel.risingworld.shop;
 public enum ShopStockMode {
     STATIC,
     PLAYER_SUPPLIED,
+    LOOT,
     SYSTEM_SUPPLIED,
     HYBRID;
 

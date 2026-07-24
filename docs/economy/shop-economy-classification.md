@@ -14,13 +14,13 @@ Generated classification metadata uses underscore-prefixed helper fields:
 }
 ```
 
-Every offer should have all three fields. Unmatched offers use `unclassified` values. Invalid or unsupported items use the separate `invalid` classification and remain disabled.
+Every offer should have all three fields. Valid offers without a more specific rule use the T0 `Trash / Common` loot fallback. Invalid or unsupported items use the separate `invalid` classification and remain disabled.
 
 ## Tier Model
 
 | Tier         | Category                     | Domain       | Rule                                                            |
 | ------------ | ---------------------------- | ------------ | --------------------------------------------------------------- |
-| T0           | Trash / Common               | resource     | Very common low-value terrain or pickup items                   |
+| T0           | Trash / Common               | resource/loot | Very common low-value terrain, pickup, or fallback loot items   |
 | T1           | Basic Resources              | resource     | Basic raw resources                                             |
 | T2           | Wood and Processing          | resource     | Wood, paper, cloth, leather, and early processed resources      |
 | T3           | Ores                         | resource     | Mineable ores and rare raw minerals                             |
@@ -33,7 +33,7 @@ Every offer should have all three fields. Unmatched offers use `unclassified` va
 | T10          | Modern Workbench Products    | product      | Recipe requires modern workbench                                |
 | T11          | Small Animal Items           | entity       | Small animal items that can be held in inventory                |
 | invalid      | Invalid                      | invalid      | Unsupported or invalid items that must never be traded          |
-| unclassified | unclassified                 | unclassified | No safe classification found                                    |
+| unclassified | unclassified                 | unclassified | Legacy classification value; valid offers use the T0 fallback   |
 
 ## Product Tier Resolution
 
@@ -64,7 +64,7 @@ Large animals are not classified as T11 unless the game exposes them as inventor
 
 | Tier   | stockMode       | stock | targetStock | stockLimit | buyEnabled | sellEnabled | per-player daily sell limit | global daily sell limit |
 | ------ | --------------- | ----: | ----------: | ---------: | ---------- | ----------- | --------------------------: | ----------------------: |
-| T0     | PLAYER_SUPPLIED |     0 |        1000 |     250000 | true       | true        |                       10000 |                   50000 |
+| T0     | LOOT            |     0 |        1000 |     250000 | true       | true        |                       10000 |                   50000 |
 | T1     | PLAYER_SUPPLIED |     0 |        2500 |     100000 | true       | true        |                        5000 |                   20000 |
 | T2     | PLAYER_SUPPLIED |     0 |        2500 |     100000 | true       | true        |                        5000 |                   20000 |
 | T3     | PLAYER_SUPPLIED |     0 |         500 |      50000 | true       | true        |                        2000 |                   10000 |
@@ -77,13 +77,15 @@ Large animals are not classified as T11 unless the game exposes them as inventor
 
 For offer semantics, `buyEnabled=true` means players can sell matching items to the system shop. `sellEnabled=true` means players can buy the offer from the system shop.
 
+`LOOT` is the T0 stock mode: players can both buy and sell, and the normal drain tick continuously removes stock. `LOOT` never performs an automatic restock.
+
 Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. They remain in `system-offers.complete.json` and are excluded from the generated runtime default and tier files.
 
 ## Current Tier Counts
 
 | Tier         | Count |
 | ------------ | ----: |
-| T0           |    19 |
+| T0           |   124 |
 | T1           |    14 |
 | T10          |    70 |
 | T11          |    15 |
@@ -96,7 +98,6 @@ Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. 
 | T8           |    22 |
 | T9           |   138 |
 | invalid      |  3001 |
-| unclassified |   105 |
 
 ## Current Domain Counts
 
@@ -104,14 +105,14 @@ Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. 
 | ------------ | ----: |
 | entity       |    15 |
 | invalid      |  3001 |
+| loot         |   105 |
 | product      |   242 |
 | resource     |   269 |
-| unclassified |   105 |
 
 ## Maintenance Notes
 
 - Keep the underscore-prefixed metadata fields in complete and generated default offers.
-- Leave uncertain items unclassified instead of guessing.
+- Classify valid items without a more specific rule as T0 `Trash / Common` in the `loot` domain.
 - Re-run recipe classification after recipe exports change.
 - Review T11 manually because animal names are game-specific and can overlap with animal products.
 - Fish and meat families use a common T6 baseline: raw `20`, cooked `28`, dried `22`, and burned `15`.

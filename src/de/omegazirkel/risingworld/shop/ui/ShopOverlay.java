@@ -86,6 +86,7 @@ public class ShopOverlay extends OZUIElement {
     private AdvancedButton selectedSystemSellButton;
     private int selectedSystemInventoryAmount;
     private String systemOfferFilter = "";
+    private boolean systemOffersInInventoryOnly;
 
     private enum Tab {
         SYSTEM,
@@ -401,6 +402,7 @@ public class ShopOverlay extends OZUIElement {
         }
         List<ShopOffer> filtered = enabled.stream()
                 .filter(this::matchesSystemOfferFilter)
+                .filter(this::matchesSystemOfferInventoryFilter)
                 .toList();
 
         setupSystemSearch();
@@ -480,6 +482,22 @@ public class ShopOverlay extends OZUIElement {
         clear.setPosition(440, 8, false);
         clear.setSize(92, 30, false);
         body.addChild(clear);
+
+        AdvancedButton inventoryOnly = AdvancedButtonFactory.defaultButton(
+                t.get(systemOffersInInventoryOnly
+                        ? "TC_SHOP_UI_INVENTORY_FILTER_ACTIVE"
+                        : "TC_SHOP_UI_INVENTORY_FILTER", player), event -> {
+                    systemOffersInInventoryOnly = !systemOffersInInventoryOnly;
+                    selectedSystemOffer = null;
+                    rebuild();
+                });
+        inventoryOnly.setPivot(Pivot.UpperLeft);
+        inventoryOnly.setPosition(544, 8, false);
+        inventoryOnly.setSize(220, 30, false);
+        if (systemOffersInInventoryOnly) {
+            inventoryOnly.setBackgroundColor(0.12f, 0.40f, 0.16f, 0.96f);
+        }
+        body.addChild(inventoryOnly);
     }
 
     private OZUIElement systemOfferCard(ShopOffer offer) {
@@ -607,6 +625,7 @@ public class ShopOverlay extends OZUIElement {
         List<ShopOffer> enabled = plugin.listSystemOffers(player).stream()
                 .filter(offer -> offer.isSystemOffer() && offer.isEnabled())
                 .filter(this::matchesSystemOfferFilter)
+                .filter(this::matchesSystemOfferInventoryFilter)
                 .toList();
         renderSystemOptions(systemOptions, enabled);
     }
@@ -1055,12 +1074,125 @@ public class ShopOverlay extends OZUIElement {
                 refreshSystemOptions();
                 return;
             }
-            ShopPurchaseResult result = sellToSystem
-                    ? plugin.sell(player, offer.getId(), quantity)
-                    : plugin.purchase(player, offer.getId(), quantity);
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            refreshSelectedSystemTradeState(offer);
+            if (sellToSystem) {
+                ShopService.SellQuote quote = plugin.sellQuote(player, offer, quantity);
+                if (quote.requiresConditionConfirmation()) {
+                    showConditionSellConfirmation(offer, quantity, quote);
+                    return;
+                }
+            }
+            completeSystemAction(offer, quantity, sellToSystem);
         });
+    }
+
+    private void completeSystemAction(ShopOffer offer, int quantity, boolean sellToSystem) {
+        ShopPurchaseResult result = sellToSystem
+                ? plugin.sell(player, offer.getId(), quantity)
+                : plugin.purchase(player, offer.getId(), quantity);
+        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (result.success && sellToSystem && systemOffersInInventoryOnly) {
+            if (inventoryAmount(offer) <= 0) {
+                selectedSystemOffer = null;
+            }
+            rebuild();
+            return;
+        }
+        refreshSelectedSystemTradeState(offer);
+    }
+
+    private void showConditionSellConfirmation(ShopOffer offer, int quantity, ShopService.SellQuote quote) {
+        OZUIElement blocker = new OZUIElement();
+        blocker.setPivot(Pivot.UpperLeft);
+        blocker.setPosition(0, 0, true);
+        blocker.setSize(100, 100, true);
+        blocker.setBackgroundColor(0, 0, 0, 0.54f);
+        blocker.setClickable(true);
+
+        OZUIElement dialog = new OZUIElement();
+        dialog.setPivot(Pivot.MiddleCenter);
+        dialog.setPosition(50, 50, true);
+        dialog.setSize(760, 440, false);
+        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f);
+        dialog.setBorder(1);
+        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
+        dialog.setBorderEdgeRadius(6, false);
+
+        UILabel title = label(t.get("TC_SHOP_UI_SELL_CONDITION_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        title.setPivot(Pivot.UpperLeft);
+        title.setPosition(18, 16, false);
+        title.setSize(724, 28, false);
+        dialog.addChild(title);
+
+        UILabel intro = label(t.get("TC_SHOP_UI_SELL_CONDITION_CONFIRM_TEXT", player)
+                .replace("PH_OFFER", offerTitle(offer)), 13, Font.Default);
+        intro.setPivot(Pivot.UpperLeft);
+        intro.setPosition(18, 52, false);
+        intro.setSize(724, 32, false);
+        intro.setTextWrap(true);
+        dialog.addChild(intro);
+
+        UIScrollView breakdownScroll = new UIScrollView(ScrollViewMode.Vertical);
+        breakdownScroll.setPivot(Pivot.UpperLeft);
+        breakdownScroll.setPosition(18, 92, false);
+        breakdownScroll.setSize(724, 250, false);
+        dialog.addChild(breakdownScroll);
+
+        UILabel breakdown = label(sellConditionBreakdown(quote, currencyIdentifier(offer)), 12, Font.Default);
+        breakdown.setPivot(Pivot.UpperLeft);
+        breakdown.setPosition(0, 0, false);
+        breakdown.setSize(700, Math.max(250, quote.lines().size() * 36), false);
+        breakdown.setTextWrap(true);
+        breakdownScroll.addChild(breakdown);
+
+        UILabel total = label(t.get("TC_SHOP_UI_SELL_CONDITION_TOTAL", player)
+                .replace("PH_PAYOUT", quote.payout() + " " + currencyIdentifier(offer)), 15, Font.DefaultBold);
+        total.setPivot(Pivot.UpperLeft);
+        total.setPosition(18, 350, false);
+        total.setSize(500, 28, false);
+        total.setFontColor(0xF2C766FF);
+        dialog.addChild(total);
+
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        cancel.setPivot(Pivot.LowerLeft);
+        cancel.setPosition(18, 422, false);
+        cancel.setSize(170, 30, false);
+        dialog.addChild(cancel);
+
+        AdvancedButton confirm = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SELL_CONFIRM", player), event -> {
+            panel.removeChild(blocker);
+            completeSystemAction(offer, quantity, true);
+        });
+        confirm.setPivot(Pivot.LowerRight);
+        confirm.setPosition(742, 422, false);
+        confirm.setSize(190, 30, false);
+        confirm.setBorderEdgeRadius(3, false);
+        styleConditionSellButton(confirm);
+        dialog.addChild(confirm);
+
+        blocker.addChild(dialog);
+        panel.addChild(blocker);
+    }
+
+    private String sellConditionBreakdown(ShopService.SellQuote quote, String currency) {
+        StringBuilder lines = new StringBuilder();
+        for (ShopService.SellQuoteLine line : quote.lines()) {
+            if (lines.length() > 0) {
+                lines.append('\n');
+            }
+            int durabilityPercent = line.maxDurability() <= 0 ? 100
+                    : (int) Math.round(100.0d * line.durability() / line.maxDurability());
+            int modifierPercent = (int) Math.round(100.0d * line.modifierMultiplier());
+            lines.append(t.get("TC_SHOP_UI_SELL_CONDITION_LINE", player)
+                    .replace("PH_AMOUNT", String.valueOf(line.amount()))
+                    .replace("PH_DURABILITY_PERCENT", String.valueOf(durabilityPercent))
+                    .replace("PH_DURABILITY", String.valueOf(line.durability()))
+                    .replace("PH_MAX_DURABILITY", String.valueOf(line.maxDurability()))
+                    .replace("PH_MODIFIER_PERCENT", String.valueOf(modifierPercent))
+                    .replace("PH_MODIFIER", line.modifier())
+                    .replace("PH_BASE", line.basePayout() + " " + currency)
+                    .replace("PH_PAYOUT", line.payout() + " " + currency));
+        }
+        return lines.toString();
     }
 
     private void refreshSelectedSystemTradeState(ShopOffer offer) {
@@ -1217,7 +1349,12 @@ public class ShopOverlay extends OZUIElement {
         selectedSystemSellButton.setBorder(1);
         selectedSystemSellButton.setBorderEdgeRadius(3, false);
         if (enabled) {
-            styleSellButton(selectedSystemSellButton);
+            ShopService.SellQuote quote = plugin.sellQuote(player, selectedSystemEffectiveOffer, quantity);
+            if (quote.requiresConditionConfirmation()) {
+                styleConditionSellButton(selectedSystemSellButton);
+            } else {
+                styleSellButton(selectedSystemSellButton);
+            }
             selectedSystemSellButton.setClickable(true);
         } else {
             styleDisabledButton(selectedSystemSellButton);
@@ -1249,6 +1386,14 @@ public class ShopOverlay extends OZUIElement {
         button.setBorderColor(0.50f, 0.88f, 0.50f, 0.58f);
         button.setHoverBackgroundColor(0x2B7A35F5);
         button.setHoverBorderColor(0x9FE2A0DD);
+        button.setHoverBorderWidth(1);
+    }
+
+    private void styleConditionSellButton(AdvancedButton button) {
+        button.setBackgroundColor(0.54f, 0.30f, 0.06f, 0.96f);
+        button.setBorderColor(0.95f, 0.75f, 0.25f, 0.72f);
+        button.setHoverBackgroundColor(0xA85B10F5);
+        button.setHoverBorderColor(0xF2C766DD);
         button.setHoverBorderWidth(1);
     }
 
@@ -1320,6 +1465,10 @@ public class ShopOverlay extends OZUIElement {
         return offerTitle(displayOffer).toLowerCase(Locale.ROOT).contains(filter)
                 || displayOffer.getItemName().toLowerCase(Locale.ROOT).contains(filter)
                 || displayOffer.getTitle(player).toLowerCase(Locale.ROOT).contains(filter);
+    }
+
+    private boolean matchesSystemOfferInventoryFilter(ShopOffer offer) {
+        return !systemOffersInInventoryOnly || inventoryAmount(offer) > 0;
     }
 
     private void applySystemCardStyle(OZUIElement card, boolean selected) {

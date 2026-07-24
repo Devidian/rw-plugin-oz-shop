@@ -318,7 +318,7 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
             }
             economyStore.recordSystemSale(economyScope, result.offer, price);
         }
-        return result;
+        return localizedSystemTransactionResult(player, result, "TC_SHOP_PURCHASE_COMPLETED");
     }
 
     public ShopPurchaseResult sell(Player player, String offerId, int quantity) {
@@ -342,7 +342,18 @@ public class Shop extends Plugin implements Listener, FileChangeListener {
                     player.getDbID(),
                     result.offer, result.offer.getBuyPrice());
         }
-        return result;
+        return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
+    }
+
+    private ShopPurchaseResult localizedSystemTransactionResult(Player player, ShopPurchaseResult result, String key) {
+        if (!result.success || result.offer == null || !result.offer.isSystemOffer()) {
+            return result;
+        }
+        ShopOffer offer = result.offer;
+        return ShopPurchaseResult.success(t.get(key, player)
+                .replace("PH_AMOUNT", String.valueOf(offer.getAmount()))
+                .replace("PH_OFFER", ShopItemNames.label(offer.getItemName(), offer.getItemVariant(),
+                        offer.getTitle(player))), offer);
     }
 
     public ShopService.SellQuote sellQuote(Player player, ShopOffer offer, int quantity) {

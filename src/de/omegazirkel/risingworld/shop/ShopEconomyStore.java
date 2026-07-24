@@ -306,7 +306,9 @@ public class ShopEconomyStore {
                 long baseline = lastTickAt > 0L ? lastTickAt : now;
                 long nextDrainAt = nextTickAt(baseline, targetStock, offer.getDrainPercent(), offer.getDrainMax(),
                         drainRate);
-                long nextRestockAt = nextRestockTickAt(baseline, targetStock, offer.getRestockPercent(), refillRate);
+                long nextRestockAt = automaticRestockEnabled(offer)
+                        ? nextRestockTickAt(baseline, targetStock, offer.getRestockPercent(), refillRate)
+                        : 0L;
                 if (nextRestockAt <= 0L && minimumSystemRestockEnabled(offer, refillRate)) {
                     nextRestockAt = baseline + ONE_HOUR_MILLIS;
                 }
@@ -549,9 +551,10 @@ public class ShopEconomyStore {
         if (targetStock <= 0L && stock > 0L) {
             targetStock = stock;
         }
-        boolean minimumSystemRestock = minimumSystemRestockEnabled(offer, refillRate);
-        if (drainRate <= 0.0d && refillRate <= 0.0d && offer.getDrainPercent() <= 0.0d
-                && offer.getRestockPercent() <= 0.0d && !minimumSystemRestock) {
+        boolean automaticRestock = automaticRestockEnabled(offer);
+        boolean minimumSystemRestock = automaticRestock && minimumSystemRestockEnabled(offer, refillRate);
+        if (drainRate <= 0.0d && (!automaticRestock || refillRate <= 0.0d) && offer.getDrainPercent() <= 0.0d
+                && (!automaticRestock || offer.getRestockPercent() <= 0.0d) && !minimumSystemRestock) {
             return;
         }
         if (lastTickAt <= 0L) {
@@ -567,9 +570,12 @@ public class ShopEconomyStore {
         long drain = targetStock > 0L && offer.getDrainPercent() > 0.0d
                 ? targetRateAmount(targetStock, offer.getDrainPercent(), offer.getDrainMax(), elapsedDays)
                 : (long) Math.floor(drainRate * elapsedHours);
-        long refill = targetStock > 0L && offer.getRestockPercent() > 0.0d
+        long refill = automaticRestock && targetStock > 0L && offer.getRestockPercent() > 0.0d
                 ? targetRestockAmount(targetStock, offer.getRestockPercent(), offer.getRestockMax(), elapsedHours)
                 : (long) Math.floor(refillRate * elapsedHours);
+        if (!automaticRestock) {
+            refill = 0L;
+        }
         if (refill <= 0L && minimumSystemRestock && elapsedHours >= 1.0d) {
             refill = Math.max(1L, (long) Math.floor(elapsedHours));
         }
@@ -594,7 +600,13 @@ public class ShopEconomyStore {
         if (offer == null) {
             return false;
         }
-        return offer.getStockMode() == ShopStockMode.SYSTEM_SUPPLIED || offer.getStockMode() == ShopStockMode.HYBRID;
+        return offer.getStockMode() == ShopStockMode.LOOT
+                || offer.getStockMode() == ShopStockMode.SYSTEM_SUPPLIED
+                || offer.getStockMode() == ShopStockMode.HYBRID;
+    }
+
+    private static boolean automaticRestockEnabled(ShopOffer offer) {
+        return offer != null && offer.getStockMode() != ShopStockMode.LOOT;
     }
 
     private static boolean minimumSystemRestockEnabled(ShopOffer offer, double legacyRate) {
