@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+## [0.3.10] - 2026-07-26 | Concrete system-shop items
+
+- fix: resolve concrete clothing definitions and icons in system-shop offers
+- fix: add concrete clothing entries to the complete catalog and enable supported workbench recipes
+- fix: resolve concrete construction definitions, textures, and icons in system-shop offers
+- fix: add recipe-backed construction variants to the complete catalog and generated defaults
+
 ## [0.3.9] - 2026-07-24 | Shared runtime bridges
 
 - refactor: use the central OZ Tools Wallet bridge

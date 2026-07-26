@@ -253,12 +253,14 @@ public final class SystemOfferFile {
         }
         if (itemName.equalsIgnoreCase("constructionitem")) {
             ConstructionDefinition[] definitions = Definitions.getAllConstructionDefinitions();
+            Recipe[] recipes = Definitions.getAllRecipes();
             List<DefinitionExport> result = new ArrayList<>();
             if (definitions != null) {
                 for (ConstructionDefinition definition : definitions) {
                     if (definition != null && definition.name != null && !definition.name.isBlank()
                             && hasRelatedItem(definition.relateditem, itemName)) {
-                        result.add(DefinitionExport.construction(definition));
+                        result.add(DefinitionExport.construction(definition,
+                                constructionItemVariants(definition, itemName, recipes)));
                     }
                 }
             }
@@ -291,6 +293,28 @@ public final class SystemOfferFile {
             return result.toArray(DefinitionExport[]::new);
         }
         return new DefinitionExport[0];
+    }
+
+    private static int[] constructionItemVariants(ConstructionDefinition definition, String itemName,
+            Recipe[] recipes) {
+        Set<Integer> variants = new HashSet<>();
+        if (definition.supportedtextures != null) {
+            for (int texture : definition.supportedtextures) {
+                if (texture >= 0) {
+                    variants.add(texture);
+                }
+            }
+        }
+        if (recipes != null) {
+            for (Recipe recipe : recipes) {
+                if (recipe != null && recipe.texture >= 0 && recipe.name != null
+                        && recipe.name.equalsIgnoreCase(definition.name)
+                        && recipe.itemDef != null && hasRelatedItem(recipe.itemDef.name, itemName)) {
+                    variants.add(recipe.texture);
+                }
+            }
+        }
+        return variants.stream().mapToInt(Integer::intValue).sorted().toArray();
     }
 
     private static void addObjectKitVariantDefinitions(List<DefinitionExport> result, String itemName) {
@@ -360,8 +384,8 @@ public final class SystemOfferFile {
                     id, definition);
         }
 
-        static DefinitionExport construction(ConstructionDefinition definition) {
-            return new DefinitionExport(definition.name, 1, definition.supportedtextures, "construction",
+        static DefinitionExport construction(ConstructionDefinition definition, int[] itemVariants) {
+            return new DefinitionExport(definition.name, 1, itemVariants, "construction",
                     Byte.toUnsignedInt(definition.id), -1, definition);
         }
 

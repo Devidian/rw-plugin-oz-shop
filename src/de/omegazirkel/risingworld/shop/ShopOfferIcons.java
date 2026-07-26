@@ -10,6 +10,8 @@ import java.util.Set;
 import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ToolsPlayerPreferences;
 import net.risingworld.api.assets.TextureAsset;
+import net.risingworld.api.definitions.Clothing.ClothingDefinition;
+import net.risingworld.api.definitions.Constructions.ConstructionDefinition;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items.ItemDefinition;
 import net.risingworld.api.definitions.Objects.ObjectDefinition;
@@ -90,6 +92,20 @@ public final class ShopOfferIcons {
             ItemDefinition.Variant itemVariant = definition == null ? null : definition.getVariant(offer.getItemVariant());
             if (itemVariant != null) {
                 TextureAsset asset = definition.getIcon(itemVariant.variant);
+                if (asset != null) {
+                    return asset;
+                }
+            }
+            ConstructionDefinition constructionDefinition = Definitions.getConstructionDefinition(offer.getItemName());
+            if (constructionDefinition != null) {
+                TextureAsset asset = constructionDefinition.getIcon(offer.getItemVariant());
+                if (asset != null) {
+                    return asset;
+                }
+            }
+            ClothingDefinition clothingDefinition = Definitions.getClothingDefinition(offer.getItemName());
+            if (clothingDefinition != null) {
+                TextureAsset asset = clothingDefinition.getIcon(offer.getItemVariant());
                 if (asset != null) {
                     return asset;
                 }

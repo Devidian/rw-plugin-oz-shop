@@ -85,9 +85,9 @@ Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. 
 
 | Tier         | Count |
 | ------------ | ----: |
-| T0           |   124 |
+| T0           |   123 |
 | T1           |    14 |
-| T10          |    70 |
+| T10          |   233 |
 | T11          |    15 |
 | T2           |    27 |
 | T3           |     6 |
@@ -96,18 +96,18 @@ Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. 
 | T6           |   117 |
 | T7           |    12 |
 | T8           |    22 |
-| T9           |   138 |
-| invalid      |  3001 |
+| T9           |   286 |
+| invalid      |  3505 |
 
 ## Current Domain Counts
 
 | Domain       | Count |
 | ------------ | ----: |
 | entity       |    15 |
-| invalid      |  3001 |
+| invalid      |  3505 |
 | loot         |   105 |
-| product      |   242 |
-| resource     |   269 |
+| product      |   553 |
+| resource     |   268 |
 
 ## Maintenance Notes
 

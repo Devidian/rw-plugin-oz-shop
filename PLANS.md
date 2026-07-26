@@ -9,3 +9,15 @@ Planning is stored in repository-local docs.
 - Planning and documentation standards: [docs/policies/repository-policy.md](docs/policies/repository-policy.md)
 
 Every implementation plan must include objective, ownership, dependencies, risks, validation strategy, affected repositories/plugins, rollback considerations, and a markdown checkbox checklist.
+
+## Clothing Item Resolution
+
+- [x] Replace generic clothing placeholders with concrete definition offers in the complete catalog
+- [x] Resolve concrete clothing icons for enabled system offers
+- [x] Validate generated default and tier offer files
+
+## Construction Item Resolution
+
+- [x] Merge construction-definition textures with recipe-backed texture variants
+- [x] Add concrete construction offers and icons to the complete catalog
+- [x] Validate generated default and tier offer files
