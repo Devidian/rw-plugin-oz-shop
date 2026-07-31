@@ -8,6 +8,8 @@ public final class ShopPlayerPreferences {
     public static final String LAYOUT_KEY = "oz.shop.layout";
     public static final String LAYOUT_CARD = "CARD";
     public static final String LAYOUT_LIST = "LIST";
+    public static final String PLUGIN_PURCHASE_CONFIRMATION_KEY = "oz.shop.plugin-purchase-confirmation.enabled";
+    public static final String PLUGIN_PURCHASE_SUCCESS_MESSAGE_KEY = "oz.shop.plugin-purchase-success-message.enabled";
 
     private ShopPlayerPreferences() {
     }
@@ -21,6 +23,8 @@ public final class ShopPlayerPreferences {
         if (!player.hasAttribute(shortcutKey)) {
             player.setAttribute(shortcutKey, Shop.ps.getBoolean(dbId, shortcutKey).orElse(true));
         }
+        loadBoolean(player, PLUGIN_PURCHASE_CONFIRMATION_KEY, true);
+        loadBoolean(player, PLUGIN_PURCHASE_SUCCESS_MESSAGE_KEY, true);
     }
 
     public static String layout(Player player) {
@@ -47,6 +51,39 @@ public final class ShopPlayerPreferences {
 
     public static void setShortcutVisible(Player player, boolean value) {
         String key = shortcutKey();
+        player.setAttribute(key, value);
+        Shop.ps.setBoolean(player.getDbID(), key, value);
+    }
+
+    public static boolean pluginPurchaseConfirmationEnabled(Player player) {
+        return booleanPreference(player, PLUGIN_PURCHASE_CONFIRMATION_KEY, true);
+    }
+
+    public static void setPluginPurchaseConfirmationEnabled(Player player, boolean value) {
+        setBooleanPreference(player, PLUGIN_PURCHASE_CONFIRMATION_KEY, value);
+    }
+
+    public static boolean pluginPurchaseSuccessMessageEnabled(Player player) {
+        return booleanPreference(player, PLUGIN_PURCHASE_SUCCESS_MESSAGE_KEY, true);
+    }
+
+    public static void setPluginPurchaseSuccessMessageEnabled(Player player, boolean value) {
+        setBooleanPreference(player, PLUGIN_PURCHASE_SUCCESS_MESSAGE_KEY, value);
+    }
+
+    private static void loadBoolean(Player player, String key, boolean defaultValue) {
+        if (!player.hasAttribute(key)) {
+            player.setAttribute(key, Shop.ps.getBoolean(player.getDbID(), key).orElse(defaultValue));
+        }
+    }
+
+    private static boolean booleanPreference(Player player, String key, boolean defaultValue) {
+        if (!player.hasAttribute(key)) load(player);
+        Object value = player.getAttribute(key);
+        return value instanceof Boolean ? (Boolean) value : defaultValue;
+    }
+
+    private static void setBooleanPreference(Player player, String key, boolean value) {
         player.setAttribute(key, value);
         Shop.ps.setBoolean(player.getDbID(), key, value);
     }

@@ -596,9 +596,6 @@ class ShopRuntime extends Plugin {
         if (!s.shopEnabled) {
             return false;
         }
-        if (player.isAdmin()) {
-            return true;
-        }
         return !s.requireShopZone || (zoneService != null && zoneService.isInEnabledZone(player));
     }
 

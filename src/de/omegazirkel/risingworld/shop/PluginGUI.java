@@ -66,6 +66,10 @@ public class PluginGUI {
 
     private void openDirectShop(Player player) {
         player.hideRadialMenu(true);
+        if (player.isAdmin() && !plugin.isShopAvailableFor(player)) {
+            plugin.executeDelayed(0.05f, () -> plugin.openShopUI(player));
+            return;
+        }
         if (!plugin.isShopAvailableFor(player)) {
             player.sendTextMessage(c.warning + plugin.shopUnavailableMessage(player));
             return;

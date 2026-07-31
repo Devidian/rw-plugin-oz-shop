@@ -108,6 +108,9 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void rebuild() {
+        if ((activeTab == Tab.SYSTEM || activeTab == Tab.PLUGIN) && !plugin.isShopAvailableFor(player)) {
+            activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
+        }
         if (activeTab == Tab.ZONE && (!player.isAdmin() || !plugin.isInValidArea(player))) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
         }
@@ -178,14 +181,19 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void setupTabs() {
-        panel.addChild(tab(t.get("TC_SHOP_UI_TAB_SYSTEM", player), 24, 86, 170, Tab.SYSTEM));
-        panel.addChild(tab(t.get("TC_SHOP_UI_TAB_PLUGIN", player), 194, 86, 170, Tab.PLUGIN));
+        boolean playerShopAvailable = plugin.isShopAvailableFor(player);
+        int adminX = 24;
+        if (playerShopAvailable) {
+            panel.addChild(tab(t.get("TC_SHOP_UI_TAB_SYSTEM", player), 24, 86, 170, Tab.SYSTEM));
+            panel.addChild(tab(t.get("TC_SHOP_UI_TAB_PLUGIN", player), 194, 86, 170, Tab.PLUGIN));
+            adminX = 364;
+        }
         if (player.isAdmin()) {
             if (plugin.isInValidArea(player)) {
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ZONE", player), 364, 86, 170, Tab.ZONE));
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), 534, 86, 170, Tab.ADMIN));
+                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ZONE", player), adminX, 86, 170, Tab.ZONE));
+                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), adminX + 170, 86, 170, Tab.ADMIN));
             } else {
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), 364, 86, 170, Tab.ADMIN));
+                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), adminX, 86, 170, Tab.ADMIN));
             }
         }
     }
@@ -205,10 +213,10 @@ public class ShopOverlay extends OZUIElement {
             }
             rebuild();
         });
-        if (tab == Tab.ADMIN && activeTab == tab) {
+        if ((tab == Tab.ADMIN || tab == Tab.ZONE) && activeTab == tab) {
             button.setBackgroundColor(0.19f, 0.10f, 0.03f, 0.92f);
             button.setBorderColor(1.0f, 0.48f, 0.12f, 0.86f);
-        } else if (tab == Tab.ADMIN) {
+        } else if (tab == Tab.ADMIN || tab == Tab.ZONE) {
             button.setBackgroundColor(0.16f, 0.07f, 0.03f, 0.58f);
             button.setBorderColor(1.0f, 0.48f, 0.12f, 0.42f);
         } else if (activeTab == tab) {
@@ -239,7 +247,11 @@ public class ShopOverlay extends OZUIElement {
         body.setBorderEdgeRadius(4, false);
         panel.addChild(body);
 
-        if (activeTab == Tab.SYSTEM) {
+        if (activeTab == Tab.ZONE) {
+            setupZoneTab();
+        } else if (!plugin.isShopAvailableFor(player) && player.isAdmin()) {
+            setupAdminTable();
+        } else if (activeTab == Tab.SYSTEM) {
             if (plugin.isSystemShopAvailableFor(player)) {
                 setupSystemShop(plugin.listSystemOffers(player), t.get("TC_SHOP_UI_EMPTY_SYSTEM", player));
             } else {
@@ -247,8 +259,6 @@ public class ShopOverlay extends OZUIElement {
             }
         } else if (activeTab == Tab.PLUGIN) {
             setupOffers(plugin.listPluginOffers(), t.get("TC_SHOP_UI_EMPTY_PLUGIN", player), OfferAction.BUY);
-        } else if (activeTab == Tab.ZONE) {
-            setupZoneTab();
         } else {
             setupAdminTable();
         }
@@ -1044,17 +1054,82 @@ public class ShopOverlay extends OZUIElement {
     private UIElement actionButton(ShopOffer offer, OfferAction action) {
         AdvancedButton button = AdvancedButtonFactory
                 .defaultButton(t.get(action == OfferAction.SELL ? "TC_SHOP_UI_SELL" : "TC_SHOP_UI_BUY", player), event -> {
-                    ShopPurchaseResult result = action == OfferAction.SELL
-                            ? plugin.sell(player, offer.getId(), 1)
-                            : plugin.purchase(player, offer.getId());
-                    player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-                    rebuild();
+                    if (action == OfferAction.BUY && !offer.isSystemOffer()
+                            && ShopPlayerPreferences.pluginPurchaseConfirmationEnabled(player)) {
+                        showPluginPurchaseConfirmation(offer);
+                        return;
+                    }
+                    completePluginOfferAction(offer, action);
                 });
         button.setPivot(Pivot.UpperLeft);
         button.setPosition(4, 5, false);
         button.setSize(82, 22, false);
         button.setBorderEdgeRadius(3, false);
         return button;
+    }
+
+    private void completePluginOfferAction(ShopOffer offer, OfferAction action) {
+        ShopPurchaseResult result = action == OfferAction.SELL
+                ? plugin.sell(player, offer.getId(), 1)
+                : plugin.purchase(player, offer.getId());
+        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (result.success && action == OfferAction.BUY && !offer.isSystemOffer()
+                && ShopPlayerPreferences.pluginPurchaseSuccessMessageEnabled(player)) {
+            player.showSuccessMessageBox(t.get("TC_SHOP_UI_TITLE", player), result.message);
+        }
+        rebuild();
+    }
+
+    private void showPluginPurchaseConfirmation(ShopOffer offer) {
+        OZUIElement blocker = new OZUIElement();
+        blocker.setPivot(Pivot.UpperLeft);
+        blocker.setPosition(0, 0, true);
+        blocker.setSize(100, 100, true);
+        blocker.setBackgroundColor(0, 0, 0, 0.54f);
+        blocker.setClickable(true);
+
+        OZUIElement dialog = new OZUIElement();
+        dialog.setPivot(Pivot.MiddleCenter);
+        dialog.setPosition(50, 50, true);
+        dialog.setSize(500, 230, false);
+        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f);
+        dialog.setBorder(1);
+        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
+        dialog.setBorderEdgeRadius(6, false);
+
+        UILabel title = label(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        title.setPivot(Pivot.UpperLeft);
+        title.setPosition(18, 16, false);
+        title.setSize(464, 28, false);
+        dialog.addChild(title);
+
+        UILabel text = label(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM_TEXT", player)
+                .replace("PH_OFFER", offerTitle(offer))
+                .replace("PH_PRICE", offerPrice(offer, OfferAction.BUY)), 14, Font.Default);
+        text.setPivot(Pivot.UpperLeft);
+        text.setPosition(18, 56, false);
+        text.setSize(464, 80, false);
+        text.setTextWrap(true);
+        text.setTextAlign(TextAnchor.UpperLeft);
+        dialog.addChild(text);
+
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        cancel.setPivot(Pivot.LowerLeft);
+        cancel.setPosition(18, 212, false);
+        cancel.setSize(150, 30, false);
+        dialog.addChild(cancel);
+
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM", player), event -> {
+            panel.removeChild(blocker);
+            completePluginOfferAction(offer, OfferAction.BUY);
+        });
+        confirm.setPivot(Pivot.LowerRight);
+        confirm.setPosition(482, 212, false);
+        confirm.setSize(190, 30, false);
+        dialog.addChild(confirm);
+
+        blocker.addChild(dialog);
+        panel.addChild(blocker);
     }
 
     private void executeSystemAction(ShopOffer offer, UITextField amountField, boolean sellToSystem) {

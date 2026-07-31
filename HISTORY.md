@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## [0.3.11] - 2026-07-31 | Plugin purchase feedback and zone access
+
+- feat: add optional per-player confirmation dialogs and success message boxes for plugin offers
+- fix: keep the administrator Zone tab reachable and styled as an administration tab when shop zones are required
+- fix: shorten the shop-zone setting description to fit the settings interface
+
 ## [0.3.10] - 2026-07-26 | Concrete system-shop items
 
 - fix: resolve concrete clothing definitions and icons in system-shop offers

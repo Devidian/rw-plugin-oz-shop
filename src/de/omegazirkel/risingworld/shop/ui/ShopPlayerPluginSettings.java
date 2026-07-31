@@ -26,6 +26,8 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
                 flexWrapper.removeAllChilds();
                 flexWrapper.addChild(layoutSetting(uiPlayer));
                 flexWrapper.addChild(shortcutSetting(uiPlayer));
+                flexWrapper.addChild(pluginPurchaseConfirmationSetting(uiPlayer));
+                flexWrapper.addChild(pluginPurchaseSuccessMessageSetting(uiPlayer));
             }
 
             protected OZUIElement layoutSetting(Player uiPlayer) {
@@ -47,6 +49,28 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
                 boolean visible = ShopPlayerPreferences.shortcutVisible(uiPlayer);
                 element.addChild(switchButtons(uiPlayer, visible, event -> {
                     ShopPlayerPreferences.setShortcutVisible(uiPlayer, !visible);
+                    redrawContent();
+                }));
+                return element;
+            }
+
+            protected OZUIElement pluginPurchaseConfirmationSetting(Player uiPlayer) {
+                OZUIElement element = defaultSettingsContainer();
+                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_PLUGIN_PURCHASE_CONFIRMATION", uiPlayer)));
+                boolean enabled = ShopPlayerPreferences.pluginPurchaseConfirmationEnabled(uiPlayer);
+                element.addChild(switchButtons(uiPlayer, enabled, event -> {
+                    ShopPlayerPreferences.setPluginPurchaseConfirmationEnabled(uiPlayer, !enabled);
+                    redrawContent();
+                }));
+                return element;
+            }
+
+            protected OZUIElement pluginPurchaseSuccessMessageSetting(Player uiPlayer) {
+                OZUIElement element = defaultSettingsContainer();
+                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_PLUGIN_PURCHASE_SUCCESS_MESSAGE", uiPlayer)));
+                boolean enabled = ShopPlayerPreferences.pluginPurchaseSuccessMessageEnabled(uiPlayer);
+                element.addChild(switchButtons(uiPlayer, enabled, event -> {
+                    ShopPlayerPreferences.setPluginPurchaseSuccessMessageEnabled(uiPlayer, !enabled);
                     redrawContent();
                 }));
                 return element;
