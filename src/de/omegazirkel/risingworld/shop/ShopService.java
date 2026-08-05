@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import de.omegazirkel.risingworld.Shop;
 import net.risingworld.api.definitions.Clothing.ClothingDefinition;
@@ -229,31 +230,29 @@ public class ShopService {
             return ShopPurchaseResult.failure(ShopErrorCode.INVENTORY_FULL, "Your inventory is full.");
         }
 
-        WalletBridge.WalletCallResult payment = WalletBridge.WalletCallResult.success("No payment required.");
+        PaymentReceipt payment = PaymentReceipt.none();
         if (price > 0) {
-            payment = effectiveOffer.getCurrencyIdentifier().isBlank()
-                    ? wallet.withdrawDefault(player.getDbID(), price, "Shop purchase: " + effectiveOffer.getId(),
-                            "OZ - Shop")
-                    : wallet.withdraw(player.getDbID(), price, "Shop purchase: " + effectiveOffer.getId(),
-                            effectiveOffer.getCurrencyIdentifier(), "OZ - Shop");
-            if (!payment.success()) {
-                Shop.logger().error(payment.toString());
-                return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, payment.message());
+            payment = charge(player, effectiveOffer, price);
+            if (!payment.result().success()) {
+                Shop.logger().error(payment.result().toString());
+                return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, payment.result().message());
             }
         }
 
         try {
             ShopPurchaseResult callbackResult = effectiveOffer.getCallback().complete(player, effectiveOffer);
             if (callbackResult == null) {
-                return failAfterPayment(player, effectiveOffer, price, "Purchase action returned no result after payment.");
+                return failAfterPayment(player, effectiveOffer, price, payment,
+                        "Purchase action returned no result after payment.");
             }
             if (!callbackResult.success && price > 0) {
-                return failAfterPayment(player, effectiveOffer, price, callbackResult.message);
+                return failAfterPayment(player, effectiveOffer, price, payment, callbackResult.message);
             }
             return callbackResult;
         } catch (RuntimeException ex) {
             Shop.logger().error(ex.getMessage());
-            return failAfterPayment(player, effectiveOffer, price, "Purchase action failed after payment: " + ex.getMessage());
+            return failAfterPayment(player, effectiveOffer, price, payment,
+                    "Purchase action failed after payment: " + ex.getMessage());
         }
     }
 
@@ -331,12 +330,13 @@ public class ShopService {
                 remaining == 0 ? "" : "Only items with remaining durability can be sold.");
     }
 
-    private ShopPurchaseResult failAfterPayment(Player player, ShopOffer offer, long price, String failureMessage) {
+    private ShopPurchaseResult failAfterPayment(Player player, ShopOffer offer, long price, PaymentReceipt payment,
+            String failureMessage) {
         String message = isBlank(failureMessage) ? "Purchase action failed after payment." : failureMessage;
         if (price <= 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, message);
         }
-        WalletBridge.WalletCallResult refund = refund(player, offer, price);
+        WalletBridge.WalletCallResult refund = refund(player, offer, price, payment);
         if (!refund.success()) {
             Shop.logger().error("Shop refund failed for " + offer.getId() + ": " + refund.message());
             return ShopPurchaseResult.failure(ShopErrorCode.REFUND_FAILED,
@@ -346,15 +346,45 @@ public class ShopService {
                 message + " Payment was refunded.");
     }
 
-    private WalletBridge.WalletCallResult refund(Player player, ShopOffer offer, long price) {
+    private PaymentReceipt charge(Player player, ShopOffer offer, long price) {
+        String reason = "Shop purchase: " + offer.getId();
+        String currency = offer.getCurrencyIdentifier().isBlank()
+                ? wallet.defaultCurrencyIdentifier() : offer.getCurrencyIdentifier();
+        if (wallet.hasSystemAccountApi() && !currency.isBlank()) {
+            String correlation = "shop:purchase:" + player.getDbID() + ":" + UUID.randomUUID();
+            WalletBridge.WalletTransferCallResult result = wallet.transferPlayerToWorldIdempotent(player.getDbID(),
+                    price, reason, currency, "OZ - Shop", correlation);
+            return new PaymentReceipt(new WalletBridge.WalletCallResult(result.success(), result.message()),
+                    correlation, true);
+        }
+        WalletBridge.WalletCallResult result = offer.getCurrencyIdentifier().isBlank()
+                ? wallet.withdrawDefault(player.getDbID(), price, reason, "OZ - Shop")
+                : wallet.withdraw(player.getDbID(), price, reason, offer.getCurrencyIdentifier(), "OZ - Shop");
+        return new PaymentReceipt(result, "", false);
+    }
+
+    private WalletBridge.WalletCallResult refund(Player player, ShopOffer offer, long price, PaymentReceipt payment) {
         if (price <= 0) {
             return WalletBridge.WalletCallResult.success("No refund required.");
+        }
+        if (payment.routedToWorld()) {
+            WalletBridge.WalletTransferCallResult reversal = wallet.reverseAccountTransferIdempotent(
+                    payment.correlationId(), payment.correlationId() + ":refund", "Shop refund: " + offer.getId(),
+                    "OZ - Shop");
+            return new WalletBridge.WalletCallResult(reversal.success(), reversal.message());
         }
         if (offer.getCurrencyIdentifier().isBlank()) {
             return wallet.depositDefault(player.getDbID(), price, "Shop refund: " + offer.getId(), "OZ - Shop");
         }
         return wallet.deposit(player.getDbID(), price, "Shop refund: " + offer.getId(),
                 offer.getCurrencyIdentifier(), "OZ - Shop");
+    }
+
+    private record PaymentReceipt(WalletBridge.WalletCallResult result, String correlationId,
+            boolean routedToWorld) {
+        private static PaymentReceipt none() {
+            return new PaymentReceipt(WalletBridge.WalletCallResult.success("No payment required."), "", false);
+        }
     }
 
     private ShopPurchaseResult removeItems(Player player, ShopOffer offer, SellQuote quote) {

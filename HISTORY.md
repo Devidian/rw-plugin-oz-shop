@@ -2,7 +2,9 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## Unreleased
+## [0.3.12] - 2026-08-05 | World-account settlement
+
+- feat: route successful system and plugin-offer purchases into the Wallet world account with idempotent refunds
 
 ## [0.3.11] - 2026-07-31 | Plugin purchase feedback and zone access
 
