@@ -393,6 +393,25 @@ public class ShopEconomyStore {
         return updated;
     }
 
+    /** Removes all stock, statistics, and limits owned by a dissolved trader scope. */
+    public boolean deleteScope(String scope) {
+        if (scope == null || scope.isBlank()) return false;
+        try (PreparedStatement state = connection.prepareStatement("DELETE FROM shop_offer_economy_state WHERE scope = ?");
+                PreparedStatement stats = connection.prepareStatement("DELETE FROM shop_offer_trade_stats WHERE scope = ?");
+                PreparedStatement counters = connection.prepareStatement("DELETE FROM shop_offer_daily_sell_counters WHERE scope = ?")) {
+            state.setString(1, scope);
+            stats.setString(1, scope);
+            counters.setString(1, scope);
+            state.executeUpdate();
+            stats.executeUpdate();
+            counters.executeUpdate();
+            return true;
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not remove shop economy scope " + scope + ": " + ex.getMessage());
+            return false;
+        }
+    }
+
     public boolean configureEconomy(String scope, ShopOffer offer, EconomyUpdate update) {
         return false;
     }

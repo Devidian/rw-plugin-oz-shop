@@ -72,6 +72,7 @@ public class ShopOverlay extends OZUIElement {
     private final WalletBridge walletBridge;
     private Trader trader;
     private ShopZone pendingRemoveZone;
+    private Trader pendingDissolveTrader;
     private boolean pendingResetZoneStocks;
     private ShopOffer selectedSystemOffer;
     private OZUIElement systemOptions;
@@ -149,6 +150,7 @@ public class ShopOverlay extends OZUIElement {
         setupBody();
         setupRemoveConfirmation();
         setupZoneStockResetConfirmation();
+        setupTraderDissolveConfirmation();
     }
 
     private void setupHeader() {
@@ -1870,6 +1872,42 @@ public class ShopOverlay extends OZUIElement {
                     if (!trader.pluginShopEnabled() && activeTab == Tab.PLUGIN) activeTab = Tab.SYSTEM;
                     rebuild();
                 }));
+        UIElement dissolve = zoneButton(t.get("TC_SHOP_TRADER_UI_DISSOLVE", player), 18, 340, 260,
+                event -> { pendingDissolveTrader = trader; rebuild(); });
+        if (dissolve instanceof AdvancedButton dissolveButton) styleResetButton(dissolveButton);
+        body.addChild(dissolve);
+    }
+
+    private void setupTraderDissolveConfirmation() {
+        if (pendingDissolveTrader == null) return;
+        OZUIElement blocker = new OZUIElement();
+        blocker.setPivot(Pivot.UpperLeft); blocker.setPosition(0, 0, true); blocker.setSize(100, 100, true);
+        blocker.setBackgroundColor(0, 0, 0, 0.54f); blocker.setClickable(true);
+        OZUIElement dialog = new OZUIElement();
+        dialog.setPivot(Pivot.MiddleCenter); dialog.setPosition(50, 50, true); dialog.setSize(540, 230, false);
+        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f); dialog.setBorder(1);
+        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f); dialog.setBorderEdgeRadius(6, false);
+        UILabel title = label(t.get("TC_SHOP_TRADER_UI_DISSOLVE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        title.setPivot(Pivot.UpperLeft); title.setPosition(18, 16, false); title.setSize(500, 28, false);
+        dialog.addChild(title);
+        UILabel text = label(t.get("TC_SHOP_TRADER_UI_DISSOLVE_CONFIRM_TEXT", player)
+                .replace("PH_TRADER", pendingDissolveTrader.name()), 14, Font.Default);
+        text.setPivot(Pivot.UpperLeft); text.setPosition(18, 56, false); text.setSize(500, 100, false);
+        text.setTextWrap(true); text.setTextAlign(TextAnchor.UpperLeft); dialog.addChild(text);
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+            pendingDissolveTrader = null; rebuild();
+        });
+        cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 212, false); cancel.setSize(170, 30, false);
+        dialog.addChild(cancel);
+        UIElement dissolve = AdvancedButtonFactory.danger(t.get("TC_SHOP_TRADER_UI_DISSOLVE", player), event -> {
+            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader);
+            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+            pendingDissolveTrader = null;
+            if (result.success) close(); else rebuild();
+        });
+        dissolve.setPivot(Pivot.LowerRight); dissolve.setPosition(522, 212, false); dissolve.setSize(180, 30, false);
+        dialog.addChild(dissolve);
+        blocker.addChild(dialog); panel.addChild(blocker);
     }
 
     private void setupTraderManagement() {

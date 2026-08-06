@@ -1,0 +1,12 @@
+{
+  "clothing": [
+    ["medievalshirt", "medievalpants", "medievalshoes", "felthat"],
+    ["medievalshirt2", "medievalpants", "medievalshoes", "pilgrimhat"],
+    ["medievalshirt3", "cargopants", "trekkingshoes", "cowboyhat"],
+    ["poloshirt", "cargopants", "trekkingshoes", "cappy"]
+  ],
+  "names": {
+    "male": ["Adrian", "Benedikt", "Caspar", "Daniel", "Emil", "Felix", "Georg", "Hannes", "Jakob", "Konrad", "Leon", "Matthias", "Nico", "Oskar", "Paul", "Ralf", "Stefan", "Thomas", "Uwe", "Viktor"],
+    "female": ["Ada", "Beate", "Clara", "Diana", "Elena", "Frida", "Greta", "Hannah", "Ida", "Johanna", "Klara", "Lena", "Mara", "Nina", "Olivia", "Paula", "Rosa", "Sophie", "Theresa", "Vera"]
+  }
+}

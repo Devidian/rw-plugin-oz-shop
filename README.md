@@ -108,14 +108,32 @@ Admins can assign a different system-offer file to the current shop area with `/
 
 ## NPC traders
 
-An administrator can turn the NPC in their line of sight into a trader with
-`/shop maketrader` (or `/shop mt`). The trader is named `Trader-<npcId>` when
-unnamed, is made interactable and invincible, and receives the deterministic
-Wallet account `trader::<npcId>` with 1000 initial units of the Shop currency.
-The first-run `default-trader.json` contains no offers. Each trader can use a
+An administrator can create a new locked (but non-static) NPC trader at their current position with
+`/shop createtrader` (or `/shop ct`) or through the Shop radial menu. The new trader
+uses the admin's facing direction, a random configured gender/name/outfit, weighted
+RGB skin colours, hair/eye colours, and a
+facial-variation/tattoo selection, plus a localized `Trader`/`Händler` prefix.
+`traders-config.json` is copied from the packaged
+`traders-config.default.json` on first run and contains editable outfit combinations
+plus 20 male and 20 female names. Invalid clothing definitions are skipped.
+Hairstyles are currently deferred: the Rising World dummy NPC accepts only its bald
+style at runtime even for otherwise valid gendered configurations.
+If a registered trader NPC is deleted or killed, Shop dissolves that trader on its
+next enable: scoped stock is sold at base price, positive account balances move to
+the world account, and the Wallet account and Shop records are archived/removed.
+
+`/shop maketrader` (or `/shop mt`) remains available to turn an NPC in line of sight
+into a trader. Both workflows make the NPC interactable and invincible and assign the
+deterministic Wallet account `trader::<npcId>` with 1000 initial units of the Shop
+currency. The first-run `default-trader.json` contains no offers. Each trader can use a
 separate offer file and enable or disable plugin offers through its admin-only
 Trader settings tab. Purchases credit, and player sales debit, only that
 trader's account; automatic trader drain and restock are settled at base price.
+
+Administrators can dissolve a trader shop from the trader settings after an explicit
+confirmation. The trader's scoped stock is settled at base price, all positive Wallet
+balances move to the world account, and the trader account is archived. The NPC remains
+in the world but no longer opens a Shop trader overlay.
 
 ## Public API
 

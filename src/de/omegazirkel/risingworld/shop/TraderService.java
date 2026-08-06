@@ -97,6 +97,16 @@ public final class TraderService {
         return Optional.of(updated);
     }
 
+    public synchronized boolean delete(long npcId) {
+        try (PreparedStatement statement = connection.prepareStatement("DELETE FROM shop_traders WHERE npc_id = ?")) {
+            statement.setLong(1, npcId);
+            return statement.executeUpdate() == 1;
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not remove trader " + npcId + ": " + ex.getMessage());
+            return false;
+        }
+    }
+
     public void applyNpcFlags(Npc npc) {
         if (npc == null) return;
         npc.setInteractable(true);

@@ -8,7 +8,7 @@
 
     <groupId>com.github.devidian</groupId>
     <artifactId>rw-plugin-oz-shop</artifactId>
-	<version>0.4.0</version>
+	<version>0.4.1</version>
 
     <name>OZShop</name>
     <description>Shared shop and purchase API for Rising World plugins</description>

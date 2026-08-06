@@ -2,6 +2,17 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.4.1] - 2026-08-06 | Trader generation and lifecycle
+
+- feat: add configured stationary NPC trader generation through `/shop createtrader`, `/shop ct`, and the Shop radial menu
+- feat: add first-run trader name/outfit configuration and DE/EN localized trader prefixes
+- fix: reapply generated trader identity, outfit, gender, invulnerability, static flag, and supported skin appearance after NPC initialization
+- fix: lock generated traders instead of making them static
+- feat: add confirmed trader-shop dissolution with base-price stock settlement, world-account transfer, and Wallet archival
+- fix: apply configured dummy-NPC clothing after native initialization, matching the Boss plugin's proven sequence
+- change: defer generated trader hairstyles pending a Rising World dummy-NPC API/renderer issue report
+- fix: automatically dissolve Shop-owned traders whose NPC was deleted or killed before Shop enables
+
 ## [0.4.0] - 2026-08-06 | NPC traders
 
 - feat: add admin NPC trader registration, interaction shops, isolated offers and Wallet system accounts

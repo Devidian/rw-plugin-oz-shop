@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
@@ -24,6 +25,7 @@ import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.ShopZoneService;
 import de.omegazirkel.risingworld.shop.Trader;
 import de.omegazirkel.risingworld.shop.TraderService;
+import de.omegazirkel.risingworld.shop.TraderGeneratorConfig;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
 import de.omegazirkel.risingworld.shop.PluginGUI;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
@@ -52,7 +54,10 @@ import net.risingworld.api.events.player.ui.PlayerUITextFieldChangeEvent;
 import net.risingworld.api.objects.Area;
 import net.risingworld.api.objects.Player;
 import net.risingworld.api.objects.Npc;
+import net.risingworld.api.objects.Skin;
 import net.risingworld.api.World;
+import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Clothing.ClothingDefinition;
 
 class ShopRuntime extends Plugin {
     static final Colors c = Colors.getInstance();
@@ -62,6 +67,18 @@ class ShopRuntime extends Plugin {
     private static ShopZoneService zoneService;
     private static ShopEconomyStore economyStore;
     private static TraderService traderService;
+    private static TraderGeneratorConfig traderGeneratorConfig;
+    private static final int[] LIGHT_SKIN_COLORS = { 0xFFE0BD, 0xF1C27D, 0xE0AC69, 0xFFDBAC };
+    private static final int[] MEDIUM_SKIN_COLORS = { 0xC68642, 0xA56B46, 0x8D5524 };
+    private static final int[] DARK_SKIN_COLORS = { 0x6F4E37, 0x4B2E20 };
+    private static final int[] HAIR_COLORS = { 0x1C120C, 0x3A2518, 0x5A381E, 0x8B5A2B, 0xC48A4A, 0xD9B36C };
+    private static final int[] EYE_COLORS = { 0x4E7AA8, 0x5A8E50, 0x6B4A2E, 0x7D8B44 };
+
+    private record GeneratedTraderAppearance(String name, boolean male, List<String> clothing,
+                                             int skinColor, int hairColor, int eyeColor,
+                                             byte beard, byte variation) {
+    }
+
     private static Connection sqliteCon;
     public static String name;
     public static PlayerSettings ps;
@@ -84,6 +101,7 @@ class ShopRuntime extends Plugin {
         economyStore = new ShopEconomyStore(sqliteCon);
         traderService = new TraderService(sqliteCon);
         copyDefaultTraderOffers();
+        traderGeneratorConfig = loadTraderGeneratorConfig();
         reloadSystemOffers();
 
         PluginGUI.getInstance((Shop) this);
@@ -102,6 +120,7 @@ class ShopRuntime extends Plugin {
         PluginInfoStatusProviders.registerProvider(
                 new ShopPluginInfoStatusProvider((Shop) this, getDescription("version")));
         syncEconomyTimer();
+        executeDelayed(1.0f, this::dissolveMissingTradersAfterEnable);
         logger().info(getName() + " Plugin is enabled version:" + getDescription("version"));
     }
 
@@ -175,6 +194,11 @@ class ShopRuntime extends Plugin {
         if (cmdParts.length > 1 && (cmdParts[1].equalsIgnoreCase("maketrader") || cmdParts[1].equalsIgnoreCase("mt"))
                 && player.isAdmin()) {
             makeTrader(player);
+            return;
+        }
+        if (cmdParts.length > 1 && (cmdParts[1].equalsIgnoreCase("createtrader") || cmdParts[1].equalsIgnoreCase("ct"))
+                && player.isAdmin()) {
+            createTrader(player);
             return;
         }
         if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("zoneoffers") && player.isAdmin()) {
@@ -442,6 +466,82 @@ class ShopRuntime extends Plugin {
 
     public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {
         return traderService == null ? null : traderService.setPluginShopEnabled(npcId, enabled).orElse(null);
+    }
+
+    /** Settles stock and balances before removing Shop ownership of a trader NPC. */
+    public ShopPurchaseResult dissolveTrader(Player player, Trader trader) {
+        if (player == null || !player.isAdmin() || trader == null || traderService == null || economyStore == null) {
+            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("TC_SHOP_TRADER_DISSOLVE_FAILED", player));
+        }
+        String failure = dissolveTraderData(trader);
+        if (failure != null) return traderDissolveFailure(player, failure);
+        return ShopPurchaseResult.success(t.get("TC_SHOP_TRADER_DISSOLVED", player)
+                .replace("PH_TRADER", trader.name()), null);
+    }
+
+    /** Cleans up only Shop-owned traders whose NPC no longer exists after a plugin reload. */
+    private void dissolveMissingTradersAfterEnable() {
+        if (traderService == null || economyStore == null) return;
+        for (Trader trader : traderService.list()) {
+            Npc npc = World.getNpc(trader.npcId());
+            if (npc != null && !npc.isDead()) continue;
+            String failure = dissolveTraderData(trader);
+            if (failure == null) {
+                logger().info("Dissolved missing trader '" + trader.name() + "' (NPC " + trader.npcId() + ")");
+            } else {
+                logger().error("Could not dissolve missing trader '" + trader.name() + "' (NPC " + trader.npcId()
+                        + "): " + failure);
+            }
+        }
+    }
+
+    /** Returns a failure detail, or {@code null} after a complete, idempotent trader settlement. */
+    private String dissolveTraderData(Trader trader) {
+        if (trader == null || traderService == null || economyStore == null) return "Trader services are unavailable.";
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        String worldAccount = wallet.worldSystemAccountId();
+        if (!wallet.hasSystemAccountApi() || worldAccount.isBlank()) {
+            return "Wallet system account API is unavailable.";
+        }
+        String prefix = "trader:" + trader.npcId() + ":dissolve";
+        for (ShopOffer offer : listTraderSystemOffers(trader)) {
+            long stock = economyStore.stateForWithoutTick(trader.economyScope(), offer).stock();
+            long value = baseValue(stock, offer.getBasePrice());
+            if (value <= 0L) continue;
+            WalletBridge.WalletCallResult sale = wallet.creditSystemAccountIdempotent(trader.accountId(), value,
+                    "Trader dissolution stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
+                    prefix + ":stock:" + offer.getId());
+            if (!sale.success()) return failureDetail(sale.message(), "Trader stock settlement failed.");
+        }
+        for (WalletBridge.SystemBalanceInfo balance : wallet.systemAccountBalances(trader.accountId())) {
+            if (balance.balance() <= 0L) continue;
+            WalletBridge.WalletTransferCallResult transfer = wallet.transferSystemToSystemIdempotent(trader.accountId(),
+                    worldAccount, balance.balance(), "Trader dissolution: " + trader.name(), balance.currencyIdentifier(),
+                    "OZ - Shop", prefix + ":balance:" + balance.currencyIdentifier());
+            if (!transfer.success()) return failureDetail(transfer.message(), "Trader balance transfer failed.");
+        }
+        WalletBridge.SystemAccountCallResult archive = wallet.archiveSystemAccount(trader.accountId(), "OZ - Shop");
+        if (!archive.success()) return failureDetail(archive.message(), "Trader account archival failed.");
+        if (!traderService.delete(trader.npcId()) || !economyStore.deleteScope(trader.economyScope())) {
+            return "Trader persistence cleanup failed.";
+        }
+        return null;
+    }
+
+    private static String failureDetail(String detail, String fallback) {
+        return detail == null || detail.isBlank() ? fallback : detail;
+    }
+
+    private ShopPurchaseResult traderDissolveFailure(Player player, String detail) {
+        String message = t.get("TC_SHOP_TRADER_DISSOLVE_FAILED", player);
+        return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
+                detail == null || detail.isBlank() ? message : message + " " + detail);
+    }
+
+    private static long baseValue(long amount, double basePrice) {
+        if (amount <= 0L || basePrice <= 0.0d || !Double.isFinite(basePrice)) return 0L;
+        double value = amount * basePrice;
+        return value >= Long.MAX_VALUE ? Long.MAX_VALUE : Math.max(0L, (long) Math.floor(value));
     }
 
     private ShopPurchaseResult localizedSystemTransactionResult(Player player, ShopPurchaseResult result, String key) {
@@ -1101,23 +1201,128 @@ class ShopRuntime extends Plugin {
                 player.sendTextMessage(c.warning + t.get("TC_SHOP_TRADER_NO_NPC", player));
                 return;
             }
-            Trader trader = traderService == null ? null : traderService.register(npc, player).orElse(null);
-            if (trader == null) {
-                player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
-                return;
-            }
-            WalletBridge wallet = new WalletBridge((Shop) this);
-            String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
-            boolean accountReady = wallet.createSystemAccount(trader.accountId(), "TRADER", trader.name(), "OZ - Shop").success();
-            boolean funded = accountReady && !currency.isBlank() && wallet.creditSystemAccountIdempotent(trader.accountId(),
-                    1000L, "Trader initial capital", currency, "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
-            if (!funded) {
-                player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_WALLET_FAILED", player));
-                return;
-            }
-            player.sendTextMessage(c.okay + t.get("TC_SHOP_TRADER_CREATED", player)
-                    .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
+            registerTrader(player, npc);
         });
+    }
+
+    public void createTrader(Player player) {
+        if (player == null) return;
+        TraderGeneratorConfig config = traderGeneratorConfig == null
+                ? new TraderGeneratorConfig(List.of(), List.of(), List.of()) : traderGeneratorConfig;
+        Random random = new Random();
+        boolean male = random.nextBoolean();
+        net.risingworld.api.definitions.Npcs.NpcDefinition dummy = Definitions.getNpcDefinition("dummy");
+        if (dummy == null) {
+            logger().error("Could not create trader: NPC definition 'dummy' was not found");
+            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            return;
+        }
+        Npc npc = World.spawnNpc(dummy.id, male ? 0 : 1, player.getPosition(), player.getRotation());
+        if (npc == null) {
+            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            return;
+        }
+        String name = t.get(male ? "TC_SHOP_TRADER_PREFIX_MALE" : "TC_SHOP_TRADER_PREFIX_FEMALE", player)
+                + " " + config.randomName(male, random);
+        List<String> outfit = config.randomOutfit(random);
+        GeneratedTraderAppearance appearance = new GeneratedTraderAppearance(name, male, List.copyOf(outfit),
+                randomSkinColor(random), random(HAIR_COLORS, random), random(EYE_COLORS, random),
+                (byte) (male && random.nextInt(100) >= 20 ? random.nextInt(14) : -1),
+                (byte) random.nextInt(5));
+        applyGeneratedTraderAppearance(npc, appearance);
+        registerTrader(player, npc);
+        executeDelayed(0.1f, () -> {
+            if (npc.isDead()) return;
+            applyTraderOutfit(npc, appearance.clothing());
+            verifyGeneratedTraderAppearance(npc, appearance);
+        });
+        executeDelayed(0.5f, () -> verifyGeneratedTraderAppearance(npc, appearance));
+        executeDelayed(1.0f, () -> verifyGeneratedTraderAppearance(npc, appearance));
+    }
+
+    private void applyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {
+        npc.setName(appearance.name());
+        npc.setLocked(true);
+        if (traderService != null) traderService.applyNpcFlags(npc);
+        Skin skin = npc.getSkin();
+        if (skin != null) {
+            skin.setGender(appearance.male() ? Skin.Gender.Male : Skin.Gender.Female);
+            skin.setSkinColor(appearance.skinColor());
+            skin.setHairColor(appearance.hairColor());
+            skin.setEyeColor(appearance.eyeColor());
+            skin.setBeard(appearance.beard());
+            skin.setVariation(appearance.variation());
+        }
+    }
+
+    private void verifyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {
+        if (npc == null || npc.isDead() || generatedTraderAppearanceMatches(npc, appearance)) return;
+        logger().warn("Repairing generated trader appearance for NPC " + npc.getGlobalID()
+                + ": expected name '" + appearance.name() + "', actual name '" + npc.getName() + "'");
+        applyGeneratedTraderAppearance(npc, appearance);
+        if (!generatedTraderAppearanceMatches(npc, appearance)) {
+            logger().warn("Generated trader appearance is still not fully applied for NPC " + npc.getGlobalID());
+        }
+    }
+
+    private static boolean generatedTraderAppearanceMatches(Npc npc, GeneratedTraderAppearance appearance) {
+        if (!appearance.name().equals(npc.getName()) || !npc.isLocked() || !npc.isInvincible()) return false;
+        Skin skin = npc.getSkin();
+        return skin != null
+                && skin.getGender() == (appearance.male() ? Skin.Gender.Male : Skin.Gender.Female)
+                && skin.getSkinColor() == appearance.skinColor()
+                && skin.getHairColor() == appearance.hairColor()
+                && skin.getEyeColor() == appearance.eyeColor()
+                && skin.getBeard() == appearance.beard()
+                && skin.getVariation() == appearance.variation();
+    }
+
+    private static int randomSkinColor(Random random) {
+        int weight = random.nextInt(100);
+        return random(weight < 76 ? LIGHT_SKIN_COLORS : weight < 96 ? MEDIUM_SKIN_COLORS : DARK_SKIN_COLORS, random);
+    }
+
+    private static int random(int[] values, Random random) {
+        return values[random.nextInt(values.length)];
+    }
+
+    private static byte random(byte[] values, Random random) {
+        return values[random.nextInt(values.length)];
+    }
+
+    private void applyTraderOutfit(Npc npc, List<String> clothing) {
+        net.risingworld.api.objects.Clothes clothes = npc.getClothes();
+        if (clothes == null) {
+            logger().warn("Generated trader NPC " + npc.getGlobalID() + " does not expose a Clothes object");
+            return;
+        }
+        for (String garment : clothing) {
+            ClothingDefinition definition = Definitions.getClothingDefinition(garment);
+            if (definition == null) {
+                logger().warn("Ignoring unknown trader clothing definition: " + garment);
+                continue;
+            }
+            clothes.add((short) definition.id);
+        }
+    }
+
+    private void registerTrader(Player player, Npc npc) {
+        Trader trader = traderService == null ? null : traderService.register(npc, player).orElse(null);
+        if (trader == null) {
+            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            return;
+        }
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
+        boolean accountReady = wallet.createSystemAccount(trader.accountId(), "TRADER", trader.name(), "OZ - Shop").success();
+        boolean funded = accountReady && !currency.isBlank() && wallet.creditSystemAccountIdempotent(trader.accountId(),
+                1000L, "Trader initial capital", currency, "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
+        if (!funded) {
+            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_WALLET_FAILED", player));
+            return;
+        }
+        player.sendTextMessage(c.okay + t.get("TC_SHOP_TRADER_CREATED", player)
+                .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
     }
 
     private Optional<ShopOffer> findTraderOffer(Trader trader, String offerId) {
@@ -1145,6 +1350,19 @@ class ShopRuntime extends Plugin {
             if (Files.notExists(destination) && Files.exists(packaged)) Files.copy(packaged, destination);
         } catch (java.io.IOException ex) {
             logger().error("Could not prepare default trader offers: " + ex.getMessage());
+        }
+    }
+
+    private TraderGeneratorConfig loadTraderGeneratorConfig() {
+        try {
+            Path pluginPath = Paths.get(getPath() == null ? "." : getPath());
+            Path destination = pluginPath.resolve("traders-config.json");
+            Path packaged = pluginPath.resolve("traders-config.default.json");
+            if (Files.notExists(destination) && Files.exists(packaged)) Files.copy(packaged, destination);
+            return TraderGeneratorConfig.load(destination);
+        } catch (java.io.IOException | IllegalArgumentException ex) {
+            logger().error("Could not prepare trader generator config: " + ex.getMessage());
+            return new TraderGeneratorConfig(List.of(), List.of(), List.of());
         }
     }
 

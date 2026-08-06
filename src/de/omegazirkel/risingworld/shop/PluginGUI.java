@@ -23,6 +23,7 @@ public class PluginGUI {
     public static PluginGUI getInstance(Shop plugin) {
         AssetManager.loadIconFromPlugin(plugin, "oz-shop");
         AssetManager.loadIconFromPlugin(plugin, "zone-shop-indicator");
+        AssetManager.loadIconFromPlugin(plugin, "create-trader");
         PluginGUI gui = getInstance();
         gui.plugin = plugin;
         PluginMenuManager.registerPluginMenu(new MenuItem(Shop.name, "oz-shop", "Shop",
@@ -56,6 +57,9 @@ public class PluginGUI {
             items.add(new MenuItem("oz-shop", t(player, "TC_MENU_SHOP_ZONE_CREATE"),
                     this::createOrEnableZone));
         }
+        if (player.isAdmin()) {
+            items.add(new MenuItem("create-trader", t(player, "TC_MENU_SHOP_TRADER_CREATE"), this::createTrader));
+        }
         items.add(new MenuItem("info-status", t(player, "TC_MENU_SHOP_INFO_STATUS"), p -> {
             p.hideRadialMenu(true);
             PluginInfoStatusProviders.show(p, Shop.name);
@@ -84,6 +88,11 @@ public class PluginGUI {
                     .replace("PH_AREA", zone.getAreaName())
                     .replace("PH_AREA_ID", String.valueOf(zone.getAreaId())));
         }, () -> player.sendTextMessage(c.warning + t(player, "TC_SHOP_ZONE_NO_AREA")));
+    }
+
+    private void createTrader(Player player) {
+        player.hideRadialMenu(true);
+        plugin.createTrader(player);
     }
 
     private String t(Player player, String key) {
