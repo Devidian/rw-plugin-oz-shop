@@ -196,6 +196,16 @@ public class ShopService {
     }
 
     public ShopPurchaseResult purchase(Player player, ShopOffer offer, int quantity) {
+        return purchase(player, offer, quantity, "");
+    }
+
+    /** Executes a system-item purchase whose payment is credited to one Wallet system account. */
+    public ShopPurchaseResult purchaseFromSystemAccount(Player player, ShopOffer offer, int quantity,
+            String payeeSystemAccountId) {
+        return purchase(player, offer, quantity, payeeSystemAccountId);
+    }
+
+    private ShopPurchaseResult purchase(Player player, ShopOffer offer, int quantity, String payeeSystemAccountId) {
         if (player == null || player.getDbID() <= 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
         }
@@ -232,7 +242,7 @@ public class ShopService {
 
         PaymentReceipt payment = PaymentReceipt.none();
         if (price > 0) {
-            payment = charge(player, effectiveOffer, price);
+            payment = charge(player, effectiveOffer, price, payeeSystemAccountId);
             if (!payment.result().success()) {
                 Shop.logger().error(payment.result().toString());
                 return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, payment.result().message());
@@ -257,6 +267,16 @@ public class ShopService {
     }
 
     public ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity) {
+        return sell(player, offer, quantity, "");
+    }
+
+    /** Executes a system-item sale paid from one Wallet system account. */
+    public ShopPurchaseResult sellToSystemAccount(Player player, ShopOffer offer, int quantity,
+            String payerSystemAccountId) {
+        return sell(player, offer, quantity, payerSystemAccountId);
+    }
+
+    private ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity, String payerSystemAccountId) {
         if (player == null || player.getDbID() <= 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
         }
@@ -284,11 +304,21 @@ public class ShopService {
         if (!removed.success) {
             return removed;
         }
-        WalletBridge.WalletCallResult deposit = effectiveOffer.getCurrencyIdentifier().isBlank()
-                ? wallet.depositDefault(player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(),
-                        "OZ - Shop")
-                : wallet.deposit(player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(),
-                        effectiveOffer.getCurrencyIdentifier(), "OZ - Shop");
+        String currency = effectiveOffer.getCurrencyIdentifier().isBlank()
+                ? wallet.defaultCurrencyIdentifier() : effectiveOffer.getCurrencyIdentifier();
+        WalletBridge.WalletCallResult deposit;
+        if (payerSystemAccountId != null && !payerSystemAccountId.isBlank() && !currency.isBlank()) {
+            WalletBridge.WalletTransferCallResult transfer = wallet.transferSystemToPlayerIdempotent(
+                    payerSystemAccountId, player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(), currency,
+                    "OZ - Shop", "shop:sale:" + payerSystemAccountId + ":" + UUID.randomUUID());
+            deposit = new WalletBridge.WalletCallResult(transfer.success(), transfer.message());
+        } else {
+            deposit = effectiveOffer.getCurrencyIdentifier().isBlank()
+                    ? wallet.depositDefault(player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(),
+                            "OZ - Shop")
+                    : wallet.deposit(player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(),
+                            effectiveOffer.getCurrencyIdentifier(), "OZ - Shop");
+        }
         if (!deposit.success()) {
             ShopPurchaseResult returned = restoreRemovedItems(player, effectiveOffer, quote);
             if (!returned.success) {
@@ -346,14 +376,17 @@ public class ShopService {
                 message + " Payment was refunded.");
     }
 
-    private PaymentReceipt charge(Player player, ShopOffer offer, long price) {
+    private PaymentReceipt charge(Player player, ShopOffer offer, long price, String payeeSystemAccountId) {
         String reason = "Shop purchase: " + offer.getId();
         String currency = offer.getCurrencyIdentifier().isBlank()
                 ? wallet.defaultCurrencyIdentifier() : offer.getCurrencyIdentifier();
         if (wallet.hasSystemAccountApi() && !currency.isBlank()) {
             String correlation = "shop:purchase:" + player.getDbID() + ":" + UUID.randomUUID();
-            WalletBridge.WalletTransferCallResult result = wallet.transferPlayerToWorldIdempotent(player.getDbID(),
-                    price, reason, currency, "OZ - Shop", correlation);
+            WalletBridge.WalletTransferCallResult result = payeeSystemAccountId == null || payeeSystemAccountId.isBlank()
+                    ? wallet.transferPlayerToWorldIdempotent(player.getDbID(), price, reason, currency, "OZ - Shop",
+                            correlation)
+                    : wallet.transferPlayerToSystemIdempotent(player.getDbID(), payeeSystemAccountId, price, reason,
+                            currency, "OZ - Shop", correlation);
             return new PaymentReceipt(new WalletBridge.WalletCallResult(result.success(), result.message()),
                     correlation, true);
         }

@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.4.0] - 2026-08-06 | NPC traders
+
+- feat: add admin NPC trader registration, interaction shops, isolated offers and Wallet system accounts
+- feat: settle trader purchases/sales against the trader account and expose trader settings and management UI
+- change: align the hard OZ Tools dependency with the current 0.23.13 runtime
+
 ## [0.3.12] - 2026-08-05 | World-account settlement
 
 - feat: route successful system and plugin-offer purchases into the Wallet world account with idempotent refunds

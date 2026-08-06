@@ -9,6 +9,7 @@ Shared shop and purchase API plugin for Rising World.
 - Wallet-backed purchase execution
 - quantity buy/sell flows for system offers
 - SQLite-backed shop zones, stock, and trade stats
+- NPC traders with independent offer files, stock scopes, and Wallet accounts
 - synchronous purchase callbacks
 - lightweight `/shop` command for listing and buying offers
 
@@ -104,6 +105,17 @@ System-shop offers for built-in game items use JSON:
 Default economy classification and raw material pricing rules are documented in `docs/economy/`.
 
 Admins can assign a different system-offer file to the current shop area with `/shop zoneoffers <file>` and reset to the global default with `/shop zoneoffers default`.
+
+## NPC traders
+
+An administrator can turn the NPC in their line of sight into a trader with
+`/shop maketrader` (or `/shop mt`). The trader is named `Trader-<npcId>` when
+unnamed, is made interactable and invincible, and receives the deterministic
+Wallet account `trader::<npcId>` with 1000 initial units of the Shop currency.
+The first-run `default-trader.json` contains no offers. Each trader can use a
+separate offer file and enable or disable plugin offers through its admin-only
+Trader settings tab. Purchases credit, and player sales debit, only that
+trader's account; automatic trader drain and restock are settled at base price.
 
 ## Public API
 

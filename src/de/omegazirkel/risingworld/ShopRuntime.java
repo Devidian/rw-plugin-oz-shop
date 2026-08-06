@@ -1,6 +1,8 @@
 package de.omegazirkel.risingworld;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -20,6 +22,8 @@ import de.omegazirkel.risingworld.shop.ShopService;
 import de.omegazirkel.risingworld.shop.ShopStockMode;
 import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.ShopZoneService;
+import de.omegazirkel.risingworld.shop.Trader;
+import de.omegazirkel.risingworld.shop.TraderService;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
 import de.omegazirkel.risingworld.shop.PluginGUI;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
@@ -42,10 +46,13 @@ import de.omegazirkel.risingworld.tools.ui.SharedIndicators;
 import net.risingworld.api.Plugin;
 import net.risingworld.api.Timer;
 import net.risingworld.api.events.player.PlayerCommandEvent;
+import net.risingworld.api.events.player.PlayerNpcInteractionEvent;
 import net.risingworld.api.events.player.PlayerSpawnEvent;
 import net.risingworld.api.events.player.ui.PlayerUITextFieldChangeEvent;
 import net.risingworld.api.objects.Area;
 import net.risingworld.api.objects.Player;
+import net.risingworld.api.objects.Npc;
+import net.risingworld.api.World;
 
 class ShopRuntime extends Plugin {
     static final Colors c = Colors.getInstance();
@@ -54,6 +61,7 @@ class ShopRuntime extends Plugin {
     private static ShopService service;
     private static ShopZoneService zoneService;
     private static ShopEconomyStore economyStore;
+    private static TraderService traderService;
     private static Connection sqliteCon;
     public static String name;
     public static PlayerSettings ps;
@@ -74,6 +82,8 @@ class ShopRuntime extends Plugin {
         service = new ShopService(new WalletBridge(this));
         zoneService = new ShopZoneService((Shop) this, sqliteCon, s.shopZonesFile);
         economyStore = new ShopEconomyStore(sqliteCon);
+        traderService = new TraderService(sqliteCon);
+        copyDefaultTraderOffers();
         reloadSystemOffers();
 
         PluginGUI.getInstance((Shop) this);
@@ -162,6 +172,11 @@ class ShopRuntime extends Plugin {
             player.sendTextMessage(c.okay + t.get("TC_SHOP_RELOADED", player).replace("PH_COUNT", String.valueOf(count)));
             return;
         }
+        if (cmdParts.length > 1 && (cmdParts[1].equalsIgnoreCase("maketrader") || cmdParts[1].equalsIgnoreCase("mt"))
+                && player.isAdmin()) {
+            makeTrader(player);
+            return;
+        }
         if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("zoneoffers") && player.isAdmin()) {
             setCurrentZoneOfferFile(player, cmdParts.length == 3 ? cmdParts[2] : "");
             return;
@@ -195,6 +210,15 @@ class ShopRuntime extends Plugin {
             return;
         }
         player.sendTextMessage(c.warning + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
+    }
+
+    public void onPlayerNpcInteractionEvent(PlayerNpcInteractionEvent event) {
+        Npc npc = event.getNpc();
+        if (npc == null || traderService == null) return;
+        Trader trader = traderService.find(npc.getGlobalID()).orElse(null);
+        if (trader == null) return;
+        event.setCancelled(true);
+        openTraderUI(event.getPlayer(), trader);
     }
 
     public ShopOfferRegistrationResult registerOffer(
@@ -338,6 +362,88 @@ class ShopRuntime extends Plugin {
         return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
     }
 
+    public List<Trader> listTraders() {
+        return traderService == null ? List.of() : traderService.list();
+    }
+
+    public List<ShopOffer> listTraderSystemOffers(Trader trader) {
+        if (trader == null) return List.of();
+        String file = trader.systemOffersFile().isBlank() ? "default-trader.json" : trader.systemOffersFile();
+        return SystemOfferFile.load((Shop) this, file, s.generateDefinitionExports, s.systemShopCurrency);
+    }
+
+    public ShopPurchaseResult traderPurchase(Player player, Trader trader, String offerId, int quantity) {
+        ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
+        if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
+        ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
+        if (economyStore != null && !economyStore.canSellToPlayer(trader.economyScope(), effective)) {
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("TC_SHOP_TRADER_DYNAMIC_STOCK_EMPTY", player));
+        }
+        ShopPurchaseResult result = service.purchaseFromSystemAccount(player, effective, 1, trader.accountId());
+        if (result.success && economyStore != null) economyStore.recordSystemSale(trader.economyScope(), effective,
+                effective.getPrice(player));
+        return localizedSystemTransactionResult(player, result, "TC_SHOP_PURCHASE_COMPLETED");
+    }
+
+    public ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity) {
+        ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
+        if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
+        ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
+        if (economyStore != null) {
+            ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(trader.economyScope(), player.getDbID(), effective);
+            if (!check.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
+                    t.get(check.messageKey(), player));
+        }
+        ShopPurchaseResult result = service.sellToSystemAccount(player, effective, 1, trader.accountId());
+        if (result.success && economyStore != null) economyStore.recordSystemBuy(trader.economyScope(), player.getDbID(),
+                effective, effective.getBuyPrice());
+        return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
+    }
+
+    public long traderBalance(Trader trader) {
+        if (trader == null) return 0L;
+        String currency = s.systemShopCurrency.isBlank() ? new WalletBridge((Shop) this).defaultCurrencyIdentifier()
+                : s.systemShopCurrency;
+        return new WalletBridge((Shop) this).systemAccountBalances(trader.accountId()).stream()
+                .filter(balance -> balance.currencyIdentifier().equalsIgnoreCase(currency)).mapToLong(WalletBridge.SystemBalanceInfo::balance)
+                .findFirst().orElse(0L);
+    }
+
+    public String traderBuyDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
+        if (trader == null || offer == null || !offer.isSystemOffer() || !offer.canPlayerBuyFromSystem() || economyStore == null) return "";
+        ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
+        return economyStore.canSellToPlayer(trader.economyScope(), effective) ? ""
+                : t.get("TC_SHOP_TRADER_DYNAMIC_STOCK_EMPTY", player);
+    }
+
+    public String traderSellDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
+        if (trader == null || offer == null || !offer.isSystemOffer() || !offer.canPlayerSellToSystem() || economyStore == null) return "";
+        ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
+        ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(trader.economyScope(), player.getDbID(), effective);
+        if (check.allowed()) return "";
+        String key = "TC_SHOP_DYNAMIC_STOCK_FULL".equals(check.messageKey())
+                ? "TC_SHOP_TRADER_DYNAMIC_STOCK_FULL" : check.messageKey();
+        return t.get(key, player);
+    }
+
+    public Trader renameTrader(long npcId, String name) {
+        Trader updated = traderService == null ? null : traderService.rename(npcId, name).orElse(null);
+        if (updated != null) {
+            Npc npc = World.getNpc(npcId);
+            if (npc != null) npc.setName(updated.name());
+            new WalletBridge((Shop) this).updateSystemAccountDisplayName(updated.accountId(), updated.name(), "OZ - Shop");
+        }
+        return updated;
+    }
+
+    public Trader setTraderOffersFile(long npcId, String file) {
+        return traderService == null ? null : traderService.setSystemOffersFile(npcId, file).orElse(null);
+    }
+
+    public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {
+        return traderService == null ? null : traderService.setPluginShopEnabled(npcId, enabled).orElse(null);
+    }
+
     private ShopPurchaseResult localizedSystemTransactionResult(Player player, ShopPurchaseResult result, String key) {
         if (!result.success || result.offer == null || !result.offer.isSystemOffer()) {
             return result;
@@ -392,6 +498,19 @@ class ShopRuntime extends Plugin {
         }
         String scope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
         return economyStore.stateFor(scope, offer);
+    }
+
+    /** Returns persistent stock scoped to one trader, never to the player's current shop zone. */
+    public ShopEconomyStore.EconomyState traderEconomyStateFor(Trader trader, ShopOffer offer) {
+        if (offer == null || economyStore == null || trader == null) {
+            return new ShopEconomyStore.EconomyState(
+                    offer == null ? 0L : offer.getDefaultStock(),
+                    offer == null ? 0L : offer.getDefaultTargetStock(),
+                    offer == null ? 0L : offer.getDefaultStockLimit(),
+                    offer == null ? 0.0d : offer.getDefaultDrainRate(),
+                    offer == null ? 0.0d : offer.getDefaultRefillRate());
+        }
+        return economyStore.stateFor(trader.economyScope(), offer);
     }
 
     public ShopEconomyStore.EconomyTickStatus economyTickStatusFor(Player player, ShopOffer offer) {
@@ -772,6 +891,16 @@ class ShopRuntime extends Plugin {
         player.setAttribute("oz.shop.ui.overlay", overlay);
     }
 
+    /** Opens the trader-specific overlay; this does not depend on a shop zone. */
+    public void openTraderUI(Player player, Trader trader) {
+        ShopOverlay existing = (ShopOverlay) player.getAttribute("oz.shop.ui.overlay");
+        if (existing != null) existing.close();
+        ShopOverlay overlay = new ShopOverlay((Shop) this, player, trader);
+        CursorManager.show(player);
+        player.addUIElement(overlay);
+        player.setAttribute("oz.shop.ui.overlay", overlay);
+    }
+
     public void sendOfferList(Player player) {
         List<ShopOffer> offers = listOffers().stream()
                 .filter(ShopOffer::isEnabled)
@@ -956,6 +1085,66 @@ class ShopRuntime extends Plugin {
         if (economyStore != null && service != null) {
             economyStore.setTickIntervalHours(s.economyTickIntervalHours);
             economyStore.reconcile(service.listSystemOffers(), listShopZones());
+            WalletBridge wallet = new WalletBridge((Shop) this);
+            String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
+            if (traderService != null && wallet.hasSystemAccountApi() && !wallet.worldSystemAccountId().isBlank()) {
+                for (Trader trader : listTraders()) {
+                    traderService.reconcileEconomy(trader, listTraderSystemOffers(trader), economyStore, wallet, currency);
+                }
+            }
+        }
+    }
+
+    private void makeTrader(Player player) {
+        player.getNpcInLineOfSight(10f, npc -> {
+            if (npc == null) {
+                player.sendTextMessage(c.warning + t.get("TC_SHOP_TRADER_NO_NPC", player));
+                return;
+            }
+            Trader trader = traderService == null ? null : traderService.register(npc, player).orElse(null);
+            if (trader == null) {
+                player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+                return;
+            }
+            WalletBridge wallet = new WalletBridge((Shop) this);
+            String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
+            boolean accountReady = wallet.createSystemAccount(trader.accountId(), "TRADER", trader.name(), "OZ - Shop").success();
+            boolean funded = accountReady && !currency.isBlank() && wallet.creditSystemAccountIdempotent(trader.accountId(),
+                    1000L, "Trader initial capital", currency, "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
+            if (!funded) {
+                player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_WALLET_FAILED", player));
+                return;
+            }
+            player.sendTextMessage(c.okay + t.get("TC_SHOP_TRADER_CREATED", player)
+                    .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
+        });
+    }
+
+    private Optional<ShopOffer> findTraderOffer(Trader trader, String offerId) {
+        if (trader == null || offerId == null || offerId.isBlank()) return Optional.empty();
+        return listTraderSystemOffers(trader).stream().filter(offer -> offer.getId().equalsIgnoreCase(offerId.trim()))
+                .findFirst();
+    }
+
+    private ShopOffer dynamicTraderOffer(Trader trader, ShopOffer offer, int quantity) {
+        if (trader == null || offer == null || !offer.isSystemOffer()) return offer;
+        int amount = Math.max(1, quantity) * Math.max(1, offer.getAmount());
+        ShopEconomyStore.EconomyState state = s.dynamicEconomyEnabled && economyStore != null
+                ? economyStore.stateFor(trader.economyScope(), offer) : null;
+        DynamicEconomyPrices prices = dynamicEconomyPrices(offer, state, amount, s.dynamicEconomyEnabled);
+        long sell = prices.sellPrice() <= prices.buyPrice() && offer.getBasePrice() > 0.0d
+                ? prices.buyPrice() + 1L : prices.sellPrice();
+        return offer.economyCopy(amount, prices.averageUnitPrice(), prices.buyPrice(), sell);
+    }
+
+    private void copyDefaultTraderOffers() {
+        try {
+            Path pluginPath = Paths.get(getPath() == null ? "." : getPath());
+            Path destination = pluginPath.resolve("default-trader.json");
+            Path packaged = pluginPath.resolve("default-trader.default.json");
+            if (Files.notExists(destination) && Files.exists(packaged)) Files.copy(packaged, destination);
+        } catch (java.io.IOException ex) {
+            logger().error("Could not prepare default trader offers: " + ex.getMessage());
         }
     }
 

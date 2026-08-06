@@ -9,6 +9,7 @@ import net.risingworld.api.events.EventMethod;
 import net.risingworld.api.events.Listener;
 import net.risingworld.api.events.player.PlayerCommandEvent;
 import net.risingworld.api.events.player.PlayerSpawnEvent;
+import net.risingworld.api.events.player.PlayerNpcInteractionEvent;
 import net.risingworld.api.events.player.ui.PlayerUITextFieldChangeEvent;
 
 /** Rising World entry point; shop behavior lives in {@link ShopRuntime}. */
@@ -35,4 +36,6 @@ public final class Shop extends ShopRuntime implements Listener, FileChangeListe
     }
     @Override @EventMethod
     public void onPlayerCommand(PlayerCommandEvent event) { super.onPlayerCommand(event); }
+    @Override @EventMethod
+    public void onPlayerNpcInteractionEvent(PlayerNpcInteractionEvent event) { super.onPlayerNpcInteractionEvent(event); }
 }

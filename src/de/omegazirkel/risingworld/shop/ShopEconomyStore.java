@@ -272,6 +272,27 @@ public class ShopEconomyStore {
                 offer.getDefaultDrainRate(), offer.getDefaultRefillRate());
     }
 
+    /** Reads trader economy state without applying the normal system-shop automatic tick. */
+    public EconomyState stateForWithoutTick(String scope, ShopOffer offer) {
+        if (offer == null || !offer.isSystemOffer()) return new EconomyState(0L, 0L, 0L, 0.0d, 0.0d);
+        String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
+        ensureOfferState(effectiveScope, offer);
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT stock FROM shop_offer_economy_state WHERE scope = ? AND offer_id = ?
+                """)) {
+            statement.setString(1, effectiveScope);
+            statement.setString(2, offer.getId());
+            try (ResultSet result = statement.executeQuery()) {
+                if (result.next()) return new EconomyState(result.getLong("stock"), offer.getDefaultTargetStock(),
+                        offer.getDefaultStockLimit(), offer.getDefaultDrainRate(), offer.getDefaultRefillRate());
+            }
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not read trader economy state: " + ex.getMessage());
+        }
+        return new EconomyState(offer.getDefaultStock(), offer.getDefaultTargetStock(), offer.getDefaultStockLimit(),
+                offer.getDefaultDrainRate(), offer.getDefaultRefillRate());
+    }
+
     public EconomyTickStatus tickStatusFor(String scope, ShopOffer offer) {
         if (offer == null || offer.getId() == null || offer.getId().isBlank() || !offer.isSystemOffer()) {
             return EconomyTickStatus.inactive();
