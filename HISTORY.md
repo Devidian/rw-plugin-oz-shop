@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.4.5] - 2026-08-07 | Trader stock settlement
+
+- fix: settle NPC trader stock drain, offer removal, and dissolution at the same stepped dynamic outbound price used for player purchases
+
 ## [0.4.4] - 2026-08-07 | Economy tick alignment
 
 - fix: apply configured economy intervals consistently to offer drain and restock, including the next-tick display

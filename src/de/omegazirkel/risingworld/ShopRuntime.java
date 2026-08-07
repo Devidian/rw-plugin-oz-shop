@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Random;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
+import de.omegazirkel.risingworld.shop.DynamicEconomyPricing;
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
 import de.omegazirkel.risingworld.shop.ShopErrorCode;
 import de.omegazirkel.risingworld.shop.ShopItemNames;
@@ -516,7 +517,8 @@ class ShopRuntime extends Plugin {
 
     private boolean settleTraderOfferStock(Trader trader, ShopOffer offer) {
         if (economyStore == null) return false;
-        long value = baseValue(economyStore.stateForWithoutTick(trader.economyScope(), offer).stock(), offer.getBasePrice());
+        ShopEconomyStore.EconomyState state = economyStore.stateForWithoutTick(trader.economyScope(), offer);
+        long value = DynamicEconomyPricing.outboundValue(offer, state, state.stock(), s.dynamicEconomyEnabled);
         if (value <= 0L) return true;
         WalletBridge.WalletCallResult result = new WalletBridge((Shop) this).creditSystemAccountIdempotent(trader.accountId(), value,
                 "Trader offer removal stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
@@ -565,8 +567,8 @@ class ShopRuntime extends Plugin {
         }
         String prefix = "trader:" + trader.npcId() + ":dissolve";
         for (ShopOffer offer : listTraderSystemOffers(trader)) {
-            long stock = economyStore.stateForWithoutTick(trader.economyScope(), offer).stock();
-            long value = baseValue(stock, offer.getBasePrice());
+            ShopEconomyStore.EconomyState state = economyStore.stateForWithoutTick(trader.economyScope(), offer);
+            long value = DynamicEconomyPricing.outboundValue(offer, state, state.stock(), s.dynamicEconomyEnabled);
             if (value <= 0L) continue;
             WalletBridge.WalletCallResult sale = wallet.creditSystemAccountIdempotent(trader.accountId(), value,
                     "Trader dissolution stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
@@ -596,12 +598,6 @@ class ShopRuntime extends Plugin {
         String message = t.get("TC_SHOP_TRADER_DISSOLVE_FAILED", player);
         return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
                 detail == null || detail.isBlank() ? message : message + " " + detail);
-    }
-
-    private static long baseValue(long amount, double basePrice) {
-        if (amount <= 0L || basePrice <= 0.0d || !Double.isFinite(basePrice)) return 0L;
-        double value = amount * basePrice;
-        return value >= Long.MAX_VALUE ? Long.MAX_VALUE : Math.max(0L, (long) Math.floor(value));
     }
 
     private ShopPurchaseResult localizedSystemTransactionResult(Player player, ShopPurchaseResult result, String key) {
@@ -760,91 +756,14 @@ class ShopRuntime extends Plugin {
         return t.get(key, player);
     }
 
-    private double dynamicPriceMultiplier(ShopOffer offer, ShopEconomyStore.EconomyState state) {
-        if (state == null || state.targetStock() <= 0L) {
-            return 1.0d;
-        }
-        return dynamicPriceMultiplier(offer, state.stock(), state.targetStock());
-    }
-
     static DynamicEconomyPrices dynamicEconomyPrices(ShopOffer offer, ShopEconomyStore.EconomyState state, int amount) {
         return dynamicEconomyPrices(offer, state, amount, true);
     }
 
     static DynamicEconomyPrices dynamicEconomyPrices(ShopOffer offer, ShopEconomyStore.EconomyState state, int amount,
             boolean stockDependent) {
-        int effectiveAmount = Math.max(1, amount);
-        double basePrice = Math.max(0.0d, offer.getBasePrice());
-        double spread = Math.max(1.0d, offer.getSpreadPercent()) / 100.0d;
-        double buyFactor = Math.max(0.0d, 1.0d - (spread / 2.0d));
-        double sellFactor = 1.0d + (spread / 2.0d);
-        long startingStock = stockDependent && state != null ? Math.max(0L, state.stock()) : 0L;
-        long targetStock = stockDependent && state != null ? state.targetStock() : 0L;
-        double buyPriceTotal = 0.0d;
-        double sellPriceTotal = 0.0d;
-        double unitPriceTotal = 0.0d;
-        for (int i = 0; i < effectiveAmount; i++) {
-            long buyStock = saturatedAdd(startingStock, i);
-            double buyUnitPrice = basePrice * inflowPriceMultiplier(offer, startingStock, buyStock, targetStock);
-            buyPriceTotal += buyUnitPrice * buyFactor;
-            unitPriceTotal += buyUnitPrice;
-
-            long saleStock = startingStock > i ? startingStock - i : 0L;
-            double sellUnitPrice = basePrice * dynamicPriceMultiplier(offer, saleStock, targetStock);
-            sellPriceTotal += sellUnitPrice * sellFactor;
-        }
-        return new DynamicEconomyPrices(floorPrice(buyPriceTotal), ceilPrice(sellPriceTotal),
-                unitPriceTotal / effectiveAmount);
-    }
-
-    private static double dynamicPriceMultiplier(ShopOffer offer, long stock, long targetStock) {
-        if (targetStock <= 0L) {
-            return 1.0d;
-        }
-        double raw = stock <= 0L
-                ? offer.getMaxPriceMultiplier()
-                : (double) targetStock / Math.max(1.0d, stock);
-        return Math.max(offer.getMinPriceMultiplier(), Math.min(offer.getMaxPriceMultiplier(), raw));
-    }
-
-    private static double inflowPriceMultiplier(ShopOffer offer, long startingStock, long stock, long targetStock) {
-        if (targetStock <= 0L) {
-            return 1.0d;
-        }
-        double startMultiplier = dynamicPriceMultiplier(offer, startingStock, targetStock);
-        double relativeStockPressure = (double) Math.max(1L, startingStock) / Math.max(1.0d, stock);
-        double raw = startMultiplier * relativeStockPressure;
-        return Math.max(offer.getMinPriceMultiplier(), Math.min(offer.getMaxPriceMultiplier(), raw));
-    }
-
-    private static long saturatedAdd(long left, long right) {
-        if (right > 0L && left > Long.MAX_VALUE - right) {
-            return Long.MAX_VALUE;
-        }
-        if (right < 0L && left < Long.MIN_VALUE - right) {
-            return Long.MIN_VALUE;
-        }
-        return left + right;
-    }
-
-    private static long floorPrice(double value) {
-        if (!Double.isFinite(value) || value >= Long.MAX_VALUE) {
-            return Long.MAX_VALUE;
-        }
-        if (value <= 0.0d) {
-            return 0L;
-        }
-        return (long) Math.floor(value + 1.0E-9d);
-    }
-
-    private static long ceilPrice(double value) {
-        if (!Double.isFinite(value) || value >= Long.MAX_VALUE) {
-            return Long.MAX_VALUE;
-        }
-        if (value <= 0.0d) {
-            return 0L;
-        }
-        return (long) Math.ceil(value - 1.0E-9d);
+        DynamicEconomyPricing.Prices prices = DynamicEconomyPricing.prices(offer, state, amount, stockDependent);
+        return new DynamicEconomyPrices(prices.buyPrice(), prices.sellPrice(), prices.averageUnitPrice());
     }
 
     record DynamicEconomyPrices(long buyPrice, long sellPrice, double averageUnitPrice) {
@@ -1249,7 +1168,8 @@ class ShopRuntime extends Plugin {
             String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
             if (traderService != null && wallet.hasSystemAccountApi() && !wallet.worldSystemAccountId().isBlank()) {
                 for (Trader trader : listTraders()) {
-                    traderService.reconcileEconomy(trader, listTraderSystemOffers(trader), economyStore, wallet, currency);
+                    traderService.reconcileEconomy(trader, listTraderSystemOffers(trader), economyStore, wallet, currency,
+                            s.dynamicEconomyEnabled);
                 }
             }
         }

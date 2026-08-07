@@ -115,7 +115,7 @@ public final class TraderService {
 
     /** Settles trader-only automatic stock movement before persisting the stock delta. */
     public void reconcileEconomy(Trader trader, List<ShopOffer> offers, ShopEconomyStore economy, WalletBridge wallet,
-            String currencyIdentifier) {
+            String currencyIdentifier, boolean dynamicEconomyEnabled) {
         if (trader == null || economy == null || wallet == null || currencyIdentifier == null || currencyIdentifier.isBlank()) return;
         long now = System.currentTimeMillis();
         for (ShopOffer offer : offers) {
@@ -130,7 +130,7 @@ public final class TraderService {
                     ? boundedPercent(Math.max(0L, state.targetStock() - stock), offer.getRestockPercent(),
                             offer.getRestockMax()) : 0L;
             if (drain > 0L) {
-                long value = safeValue(drain, offer.getBasePrice());
+                long value = DynamicEconomyPricing.outboundValue(offer, state, drain, dynamicEconomyEnabled);
                 if (value > 0L && !wallet.creditSystemAccountIdempotent(trader.accountId(), value,
                         "Trader drain: " + offer.getId(), currencyIdentifier, "OZ - Shop",
                         "trader:" + trader.npcId() + ":drain:" + offer.getId() + ":" + tick.nextDrainAt()).success()) continue;

@@ -105,7 +105,7 @@ System-shop offers for built-in game items use JSON:
 Default economy classification and raw material pricing rules are documented in `docs/economy/`.
 
 Admins can assign a different system-offer file to the current shop area with `/shop zoneoffers <file>` and reset to the global default with `/shop zoneoffers default`.
-When an administrator saves a missing `.json` file name in the Zone or Trader settings, Shop asks before creating an empty `[]` file. For a non-packaged offer file, the Systemshop tab then provides **Add item** beside the owned-offers filter and **Edit item** / **Remove item from offers** beside the selected offer's economy controls. Adding uses the native item picker and copies the matching definition from `system-offers.complete.json`; the editor keeps ID, item name, variant, and enabled state read-only. Removing clears only the active Zone or Trader economy scope. Remaining Trader stock is credited to that Trader's Wallet account at base price before removal.
+When an administrator saves a missing `.json` file name in the Zone or Trader settings, Shop asks before creating an empty `[]` file. For a non-packaged offer file, the Systemshop tab then provides **Add item** beside the owned-offers filter and **Edit item** / **Remove item from offers** beside the selected offer's economy controls. Adding uses the native item picker and copies the matching definition from `system-offers.complete.json`; the editor keeps ID, item name, variant, and enabled state read-only. Removing clears only the active Zone or Trader economy scope. Remaining Trader stock is credited to that Trader's Wallet account at the stepped player-purchase price before removal.
 
 ## NPC traders
 
@@ -122,7 +122,7 @@ of global and Shop-zone system-shop settings.
 Generated traders apply `Skin.setHairstyle(...)`: male dummies use a random ID from
 50 through 68 and female dummies a random ID from 100 through 119.
 If a registered trader NPC is deleted or killed, Shop dissolves that trader on its
-next enable: scoped stock is sold at base price, positive account balances move to
+next enable: scoped stock is settled at the stepped player-purchase price, positive account balances move to
 the world account, and the Wallet account and Shop records are archived/removed.
 
 `/shop maketrader` (or `/shop mt`) remains available to turn an NPC in line of sight
@@ -131,10 +131,11 @@ deterministic Wallet account `trader::<npcId>` with 1000 initial units of the Sh
 currency. The first-run `default-trader.json` contains no offers. Each trader can use a
 separate offer file and enable or disable plugin offers through its admin-only
 Trader settings tab. Purchases credit, and player sales debit, only that
-trader's account; automatic trader drain and restock are settled at base price.
+trader's account; automatic trader drain is settled at the stepped player-purchase price,
+while restock is settled at base price.
 
 Administrators can dissolve a trader shop from the trader settings after an explicit
-confirmation. The trader's scoped stock is settled at base price, all positive Wallet
+confirmation. The trader's scoped stock is settled at the stepped player-purchase price, all positive Wallet
 balances move to the world account, and the trader account is archived. The NPC remains
 in the world but no longer opens a Shop trader overlay.
 

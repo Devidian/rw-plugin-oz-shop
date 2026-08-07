@@ -8,6 +8,7 @@ import java.util.Random;
 import org.junit.Test;
 
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
+import de.omegazirkel.risingworld.shop.DynamicEconomyPricing;
 import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopStockMode;
 
@@ -43,6 +44,15 @@ public class ShopDynamicEconomyTest {
         assertEquals(45L, one.sellPrice());
         assertEquals(90L, two.sellPrice());
         assertTrue(two.buyPrice() < one.buyPrice() * 2L);
+    }
+
+    @Test
+    public void traderStockSettlementUsesTheSameSteppedOutboundPriceAsPlayerPurchases() {
+        ShopOffer offer = offer(10.0d);
+        ShopEconomyStore.EconomyState stock = new ShopEconomyStore.EconomyState(2L, 10L, 20L, 0.0d, 0.0d);
+
+        assertEquals(90L, DynamicEconomyPricing.outboundValue(offer, stock, 2L, true));
+        assertEquals(23L, DynamicEconomyPricing.outboundValue(offer, stock, 2L, false));
     }
 
     private static ShopOffer offer(double basePrice) {
