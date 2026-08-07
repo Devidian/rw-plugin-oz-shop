@@ -2,8 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## [0.4.2] - 2026-08-07 | Trader access and appearance
+## [0.4.3] - 2026-08-07 | In-game offer editor
 
+- feat: add administrator in-game editing for custom zone and trader system-offer JSON files, including empty-file confirmation, catalog item selection, scoped removal, and configuration editing
+- fix: retain the displayed system-offer unit sell price when the player does not currently hold the item
+
+## [0.4.2] - 2026-08-07 | Trader access and appearance
 - fix: keep NPC trader offers and transactions available when system-shop access is disabled
 - feat: randomize generated dummy-NPC hairstyles within the supported male and female ID ranges
 - change: broaden trader clothing choices and add a 25% compatible-hat chance

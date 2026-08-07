@@ -105,6 +105,7 @@ System-shop offers for built-in game items use JSON:
 Default economy classification and raw material pricing rules are documented in `docs/economy/`.
 
 Admins can assign a different system-offer file to the current shop area with `/shop zoneoffers <file>` and reset to the global default with `/shop zoneoffers default`.
+When an administrator saves a missing `.json` file name in the Zone or Trader settings, Shop asks before creating an empty `[]` file. For a non-packaged offer file, the Systemshop tab then provides **Add item** beside the owned-offers filter and **Edit item** / **Remove item from offers** beside the selected offer's economy controls. Adding uses the native item picker and copies the matching definition from `system-offers.complete.json`; the editor keeps ID, item name, variant, and enabled state read-only. Removing clears only the active Zone or Trader economy scope. Remaining Trader stock is credited to that Trader's Wallet account at base price before removal.
 
 ## NPC traders
 

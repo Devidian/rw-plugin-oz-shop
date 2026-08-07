@@ -27,6 +27,7 @@ import de.omegazirkel.risingworld.shop.Trader;
 import de.omegazirkel.risingworld.shop.TraderService;
 import de.omegazirkel.risingworld.shop.TraderGeneratorConfig;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
+import de.omegazirkel.risingworld.shop.SystemOfferEditor;
 import de.omegazirkel.risingworld.shop.PluginGUI;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
 import de.omegazirkel.risingworld.shop.WalletBridge;
@@ -466,6 +467,61 @@ class ShopRuntime extends Plugin {
 
     public Trader setTraderOffersFile(long npcId, String file) {
         return traderService == null ? null : traderService.setSystemOffersFile(npcId, file).orElse(null);
+    }
+
+    public boolean offerFileExists(String file) { return new SystemOfferEditor((Shop) this).exists(file); }
+    public boolean createOfferFile(String file) { return new SystemOfferEditor((Shop) this).createEmpty(file); }
+    public String selectedSystemOfferFile(Player player) { return systemOffersFileFor(player); }
+    public boolean canEditOfferFile(Player player, Trader trader) { return editorOfferFile(player, trader) != null; }
+
+    public ShopPurchaseResult addOfferFromCatalog(Player player, Trader trader, String itemName, int itemVariant) {
+        if (player == null || !player.isAdmin()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        String file = editorOfferFile(player, trader);
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        boolean added = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
+        return added ? ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_ADDED", player), null)
+                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_ADD_FAILED", player));
+    }
+
+    public ShopPurchaseResult removeOffer(Player player, Trader trader, ShopOffer offer) {
+        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        String file = editorOfferFile(player, trader);
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
+        if (trader != null && !settleTraderOfferStock(trader, offer)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("TC_SHOP_EDITOR_REMOVE_FAILED", player));
+        if (!new SystemOfferEditor((Shop) this).remove(file, offer.getId()) || economyStore == null || !economyStore.deleteOffer(scope, offer.getId()))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_REMOVE_FAILED", player));
+        return ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_REMOVED", player), null);
+    }
+
+    public ShopPurchaseResult updateOffer(Player player, Trader trader, ShopOffer offer, java.util.Map<String, Object> values) {
+        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        String file = editorOfferFile(player, trader);
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        boolean updated = new SystemOfferEditor((Shop) this).update(file, offer.getId(), values);
+        if (updated && values != null && values.get("stock") instanceof Number stock && economyStore != null) {
+            String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
+            updated = economyStore.configure(scope, offer.getId(), Math.max(0L, stock.longValue()),
+                    offer.getDefaultDrainRate(), offer.getDefaultRefillRate());
+        }
+        return updated ? ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_SAVED", player), null)
+                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_SAVE_FAILED", player));
+    }
+
+    private String editorOfferFile(Player player, Trader trader) {
+        String file = trader == null ? systemOffersFileFor(player) : trader.systemOffersFile();
+        return file == null || file.isBlank() || file.equalsIgnoreCase("system-offers.default.json")
+                || file.equalsIgnoreCase("default-trader.json") || file.equalsIgnoreCase(s.systemOffersFile) ? null : file;
+    }
+
+    private boolean settleTraderOfferStock(Trader trader, ShopOffer offer) {
+        if (economyStore == null) return false;
+        long value = baseValue(economyStore.stateForWithoutTick(trader.economyScope(), offer).stock(), offer.getBasePrice());
+        if (value <= 0L) return true;
+        WalletBridge.WalletCallResult result = new WalletBridge((Shop) this).creditSystemAccountIdempotent(trader.accountId(), value,
+                "Trader offer removal stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
+                "trader:" + trader.npcId() + ":offer-remove:" + offer.getId());
+        return result.success();
     }
 
     public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {

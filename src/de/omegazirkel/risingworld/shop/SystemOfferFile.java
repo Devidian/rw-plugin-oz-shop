@@ -65,6 +65,41 @@ public final class SystemOfferFile {
         }
     }
 
+    /** Reads a user-managed offer file without applying first-run defaults. */
+    static List<Map<String, Object>> readObjects(Path file) throws IOException {
+        return new JsonObjects(Files.readString(file, StandardCharsets.UTF_8)).parseArray();
+    }
+
+    /** Writes offer objects atomically enough for the plugin directory's single UI writer. */
+    static void writeObjects(Path file, List<Map<String, Object>> offers) throws IOException {
+        Files.writeString(file, toJson(offers), StandardCharsets.UTF_8);
+    }
+
+    private static String toJson(List<Map<String, Object>> offers) {
+        StringBuilder json = new StringBuilder("[\n");
+        boolean first = true;
+        for (Map<String, Object> offer : offers) {
+            if (!first) json.append(",\n");
+            first = false;
+            json.append("  {\n");
+            boolean firstField = true;
+            for (Map.Entry<String, Object> entry : offer.entrySet()) {
+                if (!firstField) json.append(",\n");
+                firstField = false;
+                json.append("    \"").append(escape(entry.getKey())).append("\": ");
+                appendJsonValue(json, entry.getValue());
+            }
+            json.append("\n  }");
+        }
+        return json.append("\n]\n").toString();
+    }
+
+    private static void appendJsonValue(StringBuilder json, Object value) {
+        if (value == null) json.append("null");
+        else if (value instanceof Number || value instanceof Boolean) json.append(value);
+        else json.append('"').append(escape(String.valueOf(value))).append('"');
+    }
+
     private static List<ShopOffer> parseOffers(String json, String systemShopCurrency) {
         List<Map<String, Object>> objects = new JsonObjects(json).parseArray();
         List<ShopOffer> offers = new ArrayList<>();

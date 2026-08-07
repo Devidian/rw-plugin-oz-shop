@@ -412,6 +412,22 @@ public class ShopEconomyStore {
         }
     }
 
+    /** Removes one offer's persisted state without affecting other offers in the same shop scope. */
+    public boolean deleteOffer(String scope, String offerId) {
+        if (scope == null || scope.isBlank() || offerId == null || offerId.isBlank()) return false;
+        try (PreparedStatement state = connection.prepareStatement("DELETE FROM shop_offer_economy_state WHERE scope = ? AND offer_id = ?");
+                PreparedStatement stats = connection.prepareStatement("DELETE FROM shop_offer_trade_stats WHERE scope = ? AND offer_id = ?");
+                PreparedStatement counters = connection.prepareStatement("DELETE FROM shop_offer_daily_sell_counters WHERE scope = ? AND offer_id = ?")) {
+            for (PreparedStatement statement : new PreparedStatement[] { state, stats, counters }) {
+                statement.setString(1, scope); statement.setString(2, offerId); statement.executeUpdate();
+            }
+            return true;
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not remove shop offer economy state " + scope + "/" + offerId + ": " + ex.getMessage());
+            return false;
+        }
+    }
+
     public boolean configureEconomy(String scope, ShopOffer offer, EconomyUpdate update) {
         return false;
     }
