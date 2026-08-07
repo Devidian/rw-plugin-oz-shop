@@ -73,10 +73,14 @@ class ShopRuntime extends Plugin {
     private static final int[] DARK_SKIN_COLORS = { 0x6F4E37, 0x4B2E20 };
     private static final int[] HAIR_COLORS = { 0x1C120C, 0x3A2518, 0x5A381E, 0x8B5A2B, 0xC48A4A, 0xD9B36C };
     private static final int[] EYE_COLORS = { 0x4E7AA8, 0x5A8E50, 0x6B4A2E, 0x7D8B44 };
+    private static final int MALE_HAIRSTYLE_FIRST = 50;
+    private static final int MALE_HAIRSTYLE_LAST = 68;
+    private static final int FEMALE_HAIRSTYLE_FIRST = 100;
+    private static final int FEMALE_HAIRSTYLE_LAST = 119;
 
     private record GeneratedTraderAppearance(String name, boolean male, List<String> clothing,
                                              int skinColor, int hairColor, int eyeColor,
-                                             byte beard, byte variation) {
+                                             byte hairstyle, byte beard, byte variation) {
     }
 
     private static Connection sqliteCon;
@@ -1208,7 +1212,7 @@ class ShopRuntime extends Plugin {
     public void createTrader(Player player) {
         if (player == null) return;
         TraderGeneratorConfig config = traderGeneratorConfig == null
-                ? new TraderGeneratorConfig(List.of(), List.of(), List.of()) : traderGeneratorConfig;
+                ? new TraderGeneratorConfig(List.of(), List.of(), List.of(), List.of()) : traderGeneratorConfig;
         Random random = new Random();
         boolean male = random.nextBoolean();
         net.risingworld.api.definitions.Npcs.NpcDefinition dummy = Definitions.getNpcDefinition("dummy");
@@ -1227,6 +1231,7 @@ class ShopRuntime extends Plugin {
         List<String> outfit = config.randomOutfit(random);
         GeneratedTraderAppearance appearance = new GeneratedTraderAppearance(name, male, List.copyOf(outfit),
                 randomSkinColor(random), random(HAIR_COLORS, random), random(EYE_COLORS, random),
+                randomHairstyle(male, random),
                 (byte) (male && random.nextInt(100) >= 20 ? random.nextInt(14) : -1),
                 (byte) random.nextInt(5));
         applyGeneratedTraderAppearance(npc, appearance);
@@ -1250,6 +1255,7 @@ class ShopRuntime extends Plugin {
             skin.setSkinColor(appearance.skinColor());
             skin.setHairColor(appearance.hairColor());
             skin.setEyeColor(appearance.eyeColor());
+            skin.setHairstyle(appearance.hairstyle());
             skin.setBeard(appearance.beard());
             skin.setVariation(appearance.variation());
         }
@@ -1273,6 +1279,7 @@ class ShopRuntime extends Plugin {
                 && skin.getSkinColor() == appearance.skinColor()
                 && skin.getHairColor() == appearance.hairColor()
                 && skin.getEyeColor() == appearance.eyeColor()
+                && skin.getHairstyle() == appearance.hairstyle()
                 && skin.getBeard() == appearance.beard()
                 && skin.getVariation() == appearance.variation();
     }
@@ -1280,6 +1287,12 @@ class ShopRuntime extends Plugin {
     private static int randomSkinColor(Random random) {
         int weight = random.nextInt(100);
         return random(weight < 76 ? LIGHT_SKIN_COLORS : weight < 96 ? MEDIUM_SKIN_COLORS : DARK_SKIN_COLORS, random);
+    }
+
+    static byte randomHairstyle(boolean male, Random random) {
+        int first = male ? MALE_HAIRSTYLE_FIRST : FEMALE_HAIRSTYLE_FIRST;
+        int last = male ? MALE_HAIRSTYLE_LAST : FEMALE_HAIRSTYLE_LAST;
+        return (byte) (first + random.nextInt(last - first + 1));
     }
 
     private static int random(int[] values, Random random) {
@@ -1362,7 +1375,7 @@ class ShopRuntime extends Plugin {
             return TraderGeneratorConfig.load(destination);
         } catch (java.io.IOException | IllegalArgumentException ex) {
             logger().error("Could not prepare trader generator config: " + ex.getMessage());
-            return new TraderGeneratorConfig(List.of(), List.of(), List.of());
+            return new TraderGeneratorConfig(List.of(), List.of(), List.of(), List.of());
         }
     }
 

@@ -28,4 +28,19 @@ public class TraderGeneratorConfigTest {
         assertTrue(config.randomName(true, new Random()).length() > 0);
         assertTrue(config.randomName(false, new Random()).length() > 0);
     }
+
+    @Test
+    public void configuredHatsAreOptionalAndNeverDuplicateTheOutfitHat() throws Exception {
+        Path file = Files.createTempFile("trader-config", ".json");
+        Files.writeString(file, "{\"clothing\":[[\"shirt\",\"cap\"]],\"hats\":[\"cap\"],\"names\":{}}");
+        TraderGeneratorConfig config = TraderGeneratorConfig.load(file);
+        int hats = 0;
+        for (int seed = 0; seed < 100; seed++) {
+            java.util.List<String> outfit = config.randomOutfit(new Random(seed));
+            assertTrue(outfit.size() <= 2);
+            if (outfit.contains("cap")) hats++;
+        }
+        assertTrue(hats > 0 && hats < 100);
+    }
+
 }

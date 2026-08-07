@@ -17,7 +17,7 @@ Allow administrators to create a configured, stationary NPC trader at their curr
 - Generated trader output and radial labels are DE/EN i18n; the localized gender prefix is selected from the creator's language.
 - NPC creation uses the creator's position and rotation, randomizes gender/name/outfit from the user-editable configuration, and reapplies the identity, supported skin appearance, locked flag, and invulnerability after native NPC initialization.
 - Generated traders are locked rather than static so they remain animated while staying in place.
-- Appearance colors are RGB values rather than palette indexes. Light, medium, and dark skin palettes are weighted 76%, 20%, and 4%. Dummy outfits are deliberately added after native initialization, as in the Boss plugin. Dummy hairstyles are deferred pending an upstream API/renderer issue; facial variation uses the available Skin variation field.
+- Appearance colors are RGB values rather than palette indexes. Light, medium, and dark skin palettes are weighted 76%, 20%, and 4%. Dummy outfits are deliberately added after native initialization, as in the Boss plugin. Male dummy hairstyles are randomized from IDs 50-68 and female styles from IDs 100-119; facial variation uses the available Skin variation field. Hats are configured separately and selected with 25% probability.
 - Dissolving a trader is admin-confirmed, settles all scoped stock at base price, transfers every positive account balance to the world account, archives the Wallet account, and then removes only Shop ownership and scoped economy records. The NPC remains.
 - On enable, the same settlement is applied automatically only to persisted traders whose NPC is missing or dead. No unrelated NPC is inspected or changed.
 
@@ -36,3 +36,9 @@ Allow administrators to create a configured, stationary NPC trader at their curr
 - [x] Add focused configuration tests and run Maven tests, package, API verification, and entrypoint verification.
 - [x] Upload only `OZShop` to the development server, reload plugins, and inspect the post-reload Shop log for errors.
 - [ ] Leave in-game command/radial and NPC visual/interaction acceptance for the administrator's Dev test.
+
+## 2026-08-07 follow-up
+
+- [x] Expand default generated-trader outfits and randomize configured hats at 25% while preserving existing config files.
+- [x] Preserve trader independence from global and Shop-zone system-shop settings.
+- [x] Apply randomized supported gender-specific hairstyles and verify the API signature.

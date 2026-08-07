@@ -114,10 +114,12 @@ uses the admin's facing direction, a random configured gender/name/outfit, weigh
 RGB skin colours, hair/eye colours, and a
 facial-variation/tattoo selection, plus a localized `Trader`/`Händler` prefix.
 `traders-config.json` is copied from the packaged
-`traders-config.default.json` on first run and contains editable outfit combinations
-plus 20 male and 20 female names. Invalid clothing definitions are skipped.
-Hairstyles are currently deferred: the Rising World dummy NPC accepts only its bald
-style at runtime even for otherwise valid gendered configurations.
+`traders-config.default.json` on first run and contains editable outfit combinations,
+a separate `hats` list (one selected with 25% probability), plus 20 male and 20
+female names. Invalid clothing definitions are skipped. NPC traders are independent
+of global and Shop-zone system-shop settings.
+Generated traders apply `Skin.setHairstyle(...)`: male dummies use a random ID from
+50 through 68 and female dummies a random ID from 100 through 119.
 If a registered trader NPC is deleted or killed, Shop dissolves that trader on its
 next enable: scoped stock is sold at base price, positive account balances move to
 the world account, and the Wallet account and Shop records are archived/removed.

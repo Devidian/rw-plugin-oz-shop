@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.4.2] - 2026-08-07 | Trader access and appearance
+
+- fix: keep NPC trader offers and transactions available when system-shop access is disabled
+- feat: randomize generated dummy-NPC hairstyles within the supported male and female ID ranges
+- change: broaden trader clothing choices and add a 25% compatible-hat chance
+
 ## [0.4.1] - 2026-08-06 | Trader generation and lifecycle
 
 - feat: add configured stationary NPC trader generation through `/shop createtrader`, `/shop ct`, and the Shop radial menu
@@ -195,3 +201,8 @@
 - feat: add shop-zone HUD indicator below LandClaim area info
 - docs: document Shop API, install/update scope, and example plugin registration
 - fix: send configured welcome message to all players instead of admins only
+## Unreleased
+
+- fix: keep NPC trader offers available when the global or zone system shop is disabled
+- change: randomize generated trader hats at 25 percent and expand the default outfit combinations
+- feat: randomize generated dummy hairstyles from the supported gendered ID ranges

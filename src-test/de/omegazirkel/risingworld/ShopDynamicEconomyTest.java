@@ -3,6 +3,8 @@ package de.omegazirkel.risingworld;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Random;
+
 import org.junit.Test;
 
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
@@ -10,6 +12,16 @@ import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopStockMode;
 
 public class ShopDynamicEconomyTest {
+    @Test
+    public void generatedHairstylesStayWithinTheSupportedGenderedRanges() {
+        for (int seed = 0; seed < 100; seed++) {
+            assertTrue(ShopRuntime.randomHairstyle(true, new Random(seed)) >= 50);
+            assertTrue(ShopRuntime.randomHairstyle(true, new Random(seed)) <= 68);
+            assertTrue(ShopRuntime.randomHairstyle(false, new Random(seed)) >= 100);
+            assertTrue(ShopRuntime.randomHairstyle(false, new Random(seed)) <= 119);
+        }
+    }
+
     @Test
     public void staticPricingAppliesSpreadAndRounding() {
         Shop.DynamicEconomyPrices prices = Shop.dynamicEconomyPrices(offer(10.5d), null, 2, false);

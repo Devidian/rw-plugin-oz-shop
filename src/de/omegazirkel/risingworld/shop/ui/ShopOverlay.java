@@ -266,7 +266,7 @@ public class ShopOverlay extends OZUIElement {
         } else if (trader == null && !plugin.isShopAvailableFor(player) && player.isAdmin()) {
             setupAdminTable();
         } else if (activeTab == Tab.SYSTEM) {
-            if (plugin.isSystemShopAvailableFor(player)) {
+            if (trader != null || plugin.isSystemShopAvailableFor(player)) {
                 setupSystemShop(trader == null ? plugin.listSystemOffers(player) : plugin.listTraderSystemOffers(trader),
                         t.get(trader == null ? "TC_SHOP_UI_EMPTY_SYSTEM" : "TC_SHOP_TRADER_UI_EMPTY_SYSTEM", player));
             } else {

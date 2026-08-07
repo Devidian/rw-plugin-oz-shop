@@ -5,18 +5,23 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 
 /** User-editable defaults for newly generated NPC traders. */
-public record TraderGeneratorConfig(List<List<String>> clothing, List<String> maleNames, List<String> femaleNames) {
+public record TraderGeneratorConfig(List<List<String>> clothing, List<String> hats, List<String> maleNames,
+                                    List<String> femaleNames) {
     private static final List<String> FALLBACK_MALE_NAMES = List.of("Merchant");
     private static final List<String> FALLBACK_FEMALE_NAMES = List.of("Merchant");
+    private static final List<String> DEFAULT_HATS = List.of("felthat", "pilgrimhat", "cowboyhat", "cappy");
 
     public TraderGeneratorConfig {
         clothing = immutableOutfits(clothing);
+        hats = immutableNames(hats, DEFAULT_HATS);
         maleNames = immutableNames(maleNames, FALLBACK_MALE_NAMES);
         femaleNames = immutableNames(femaleNames, FALLBACK_FEMALE_NAMES);
     }
@@ -25,14 +30,22 @@ public record TraderGeneratorConfig(List<List<String>> clothing, List<String> ma
         try {
             Object parsed = new JsonParser(Files.readString(configFile, StandardCharsets.UTF_8)).parse();
             if (!(parsed instanceof Map<?, ?> root)) throw new IllegalArgumentException("Expected object");
-            return new TraderGeneratorConfig(outfits(root.get("clothing")), names(root, "male"), names(root, "female"));
+            return new TraderGeneratorConfig(outfits(root.get("clothing")), strings(root.get("hats")),
+                    names(root, "male"), names(root, "female"));
         } catch (IOException | IllegalArgumentException ex) {
             throw new IllegalArgumentException("Could not load trader generator config: " + ex.getMessage(), ex);
         }
     }
 
     public List<String> randomOutfit(Random random) {
-        return clothing.isEmpty() ? List.of() : clothing.get(random.nextInt(clothing.size()));
+        if (clothing.isEmpty()) return List.of();
+        Set<String> configuredHats = new HashSet<>(hats);
+        List<String> outfit = new ArrayList<>();
+        for (String garment : clothing.get(random.nextInt(clothing.size()))) {
+            if (!configuredHats.contains(garment)) outfit.add(garment);
+        }
+        if (!hats.isEmpty() && random.nextInt(100) < 25) outfit.add(hats.get(random.nextInt(hats.size())));
+        return List.copyOf(outfit);
     }
 
     public String randomName(boolean male, Random random) {
@@ -54,7 +67,11 @@ public record TraderGeneratorConfig(List<List<String>> clothing, List<String> ma
 
     private static List<String> names(Map<?, ?> root, String gender) {
         Object names = root.get("names");
-        if (!(names instanceof Map<?, ?> values) || !(values.get(gender) instanceof List<?> list)) return List.of();
+        return names instanceof Map<?, ?> values ? strings(values.get(gender)) : List.of();
+    }
+
+    private static List<String> strings(Object values) {
+        if (!(values instanceof List<?> list)) return List.of();
         List<String> result = new ArrayList<>();
         for (Object value : list) if (value instanceof String name && !name.isBlank()) result.add(name.trim());
         return result;
