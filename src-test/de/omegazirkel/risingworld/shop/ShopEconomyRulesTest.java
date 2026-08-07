@@ -52,12 +52,50 @@ public class ShopEconomyRulesTest {
 
     @Test
     public void targetTickAmountsRespectPercentCapsAndHourlyReconciliation() {
-        assertEquals(50L, ShopEconomyStore.targetRateAmount(1_000L, 10.0d, 50L, 1.0d));
-        assertEquals(25L, ShopEconomyStore.targetRateAmount(1_000L, 10.0d, 50L, 0.5d));
+        assertEquals(50L, ShopEconomyStore.targetDrainAmount(1_000L, 10.0d, 50L, 1.0d));
+        assertEquals(0L, ShopEconomyStore.targetDrainAmount(1_000L, 10.0d, 50L, 0.5d));
         assertEquals(0L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 0L, 0.5d));
         assertEquals(120L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 5L, 24.0d));
         assertEquals(1L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 1.0d));
         assertEquals(10L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 10.0d));
+    }
+
+    @Test
+    public void drainUsesTheConfiguredEconomyIntervalLikeRestock() throws Exception {
+        long[] now = { 1_000L };
+        ShopOffer offer = offer(ShopStockMode.LOOT).economyConfigCopy(100L, 100L, 0.0d, 0.0d,
+                ShopStockMode.LOOT, 0.25d, 4.0d, 25.0d, 10.0d, 0L, 0.0d, 0L, 0L, 0L);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.setTickIntervalHours(2);
+            store.configure("global", offer.getId(), 100L, 0.0d, 0.0d);
+            setLastTick(connection, offer.getId(), now[0]);
+
+            now[0] += 3_600_000L;
+            store.applyTicks(java.util.List.of(offer), java.util.List.of());
+            assertEquals(100L, store.stateFor("global", offer).stock());
+
+            now[0] += 3_600_000L;
+            store.applyTicks(java.util.List.of(offer), java.util.List.of());
+            assertEquals(80L, store.stateFor("global", offer).stock());
+        }
+    }
+
+    @Test
+    public void tickStatusUsesTheConfiguredEconomyIntervalForDrainAndRestock() throws Exception {
+        long[] now = { 1_000L };
+        ShopOffer offer = offer(ShopStockMode.HYBRID);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.setTickIntervalHours(2);
+            store.configure("global", offer.getId(), 50L, 0.0d, 0.0d);
+            setLastTick(connection, offer.getId(), now[0]);
+
+            ShopEconomyStore.EconomyTickStatus status = store.tickStatusFor("global", offer);
+
+            assertEquals(7_201_000L, status.nextDrainAt());
+            assertEquals(7_201_000L, status.nextRestockAt());
+        }
     }
 
     @Test

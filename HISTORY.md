@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.4.4] - 2026-08-07 | Economy tick alignment
+
+- fix: apply configured economy intervals consistently to offer drain and restock, including the next-tick display
+
 ## [0.4.3] - 2026-08-07 | In-game offer editor
 
 - feat: add administrator in-game editing for custom zone and trader system-offer JSON files, including empty-file confirmation, catalog item selection, scoped removal, and configuration editing

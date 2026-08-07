@@ -300,7 +300,7 @@ public class ShopEconomyStore {
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
         boolean automatic = automaticTicksEnabled(offer);
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT stock, last_tick_at
                 FROM shop_offer_economy_state
@@ -325,13 +325,12 @@ public class ShopEconomyStore {
                     targetStock = stock;
                 }
                 long baseline = lastTickAt > 0L ? lastTickAt : now;
-                long nextDrainAt = nextTickAt(baseline, targetStock, offer.getDrainPercent(), offer.getDrainMax(),
-                        drainRate);
+                long nextDrainAt = nextEconomyTickAt(baseline, targetStock, offer.getDrainPercent(), drainRate);
                 long nextRestockAt = automaticRestockEnabled(offer)
-                        ? nextRestockTickAt(baseline, targetStock, offer.getRestockPercent(), refillRate)
+                        ? nextEconomyTickAt(baseline, targetStock, offer.getRestockPercent(), refillRate)
                         : 0L;
                 if (nextRestockAt <= 0L && minimumSystemRestockEnabled(offer, refillRate)) {
-                    nextRestockAt = baseline + ONE_HOUR_MILLIS;
+                    nextRestockAt = baseline + tickIntervalMillis;
                 }
                 boolean active = automatic && (nextDrainAt > 0L || nextRestockAt > 0L);
                 return new EconomyTickStatus(lastTickAt, automatic ? nextDrainAt : 0L,
@@ -622,9 +621,8 @@ public class ShopEconomyStore {
             return;
         }
         double elapsedHours = elapsedMillis / (double) ONE_HOUR_MILLIS;
-        double elapsedDays = elapsedHours / 24.0d;
         long drain = targetStock > 0L && offer.getDrainPercent() > 0.0d
-                ? targetRateAmount(targetStock, offer.getDrainPercent(), offer.getDrainMax(), elapsedDays)
+                ? targetDrainAmount(targetStock, offer.getDrainPercent(), offer.getDrainMax(), elapsedHours)
                 : (long) Math.floor(drainRate * elapsedHours);
         long refill = automaticRestock && targetStock > 0L && offer.getRestockPercent() > 0.0d
                 ? targetRestockAmount(targetStock, offer.getRestockPercent(), offer.getRestockMax(), elapsedHours)
@@ -673,12 +671,12 @@ public class ShopEconomyStore {
                 && legacyRate <= 0.0d;
     }
 
-    static long targetRateAmount(long targetStock, double percent, long max, double elapsedDays) {
-        if (targetStock <= 0L || percent <= 0.0d || elapsedDays <= 0.0d) {
+    static long targetDrainAmount(long targetStock, double percent, long max, double elapsedHours) {
+        if (targetStock <= 0L || percent <= 0.0d || elapsedHours < 1.0d) {
             return 0L;
         }
-        double raw = targetStock * (percent / 100.0d) * elapsedDays;
-        double capped = max > 0L ? Math.min(raw, max * elapsedDays) : raw;
+        double raw = targetStock * (percent / 100.0d) * elapsedHours;
+        double capped = max > 0L ? Math.min(raw, max * elapsedHours) : raw;
         return (long) Math.floor(capped);
     }
 
@@ -694,42 +692,14 @@ public class ShopEconomyStore {
         return rounded;
     }
 
-    private static long nextTickAt(long baseline, long targetStock, double percent, long max, double legacyRate) {
+    private long nextEconomyTickAt(long baseline, long targetStock, double percent, double legacyRate) {
         if (baseline <= 0L) {
             return 0L;
         }
-        if (targetStock > 0L && percent > 0.0d) {
-            double dailyRate = targetStock * (percent / 100.0d);
-            if (max > 0L) {
-                dailyRate = Math.min(dailyRate, max);
-            }
-            return nextAfter(baseline, dailyRate, 86_400_000L);
-        }
-        if (legacyRate > 0.0d) {
-            return nextAfter(baseline, legacyRate, 3_600_000L);
+        if ((targetStock > 0L && percent > 0.0d) || legacyRate > 0.0d) {
+            return baseline + tickIntervalMillis;
         }
         return 0L;
-    }
-
-    private static long nextRestockTickAt(long baseline, long targetStock, double percent, double legacyRate) {
-        if (baseline <= 0L) {
-            return 0L;
-        }
-        if (targetStock > 0L && percent > 0.0d) {
-            return baseline + ONE_HOUR_MILLIS;
-        }
-        if (legacyRate > 0.0d) {
-            return nextAfter(baseline, legacyRate, ONE_HOUR_MILLIS);
-        }
-        return 0L;
-    }
-
-    private static long nextAfter(long baseline, double rate, long periodMillis) {
-        if (rate <= 0.0d) {
-            return 0L;
-        }
-        long delay = Math.max(ONE_HOUR_MILLIS, (long) Math.ceil(periodMillis / rate));
-        return baseline + Math.max(1L, delay);
     }
 
     private void updateTick(String scope, String offerId, long stock, long now) {
