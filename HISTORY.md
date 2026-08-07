@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.5.0] - 2026-08-08 | World-funded trader settlement
+
+- feat: fund trader startup, replenishment, drain settlement, and modifier premiums through the Wallet world account.
+
 ## [0.4.5] - 2026-08-07 | Trader stock settlement
 
 - fix: settle NPC trader stock drain, offer removal, and dissolution at the same stepped dynamic outbound price used for player purchases

@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.DynamicEconomyPricing;
@@ -424,7 +425,23 @@ class ShopRuntime extends Plugin {
             if (!check.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
                     t.get(check.messageKey(), player));
         }
+        ShopService.SellQuote quote = service.quoteSell(player, effective);
+        if (!quote.sellable()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        String currency = effective.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                : effective.getCurrencyIdentifier();
+        String premiumCorrelation = "trader:" + trader.npcId() + ":modifier-premium:" + UUID.randomUUID();
+        long premium = quote.worldModifierPremium();
+        if (premium > 0L) {
+            WalletBridge.WalletTransferCallResult funding = wallet.transferWorldToSystemIdempotent(trader.accountId(), premium,
+                    "Trader modifier premium: " + effective.getId(), currency, "OZ - Shop", premiumCorrelation);
+            if (!funding.success()) return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, funding.message());
+        }
         ShopPurchaseResult result = service.sellToSystemAccount(player, effective, 1, trader.accountId());
+        if (!result.success && premium > 0L) {
+            wallet.reverseAccountTransferIdempotent(premiumCorrelation, premiumCorrelation + ":rollback",
+                    "Trader modifier premium rollback: " + effective.getId(), "OZ - Shop");
+        }
         if (result.success && economyStore != null) economyStore.recordSystemBuy(trader.economyScope(), player.getDbID(),
                 effective, effective.getBuyPrice());
         return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
@@ -437,6 +454,25 @@ class ShopRuntime extends Plugin {
         return new WalletBridge((Shop) this).systemAccountBalances(trader.accountId()).stream()
                 .filter(balance -> balance.currencyIdentifier().equalsIgnoreCase(currency)).mapToLong(WalletBridge.SystemBalanceInfo::balance)
                 .findFirst().orElse(0L);
+    }
+
+    /** Restores one trader's start capital from the Wallet world account. */
+    public ShopPurchaseResult replenishTraderStartCapital(Player player, Trader trader) {
+        if (player == null || !player.isAdmin() || trader == null) {
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
+        }
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
+        if (currency.isBlank() || wallet.worldSystemAccountId().isBlank()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
+        }
+        WalletBridge.WalletTransferCallResult transfer = wallet.transferWorldToSystemIdempotent(trader.accountId(),
+                1000L, "Trader replenishment", currency,
+                "OZ - Shop", "trader:" + trader.npcId() + ":replenish:" + UUID.randomUUID());
+        return transfer.success()
+                ? ShopPurchaseResult.success(t.get("TC_SHOP_TRADER_REPLENISHED", player)
+                        .replace("PH_TRADER", trader.name()).replace("PH_AMOUNT", "1000"), null)
+                : ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
     }
 
     public String traderBuyDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
@@ -520,10 +556,10 @@ class ShopRuntime extends Plugin {
         ShopEconomyStore.EconomyState state = economyStore.stateForWithoutTick(trader.economyScope(), offer);
         long value = DynamicEconomyPricing.outboundValue(offer, state, state.stock(), s.dynamicEconomyEnabled);
         if (value <= 0L) return true;
-        WalletBridge.WalletCallResult result = new WalletBridge((Shop) this).creditSystemAccountIdempotent(trader.accountId(), value,
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        return wallet.transferWorldToSystemIdempotent(trader.accountId(), value,
                 "Trader offer removal stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
-                "trader:" + trader.npcId() + ":offer-remove:" + offer.getId());
-        return result.success();
+                "trader:" + trader.npcId() + ":offer-remove:" + offer.getId()).success();
     }
 
     public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {
@@ -1304,8 +1340,9 @@ class ShopRuntime extends Plugin {
         WalletBridge wallet = new WalletBridge((Shop) this);
         String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
         boolean accountReady = wallet.createSystemAccount(trader.accountId(), "TRADER", trader.name(), "OZ - Shop").success();
-        boolean funded = accountReady && !currency.isBlank() && wallet.creditSystemAccountIdempotent(trader.accountId(),
-                1000L, "Trader initial capital", currency, "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
+        boolean funded = accountReady && !currency.isBlank() && wallet.transferWorldToSystemIdempotent(
+                trader.accountId(), 1000L, "Trader initial capital", currency,
+                "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
         if (!funded) {
             player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_WALLET_FAILED", player));
             return;

@@ -349,7 +349,8 @@ public class ShopService {
                         modifier);
                 selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item),
                         maxDurability, modifier == null ? "Normal" : modifier.name(),
-                        modifierPayoutMultiplier(modifier), floorPayout(unitPayout * amount),
+                        modifierPayoutMultiplier(modifier), floorPayout(conditionAdjustedPayoutExact(unitPayout,
+                                item.getDurability(), maxDurability, Modifier.Normal) * amount),
                         floorPayout(itemPayout * amount)));
                 payout += itemPayout * amount;
                 remaining -= amount;
@@ -858,6 +859,16 @@ public class ShopService {
         public static SellQuote invalid(String message) { return new SellQuote(List.of(), 0L, 0, message); }
         List<SellSelection> selections() { return selections; }
         public long payout() { return payout; }
+        /** Trader-funded amount is capped at the equivalent Normal-modifier payout. */
+        public long traderPayoutCap() {
+            long cap = 0L;
+            for (SellSelection selection : selections) {
+                // The stored base payout is the Normal-modifier amount for this exact durability state.
+                cap = Math.min(Long.MAX_VALUE - cap, Math.max(0L, selection.basePayout()));
+            }
+            return Math.min(payout, cap);
+        }
+        public long worldModifierPremium() { return Math.max(0L, payout - traderPayoutCap()); }
         public int amount() { return amount; }
         public String message() { return message; }
         public boolean sellable() { return !selections.isEmpty() && amount > 0; }

@@ -28,4 +28,20 @@ public class WalletBridge extends de.omegazirkel.risingworld.tools.bridge.Wallet
             return new WalletCallResult(false, "Wallet system-account issuance API is not available.");
         }
     }
+
+    public WalletTransferCallResult transferWorldToSystemIdempotent(String payeeAccountId, long value, String reason,
+            String currencyIdentifier, String pluginIdentifier, String correlationId) {
+        Plugin wallet = owner == null ? null : owner.getPluginByName("OZ - Wallet");
+        if (wallet == null) return new WalletTransferCallResult(false, "OZ - Wallet is not available.", correlationId);
+        try {
+            Object result = wallet.getClass().getMethod("transferWorldToSystemIdempotent", String.class, long.class,
+                    String.class, String.class, String.class, String.class).invoke(wallet, payeeAccountId, value,
+                            reason, currencyIdentifier, pluginIdentifier, correlationId);
+            Field success = result.getClass().getField("success");
+            Field message = result.getClass().getField("message");
+            return new WalletTransferCallResult(Boolean.TRUE.equals(success.get(result)), String.valueOf(message.get(result)), correlationId);
+        } catch (ReflectiveOperationException ex) {
+            return new WalletTransferCallResult(false, "Wallet world-account transfer API is not available.", correlationId);
+        }
+    }
 }

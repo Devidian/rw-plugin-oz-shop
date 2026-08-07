@@ -131,9 +131,10 @@ public final class TraderService {
                             offer.getRestockMax()) : 0L;
             if (drain > 0L) {
                 long value = DynamicEconomyPricing.outboundValue(offer, state, drain, dynamicEconomyEnabled);
-                if (value > 0L && !wallet.creditSystemAccountIdempotent(trader.accountId(), value,
-                        "Trader drain: " + offer.getId(), currencyIdentifier, "OZ - Shop",
-                        "trader:" + trader.npcId() + ":drain:" + offer.getId() + ":" + tick.nextDrainAt()).success()) continue;
+                if (value > 0L && !wallet.transferWorldToSystemIdempotent(trader.accountId(), value,
+                        "Trader drain: " + offer.getId(), currencyIdentifier,
+                        "OZ - Shop", "trader:" + trader.npcId() + ":drain:" + offer.getId() + ":"
+                                + tick.nextDrainAt()).success()) continue;
                 stock -= drain;
             }
             if (restock > 0L) {

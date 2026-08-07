@@ -1987,6 +1987,11 @@ public class ShopOverlay extends OZUIElement {
                     if (!trader.pluginShopEnabled() && activeTab == Tab.PLUGIN) activeTab = Tab.SYSTEM;
                     rebuild();
                 }));
+        body.addChild(zoneButton(t.get("TC_SHOP_TRADER_REPLENISH", player), 294, 270, 178, event -> {
+            ShopPurchaseResult result = plugin.replenishTraderStartCapital(player, trader);
+            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+            rebuild();
+        }));
         UIElement dissolve = zoneButton(t.get("TC_SHOP_TRADER_UI_DISSOLVE", player), 18, 340, 260,
                 event -> { pendingDissolveTrader = trader; rebuild(); });
         if (dissolve instanceof AdvancedButton dissolveButton) styleResetButton(dissolveButton);
