@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [Unreleased]
+
+- fix: keep hybrid NPC-trader stock unchanged when it already equals target stock
+
 ## [0.5.0] - 2026-08-08 | World-funded trader settlement
 
 - feat: fund trader startup, replenishment, drain settlement, and modifier premiums through the Wallet world account.

@@ -177,6 +177,15 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
+    public void hybridTraderDrainOnlyUsesStockAboveTarget() {
+        ShopOffer hybrid = offer(ShopStockMode.HYBRID);
+
+        assertEquals(0L, TraderService.automaticDrainBase(hybrid, 10L, 10L));
+        assertEquals(1L, TraderService.automaticDrainBase(hybrid, 11L, 10L));
+        assertEquals(10L, TraderService.automaticDrainBase(offer(ShopStockMode.SYSTEM_SUPPLIED), 10L, 10L));
+    }
+
+    @Test
     public void quantityAwareStockCapRejectsFullRequestedAmount() throws Exception {
         ShopOffer offer = offer(ShopStockMode.HYBRID).economyCopy(3, 10.0d, 25L, 35L);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {

@@ -125,7 +125,8 @@ public final class TraderService {
             ShopEconomyStore.EconomyState state = economy.stateForWithoutTick(trader.economyScope(), offer);
             long stock = state.stock();
             long drain = tick.nextDrainAt() > 0L && now >= tick.nextDrainAt()
-                    ? boundedPercent(stock, offer.getDrainPercent(), offer.getDrainMax()) : 0L;
+                    ? boundedPercent(automaticDrainBase(offer, stock, state.targetStock()), offer.getDrainPercent(),
+                            offer.getDrainMax()) : 0L;
             long restock = tick.nextRestockAt() > 0L && now >= tick.nextRestockAt()
                     ? boundedPercent(Math.max(0L, state.targetStock() - stock), offer.getRestockPercent(),
                             offer.getRestockMax()) : 0L;
@@ -157,6 +158,14 @@ public final class TraderService {
         if (base <= 0L || percent <= 0.0d) return 0L;
         long value = Math.max(1L, (long) Math.floor(base * percent / 100.0d));
         return maximum > 0L ? Math.min(value, maximum) : value;
+    }
+
+    static long automaticDrainBase(ShopOffer offer, long stock, long targetStock) {
+        long safeStock = Math.max(0L, stock);
+        if (offer != null && offer.getStockMode() == ShopStockMode.HYBRID && targetStock > 0L) {
+            return Math.max(0L, safeStock - targetStock);
+        }
+        return safeStock;
     }
 
     private static long safeValue(long amount, double basePrice) {
