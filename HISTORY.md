@@ -2,7 +2,7 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## [Unreleased]
+## [0.5.1] - 2026-08-09 | Hybrid trader target stock
 
 - fix: keep hybrid NPC-trader stock unchanged when it already equals target stock
 
