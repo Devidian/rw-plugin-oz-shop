@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.5.2] - 2026-08-09 | Trader quote consistency
+
+- fix: calculate trader buyback and sale prices from the same scoped stock state in cards, detail previews, and transactions.
+- fix: apply the configured spread symmetrically around the dynamic base price and round only the final buyback total.
+- fix: rebuild offer cards and Wallet balances after trades and target-stock resets.
+
 ## [0.5.1] - 2026-08-09 | Hybrid trader target stock
 
 - fix: keep hybrid NPC-trader stock unchanged when it already equals target stock

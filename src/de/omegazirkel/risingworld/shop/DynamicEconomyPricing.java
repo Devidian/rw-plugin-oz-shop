@@ -24,32 +24,36 @@ public final class DynamicEconomyPricing {
         double sellFactor = 1.0d + (spread / 2.0d);
         long startingStock = stockDependent && state != null ? Math.max(0L, state.stock()) : 0L;
         long targetStock = stockDependent && state != null ? state.targetStock() : 0L;
+        long stockLimit = stockDependent && state != null ? state.stockLimit() : 0L;
         double buyPriceTotal = 0.0d;
         double sellPriceTotal = 0.0d;
         double unitPriceTotal = 0.0d;
         for (long i = 0L; i < effectiveAmount; i++) {
             long buyStock = saturatedAdd(startingStock, i);
-            double buyUnitPrice = basePrice * inflowPriceMultiplier(offer, startingStock, buyStock, targetStock);
+            // A player sale raises stock one item at a time. Price every item at
+            // that resulting stock level; multiplying the starting multiplier by
+            // an additional stock ratio made bulk buybacks fall off too quickly.
+            double buyUnitPrice = basePrice * stockPriceMultiplier(offer, buyStock, targetStock, stockLimit);
             buyPriceTotal += buyUnitPrice * buyFactor;
             unitPriceTotal += buyUnitPrice;
 
             long saleStock = startingStock > i ? startingStock - i : 0L;
-            sellPriceTotal += basePrice * stockPriceMultiplier(offer, saleStock, targetStock) * sellFactor;
+            sellPriceTotal += basePrice * stockPriceMultiplier(offer, saleStock, targetStock, stockLimit) * sellFactor;
         }
-        return new Prices(floorPrice(buyPriceTotal), ceilPrice(sellPriceTotal), unitPriceTotal / effectiveAmount);
+        return new Prices(ceilPrice(buyPriceTotal), ceilPrice(sellPriceTotal), unitPriceTotal / effectiveAmount);
     }
 
-    private static double stockPriceMultiplier(ShopOffer offer, long stock, long targetStock) {
+    private static double stockPriceMultiplier(ShopOffer offer, long stock, long targetStock, long stockLimit) {
         if (targetStock <= 0L) return 1.0d;
-        double raw = stock <= 0L ? offer.getMaxPriceMultiplier() : (double) targetStock / Math.max(1.0d, stock);
-        return Math.max(offer.getMinPriceMultiplier(), Math.min(offer.getMaxPriceMultiplier(), raw));
-    }
-
-    private static double inflowPriceMultiplier(ShopOffer offer, long startingStock, long stock, long targetStock) {
-        if (targetStock <= 0L) return 1.0d;
-        double startMultiplier = stockPriceMultiplier(offer, startingStock, targetStock);
-        double relativeStockPressure = (double) Math.max(1L, startingStock) / Math.max(1.0d, stock);
-        double raw = startMultiplier * relativeStockPressure;
+        if (stock <= targetStock) {
+            double raw = stock <= 0L ? offer.getMaxPriceMultiplier()
+                    : (double) targetStock / Math.max(1.0d, stock);
+            return Math.max(1.0d, Math.min(offer.getMaxPriceMultiplier(), raw));
+        }
+        long ceiling = Math.max(targetStock + 1L, stockLimit);
+        if (ceiling <= targetStock) return 1.0d;
+        double progress = Math.min(1.0d, (stock - targetStock) / (double) (ceiling - targetStock));
+        double raw = 1.0d + (offer.getMinPriceMultiplier() - 1.0d) * progress;
         return Math.max(offer.getMinPriceMultiplier(), Math.min(offer.getMaxPriceMultiplier(), raw));
     }
 

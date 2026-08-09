@@ -1047,7 +1047,7 @@ public class ShopOverlay extends OZUIElement {
             panel.removeChild(blocker);
             ShopPurchaseResult result = plugin.resetSystemOfferStockToTarget(player, offer);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            refreshSystemOptions();
+            if (result.success) rebuild(); else refreshSystemOptions();
         });
         confirm.setPivot(Pivot.LowerRight);
         confirm.setPosition(422, 192, false);
@@ -1151,11 +1151,13 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private String offerPrice(ShopOffer offer, OfferAction action) {
-        ShopOffer pricedOffer = offer.isSystemOffer() ? plugin.dynamicEconomyOffer(player, offer, 1) : offer;
+        ShopOffer pricedOffer = offer.isSystemOffer()
+                ? (trader == null ? plugin.dynamicEconomyOffer(player, offer, 1) : plugin.dynamicTraderOffer(trader, offer, 1))
+                : offer;
         String currency = currencyIdentifier(offer);
         if (action == OfferAction.SELL) {
             if (offer.isSystemOffer()) {
-                ShopService.SellQuote quote = plugin.sellQuote(player, offer, 1);
+                ShopService.SellQuote quote = sellQuote(offer, 1);
                 return (quote.sellable() ? quote.payout() : 0L) + " " + currency;
             }
             return pricedOffer.getBuyPrice() + " " + currency;
@@ -1168,7 +1170,9 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private String offerUnitPrice(ShopOffer offer, OfferAction action) {
-        ShopOffer pricedOffer = offer.isSystemOffer() ? plugin.dynamicEconomyOffer(player, offer, 1) : offer;
+        ShopOffer pricedOffer = offer.isSystemOffer()
+                ? (trader == null ? plugin.dynamicEconomyOffer(player, offer, 1) : plugin.dynamicTraderOffer(trader, offer, 1))
+                : offer;
         double units = Math.max(1, pricedOffer.getAmount());
         try {
             if (offer.isSystemOffer() && action == OfferAction.SELL) {
@@ -1331,7 +1335,7 @@ public class ShopOverlay extends OZUIElement {
                 return;
             }
             if (sellToSystem) {
-                ShopService.SellQuote quote = plugin.sellQuote(player, offer, quantity);
+                ShopService.SellQuote quote = sellQuote(offer, quantity);
                 if (quote.requiresConditionConfirmation()) {
                     showConditionSellConfirmation(offer, quantity, quote);
                     return;
@@ -1346,14 +1350,7 @@ public class ShopOverlay extends OZUIElement {
                 ? sellOffer(offer, quantity)
                 : buyOffer(offer, quantity);
         player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-        if (result.success && trader != null) {
-            rebuild();
-            return;
-        }
-        if (result.success && sellToSystem && systemOffersInInventoryOnly) {
-            if (inventoryAmount(offer) <= 0) {
-                selectedSystemOffer = null;
-            }
+        if (result.success) {
             rebuild();
             return;
         }
@@ -1551,7 +1548,7 @@ public class ShopOverlay extends OZUIElement {
             return "";
         }
         int quantity = quantityForAmount(offer, amountText);
-        ShopService.SellQuote quote = plugin.sellQuote(player, offer, quantity);
+        ShopService.SellQuote quote = sellQuote(offer, quantity);
         String currency = currencyIdentifier(offer);
         return t.get("TC_SHOP_UI_SELL_PREVIEW", player)
                 .replace("PH_PRICE", quantity <= 0 || !quote.sellable()
@@ -1563,11 +1560,14 @@ public class ShopOverlay extends OZUIElement {
         if (offer == null || !offer.canPlayerBuyFromSystem()) {
             return "";
         }
-        ShopOffer pricedOffer = plugin.dynamicEconomyOffer(player, offer, quantityForAmount(offer, amountText));
+        int quantity = quantityForAmount(offer, amountText);
+        ShopOffer pricedOffer = trader == null
+                ? plugin.dynamicEconomyOffer(player, offer, quantity)
+                : plugin.dynamicTraderOffer(trader, offer, quantity);
         String currency = currencyIdentifier(offer);
         try {
             return t.get("TC_SHOP_UI_BUY_PREVIEW", player)
-                    .replace("PH_PRICE", quantityForAmount(offer, amountText) <= 0
+                    .replace("PH_PRICE", quantity <= 0
                             ? "0 " + currency
                             : pricedOffer.getPrice(player) + " " + currency);
         } catch (RuntimeException ex) {
@@ -1609,7 +1609,7 @@ public class ShopOverlay extends OZUIElement {
         selectedSystemSellButton.setBorder(1);
         selectedSystemSellButton.setBorderEdgeRadius(3, false);
         if (enabled) {
-            ShopService.SellQuote quote = plugin.sellQuote(player, selectedSystemEffectiveOffer, quantity);
+            ShopService.SellQuote quote = sellQuote(selectedSystemEffectiveOffer, quantity);
             if (quote.requiresConditionConfirmation()) {
                 styleConditionSellButton(selectedSystemSellButton);
             } else {
@@ -1695,6 +1695,11 @@ public class ShopOverlay extends OZUIElement {
     private String sellDisabledReason(ShopOffer offer, int quantity) {
         return trader == null ? plugin.systemSellDisabledReason(player, offer, quantity)
                 : plugin.traderSellDisabledReason(player, trader, offer, quantity);
+    }
+
+    private ShopService.SellQuote sellQuote(ShopOffer offer, int quantity) {
+        return trader == null ? plugin.sellQuote(player, offer, quantity)
+                : plugin.traderSellQuote(player, trader, offer, quantity);
     }
 
     private boolean canBuySelectedSystemAmount(ShopOffer offer, String amountText) {

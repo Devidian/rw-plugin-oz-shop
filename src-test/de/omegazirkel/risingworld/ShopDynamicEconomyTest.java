@@ -27,7 +27,7 @@ public class ShopDynamicEconomyTest {
     public void staticPricingAppliesSpreadAndRounding() {
         Shop.DynamicEconomyPrices prices = Shop.dynamicEconomyPrices(offer(10.5d), null, 2, false);
 
-        assertEquals(18L, prices.buyPrice());
+        assertEquals(19L, prices.buyPrice());
         assertEquals(24L, prices.sellPrice());
         assertEquals(10.5d, prices.averageUnitPrice(), 0.0001d);
         assertTrue(prices.sellPrice() > prices.buyPrice());
@@ -43,7 +43,31 @@ public class ShopDynamicEconomyTest {
 
         assertEquals(45L, one.sellPrice());
         assertEquals(90L, two.sellPrice());
-        assertTrue(two.buyPrice() < one.buyPrice() * 2L);
+        assertTrue(two.buyPrice() <= one.buyPrice() * 2L);
+    }
+
+    @Test
+    public void bulkBuybacksUseEachIncomingItemsStockLevel() {
+        ShopOffer offer = offer(10.0d);
+        ShopEconomyStore.EconomyState lowStock = new ShopEconomyStore.EconomyState(2L, 10L, 20L, 0.0d, 0.0d);
+
+        Shop.DynamicEconomyPrices prices = Shop.dynamicEconomyPrices(offer, lowStock, 3);
+
+        // 10 * (4 + 10/3 + 2.5), after the buyback spread and rounded once.
+        assertEquals(87L, prices.buyPrice());
+    }
+
+    @Test
+    public void stockPriceStaysAtBaseUntilTargetAndReachesTheConfiguredMinimumOnlyAtLimit() {
+        ShopOffer offer = offer(6.0d);
+        ShopEconomyStore.EconomyState atTarget = new ShopEconomyStore.EconomyState(10L, 10L, 500L, 0.0d, 0.0d);
+        ShopEconomyStore.EconomyState atLimit = new ShopEconomyStore.EconomyState(500L, 10L, 500L, 0.0d, 0.0d);
+        ShopEconomyStore.EconomyState atForty = new ShopEconomyStore.EconomyState(40L, 10L, 500L, 0.0d, 0.0d);
+
+        assertEquals(6.0d, Shop.dynamicEconomyPrices(offer, atTarget, 1).averageUnitPrice(), 0.0001d);
+        assertEquals(1.5d, Shop.dynamicEconomyPrices(offer, atLimit, 1).averageUnitPrice(), 0.0001d);
+        assertTrue(Shop.dynamicEconomyPrices(offer, atForty, 1).averageUnitPrice() > 5.0d);
+        assertEquals(3L, Shop.dynamicEconomyPrices(offer, atLimit, 2).buyPrice());
     }
 
     @Test

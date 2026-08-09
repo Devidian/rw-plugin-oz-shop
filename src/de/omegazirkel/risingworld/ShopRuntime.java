@@ -541,6 +541,11 @@ class ShopRuntime extends Plugin {
             updated = economyStore.configure(scope, offer.getId(), Math.max(0L, stock.longValue()),
                     offer.getDefaultDrainRate(), offer.getDefaultRefillRate());
         }
+        if (updated && trader == null) {
+            // Global offers are cached by ShopService. Reload before the overlay
+            // rebuilds so stock targets and dynamic card prices use the saved data.
+            reloadSystemOffers();
+        }
         return updated ? ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_SAVED", player), null)
                 : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_SAVE_FAILED", player));
     }
@@ -650,6 +655,13 @@ class ShopRuntime extends Plugin {
     public ShopService.SellQuote sellQuote(Player player, ShopOffer offer, int quantity) {
         if (offer == null || !offer.isSystemOffer()) return ShopService.SellQuote.invalid("System offer not found.");
         return service.quoteSell(player, dynamicEconomyOffer(player, offer, Math.max(1, quantity)));
+    }
+
+    public ShopService.SellQuote traderSellQuote(Player player, Trader trader, ShopOffer offer, int quantity) {
+        if (trader == null || offer == null || !offer.isSystemOffer()) {
+            return ShopService.SellQuote.invalid("Trader offer not found.");
+        }
+        return service.quoteSell(player, dynamicTraderOffer(trader, offer, Math.max(1, quantity)));
     }
 
     public ShopOffer findOffer(String offerId) {
@@ -1357,7 +1369,7 @@ class ShopRuntime extends Plugin {
                 .findFirst();
     }
 
-    private ShopOffer dynamicTraderOffer(Trader trader, ShopOffer offer, int quantity) {
+    public ShopOffer dynamicTraderOffer(Trader trader, ShopOffer offer, int quantity) {
         if (trader == null || offer == null || !offer.isSystemOffer()) return offer;
         int amount = Math.max(1, quantity) * Math.max(1, offer.getAmount());
         ShopEconomyStore.EconomyState state = s.dynamicEconomyEnabled && economyStore != null
