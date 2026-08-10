@@ -2,7 +2,7 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## [0.5.3] - 2026-08-10 | Scope economy and trader reports
+## [0.5.4] - 2026-08-10 | Scope economy and trader reports
 
 - fix: reconcile automatic stock consistently for global shops, zones, and NPC traders: system-supplied offers only restock, hybrids drain and restock, loot only drains, and player-supplied/static offers do not reconcile automatically.
 - fix: keep one durable cadence per scope, initialize legacy scopes on enable, and let administrators schedule the viewed scope for its next scheduler pass.
