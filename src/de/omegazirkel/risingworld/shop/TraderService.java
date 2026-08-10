@@ -114,28 +114,38 @@ public final class TraderService {
     }
 
     /** Settles trader-only automatic stock movement before persisting the stock delta. */
-    public void reconcileEconomy(Trader trader, List<ShopOffer> offers, ShopEconomyStore economy, WalletBridge wallet,
-            String currencyIdentifier, boolean dynamicEconomyEnabled) {
-        if (trader == null || economy == null || wallet == null || currencyIdentifier == null || currencyIdentifier.isBlank()) return;
+    public ShopEconomyStore.ScopeTickResult reconcileEconomy(Trader trader, List<ShopOffer> offers, ShopEconomyStore economy, WalletBridge wallet,
+            String currencyIdentifier, boolean dynamicEconomyEnabled, boolean force) {
+        if (trader == null || economy == null || wallet == null || currencyIdentifier == null || currencyIdentifier.isBlank())
+            return new ShopEconomyStore.ScopeTickResult(trader == null ? "" : trader.economyScope(), List.of(), 0L);
+        economy.initializeScope(trader.economyScope());
+        boolean scopeDue = economy.scopeTickDue(trader.economyScope());
+        if (!force && !scopeDue)
+            return new ShopEconomyStore.ScopeTickResult(trader.economyScope(), List.of(), 0L);
         long now = System.currentTimeMillis();
+        long scheduledAt = economy.nextScopeTickAt(trader.economyScope());
+        List<ShopEconomyStore.OfferTick> changes = new java.util.ArrayList<>();
         for (ShopOffer offer : offers) {
             if (offer == null || !offer.isSystemOffer()) continue;
-            ShopEconomyStore.EconomyTickStatus tick = economy.tickStatusFor(trader.economyScope(), offer);
-            if (!tick.active()) continue;
             ShopEconomyStore.EconomyState state = economy.stateForWithoutTick(trader.economyScope(), offer);
             long stock = state.stock();
-            long drain = tick.nextDrainAt() > 0L && now >= tick.nextDrainAt()
-                    ? boundedPercent(automaticDrainBase(offer, stock, state.targetStock()), offer.getDrainPercent(),
-                            offer.getDrainMax()) : 0L;
-            long restock = tick.nextRestockAt() > 0L && now >= tick.nextRestockAt()
-                    ? boundedPercent(Math.max(0L, state.targetStock() - stock), offer.getRestockPercent(),
-                            offer.getRestockMax()) : 0L;
+            long drain = ShopEconomyStore.automaticDrainEnabled(offer)
+                    ? Math.min(automaticDrainBase(offer, stock, state.targetStock()),
+                            ShopEconomyStore.targetDrainAmount(state.targetStock(), offer.getDrainPercent(),
+                                    offer.getDrainMax(), 1.0d)) : 0L;
+            long restock = ShopEconomyStore.automaticRestockEnabled(offer)
+                    ? Math.min(Math.max(0L, state.targetStock() - stock),
+                            ShopEconomyStore.targetRestockAmount(state.targetStock(), offer.getRestockPercent(),
+                                    offer.getRestockMax(), 1.0d)) : 0L;
+            if (restock <= 0L && ShopEconomyStore.minimumSystemRestockEnabled(offer, state.refillRate())) {
+                restock = Math.min(Math.max(0L, state.targetStock() - stock), 1L);
+            }
             if (drain > 0L) {
                 long value = DynamicEconomyPricing.outboundValue(offer, state, drain, dynamicEconomyEnabled);
                 if (value > 0L && !wallet.transferWorldToSystemIdempotent(trader.accountId(), value,
                         "Trader drain: " + offer.getId(), currencyIdentifier,
                         "OZ - Shop", "trader:" + trader.npcId() + ":drain:" + offer.getId() + ":"
-                                + tick.nextDrainAt()).success()) continue;
+                                + scheduledAt).success()) continue;
                 stock -= drain;
             }
             if (restock > 0L) {
@@ -144,28 +154,26 @@ public final class TraderService {
                     WalletBridge.WalletTransferCallResult payment = wallet.transferSystemToSystemIdempotent(
                             trader.accountId(), wallet.worldSystemAccountId(), value, "Trader restock: " + offer.getId(),
                             currencyIdentifier, "OZ - Shop", "trader:" + trader.npcId() + ":restock:" + offer.getId()
-                                    + ":" + tick.nextRestockAt());
+                                    + ":" + scheduledAt);
                     if (!payment.success()) restock = 0L;
                 }
                 stock += restock;
             }
-            if (drain > 0L || restock > 0L) economy.configure(trader.economyScope(), offer.getId(), stock,
-                    state.drainRate(), state.refillRate());
+            if (drain > 0L || restock > 0L) {
+                if (economy.configure(trader.economyScope(), offer.getId(), stock, state.drainRate(), state.refillRate()))
+                    changes.add(new ShopEconomyStore.OfferTick(offer.getId(), state.stock(), stock));
+            }
         }
-    }
-
-    private static long boundedPercent(long base, double percent, long maximum) {
-        if (base <= 0L || percent <= 0.0d) return 0L;
-        long value = Math.max(1L, (long) Math.floor(base * percent / 100.0d));
-        return maximum > 0L ? Math.min(value, maximum) : value;
+        economy.completeScopeTick(trader.economyScope());
+        return new ShopEconomyStore.ScopeTickResult(trader.economyScope(), List.copyOf(changes), now);
     }
 
     static long automaticDrainBase(ShopOffer offer, long stock, long targetStock) {
         long safeStock = Math.max(0L, stock);
-        if (offer != null && offer.getStockMode() == ShopStockMode.HYBRID && targetStock > 0L) {
+        if (ShopEconomyStore.automaticDrainEnabled(offer) && targetStock > 0L) {
             return Math.max(0L, safeStock - targetStock);
         }
-        return safeStock;
+        return 0L;
     }
 
     private static long safeValue(long amount, double basePrice) {

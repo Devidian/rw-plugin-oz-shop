@@ -13,11 +13,15 @@ import de.omegazirkel.risingworld.Shop;
 
 /** Safe, file-local mutations for administrator-managed system offers. */
 public final class SystemOfferEditor {
+    public enum AddResult { ADDED, TARGET_READ_ONLY, DUPLICATE, NOT_IN_CATALOG, FAILED }
     private final Shop plugin;
 
     public SystemOfferEditor(Shop plugin) { this.plugin = plugin; }
 
-    public boolean exists(String name) { return file(name) != null && Files.exists(file(name)); }
+    public boolean exists(String name) {
+        Path file = file(name);
+        return file != null && Files.exists(file);
+    }
 
     public boolean createEmpty(String name) {
         Path file = file(name);
@@ -26,24 +30,29 @@ public final class SystemOfferEditor {
         catch (IOException ex) { Shop.logger().error("Could not create offer file: " + ex.getMessage()); return false; }
     }
 
-    public boolean addFromCatalog(String targetName, String itemName, int variant) {
+    public AddResult addFromCatalog(String targetName, String itemName, int variant) {
         Path target = editableFile(targetName);
-        if (target == null) return false;
-        Path catalog = pluginPath().resolve("system-offers.complete.json");
+        if (target == null) return AddResult.FAILED;
+        if (!Files.isWritable(target)) return AddResult.TARGET_READ_ONLY;
+        Path catalog = SystemOfferFile.offerFile(plugin, "system-offers.complete.json");
         try {
             List<Map<String, Object>> targetOffers = SystemOfferFile.readObjects(target);
-            for (Map<String, Object> offer : targetOffers) if (matches(offer, itemName, variant)) return false;
+            for (Map<String, Object> offer : targetOffers) if (matches(offer, itemName, variant)) return AddResult.DUPLICATE;
             for (Map<String, Object> offer : SystemOfferFile.readObjects(catalog)) {
                 if (matches(offer, itemName, variant)) {
                     Map<String, Object> copy = new LinkedHashMap<>(offer);
                     copy.put("isEnabled", Boolean.TRUE);
                     targetOffers.add(copy);
                     SystemOfferFile.writeObjects(target, targetOffers);
-                    return true;
+                    return AddResult.ADDED;
                 }
             }
+            return AddResult.NOT_IN_CATALOG;
+        } catch (java.nio.file.AccessDeniedException ex) {
+            Shop.logger().warn("Offer file is read-only: " + target);
+            return AddResult.TARGET_READ_ONLY;
         } catch (IOException | IllegalArgumentException ex) { Shop.logger().error("Could not add system offer: " + ex.getMessage()); }
-        return false;
+        return AddResult.FAILED;
     }
 
     public boolean remove(String targetName, String offerId) { return mutate(targetName, offerId, null, true); }
@@ -67,16 +76,16 @@ public final class SystemOfferEditor {
 
     private Path editableFile(String name) {
         Path file = file(name);
-        return file != null && Files.exists(file) && !file.getFileName().toString().equalsIgnoreCase("system-offers.default.json") ? file : null;
+        if (file == null || file.getFileName().toString().equalsIgnoreCase("system-offers.default.json")) return null;
+        return Files.exists(file) ? file : null;
     }
 
     private Path file(String name) {
         if (name == null || name.isBlank() || !name.toLowerCase().endsWith(".json")) return null;
-        Path root = pluginPath(); Path candidate = root.resolve(name.trim()).normalize();
+        Path root = SystemOfferFile.offerFile(plugin, "placeholder.json").getParent();
+        Path candidate = root.resolve(name.trim()).normalize();
         return candidate.getParent() != null && candidate.getParent().equals(root) ? candidate : null;
     }
-
-    private Path pluginPath() { return Paths.get(plugin.getPath() == null ? "." : plugin.getPath()).toAbsolutePath().normalize(); }
     private static boolean matches(Map<String, Object> offer, String itemName, int variant) {
         return itemName != null && itemName.equalsIgnoreCase(String.valueOf(offer.get("itemName")))
                 && variant == number(offer.get("itemVariant"));

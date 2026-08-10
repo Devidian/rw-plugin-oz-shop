@@ -36,10 +36,8 @@ public final class SystemOfferFile {
 
     public static List<ShopOffer> load(Shop plugin, String configuredFileName, boolean generateDefinitionExports,
             String systemShopCurrency) {
-        Path pluginPath = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".");
-        Path offerFile = pluginPath.resolve(configuredFileName == null || configuredFileName.isBlank()
-                ? "system-offers.json"
-                : configuredFileName);
+        Path offerFile = offerFile(plugin, configuredFileName == null || configuredFileName.isBlank()
+                ? "system-offers.json" : configuredFileName);
         Path defaultOfferFile = offerFile.resolveSibling("system-offers.default.json");
         Path exportOfferFile = offerFile.resolveSibling("system-offer-export.json");
         Path recipeExportFile = offerFile.resolveSibling("system-recipes-export.json");
@@ -63,6 +61,22 @@ public final class SystemOfferFile {
             Shop.logger().error("Could not load system offers: " + ex.getMessage());
             return List.of();
         }
+    }
+
+    /** Resolves Dev offer files from the server that actually receives uploads. */
+    static Path offerFile(Shop plugin, String fileName) {
+        Path runtimeRoot = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".").toAbsolutePath().normalize();
+        Path root = developmentRoot(runtimeRoot);
+        return root.resolve(fileName).normalize();
+    }
+
+    private static Path developmentRoot(Path runtimeRoot) {
+        Path plugins = runtimeRoot.getParent();
+        Path server = plugins == null ? null : plugins.getParent();
+        if (server == null || !"dedicated-server".equals(server.getFileName().toString())
+                || !"Plugins".equals(plugins.getFileName().toString())) return runtimeRoot;
+        Path development = server.resolveSibling("development-server").resolve("Plugins").resolve(runtimeRoot.getFileName());
+        return Files.isDirectory(development) ? development : runtimeRoot;
     }
 
     /** Reads a user-managed offer file without applying first-run defaults. */

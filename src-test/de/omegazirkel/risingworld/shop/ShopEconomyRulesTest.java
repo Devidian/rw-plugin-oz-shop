@@ -48,6 +48,12 @@ public class ShopEconomyRulesTest {
         assertTrue(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.LOOT)));
         assertTrue(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.SYSTEM_SUPPLIED)));
         assertTrue(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.HYBRID)));
+        assertFalse(ShopEconomyStore.automaticDrainEnabled(offer(ShopStockMode.SYSTEM_SUPPLIED)));
+        assertTrue(ShopEconomyStore.automaticRestockEnabled(offer(ShopStockMode.SYSTEM_SUPPLIED)));
+        assertTrue(ShopEconomyStore.automaticDrainEnabled(offer(ShopStockMode.HYBRID)));
+        assertTrue(ShopEconomyStore.automaticRestockEnabled(offer(ShopStockMode.HYBRID)));
+        assertTrue(ShopEconomyStore.automaticDrainEnabled(offer(ShopStockMode.LOOT)));
+        assertFalse(ShopEconomyStore.automaticRestockEnabled(offer(ShopStockMode.LOOT)));
     }
 
     @Test
@@ -68,16 +74,16 @@ public class ShopEconomyRulesTest {
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
             ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
             store.setTickIntervalHours(2);
-            store.configure("global", offer.getId(), 100L, 0.0d, 0.0d);
+            store.configure("global", offer.getId(), 120L, 0.0d, 0.0d);
             setLastTick(connection, offer.getId(), now[0]);
 
             now[0] += 3_600_000L;
             store.applyTicks(java.util.List.of(offer), java.util.List.of());
-            assertEquals(100L, store.stateFor("global", offer).stock());
+            assertEquals(120L, store.stateFor("global", offer).stock());
 
             now[0] += 3_600_000L;
             store.applyTicks(java.util.List.of(offer), java.util.List.of());
-            assertEquals(80L, store.stateFor("global", offer).stock());
+            assertEquals(100L, store.stateFor("global", offer).stock());
         }
     }
 
@@ -137,11 +143,80 @@ public class ShopEconomyRulesTest {
         }
     }
 
+    @Test
+    public void zoneAndGlobalTicksKeepStockOnTheCorrectSideOfTarget() throws Exception {
+        long[] now = { 1_000L };
+        ShopOffer system = offer(ShopStockMode.SYSTEM_SUPPLIED);
+        ShopOffer hybrid = offer(ShopStockMode.HYBRID);
+        ShopOffer loot = offer(ShopStockMode.LOOT);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.configure("global", system.getId(), 5L, 0.0d, 0.0d);
+            store.configure("area:42", hybrid.getId(), 15L, 0.0d, 0.0d);
+            store.configure("area:42", loot.getId(), 5L, 0.0d, 0.0d);
+            setLastTick(connection, system.getId(), now[0]);
+            setLastTick(connection, "area:42", hybrid.getId(), now[0]);
+            setLastTick(connection, "area:42", loot.getId(), now[0]);
+            assertEquals(15L, store.stateForWithoutTick("area:42", hybrid).stock());
+
+            now[0] += 3_600_000L;
+            store.applyTicks(java.util.List.of(system, hybrid, loot),
+                    java.util.List.of(new ShopZone(42L, "Test", "admin", now[0])));
+
+            assertEquals(6L, store.stateFor("global", system).stock());
+            assertEquals(14L, store.stateFor("area:42", hybrid).stock());
+            assertEquals(5L, store.stateFor("area:42", loot).stock());
+        }
+    }
+
+    @Test
+    public void scopeReconciliationCommitsAllChangedOffersWithOneScopeTimestamp() throws Exception {
+        long[] now = { 1_000L };
+        ShopOffer first = offer(ShopStockMode.SYSTEM_SUPPLIED);
+        ShopOffer second = new ShopOffer("second", "Second", "", "stone", (short) 0, 0, 1, 10.0d, 0L, 0L,
+                "COINS", "", "", "system", "system", true, false, true, 1L, 10L, 20L, 0.0d, 0.0d,
+                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 10.0d, 5L, 10L, 20L, null, null);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.configure("global", first.getId(), 5L, 0.0d, 0.0d);
+            store.configure("global", second.getId(), 5L, 0.0d, 0.0d);
+            setLastTick(connection, first.getId(), now[0]); setLastTick(connection, second.getId(), now[0]);
+            now[0] += 3_600_000L;
+            ShopEconomyStore.ScopeTickResult result = store.reconcile(java.util.List.of(first, second), java.util.List.of()).get(0);
+            assertEquals(2, result.changes().size());
+            assertEquals(6L, store.stateForWithoutTick("global", first).stock());
+            assertEquals(6L, store.stateForWithoutTick("global", second).stock());
+            try (PreparedStatement statement = connection.prepareStatement("SELECT last_tick_at FROM shop_economy_scope_ticks WHERE scope = 'global'")) {
+                try (java.sql.ResultSet rows = statement.executeQuery()) { assertTrue(rows.next()); assertEquals(now[0], rows.getLong(1)); }
+            }
+        }
+    }
+
+    @Test
+    public void immediateScopeTickMakesTheSharedCountdownDue() throws Exception {
+        long[] now = { 7_200_000L };
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+            store.setTickIntervalHours(1);
+            store.initializeScope("trader:joe");
+
+            store.requestImmediateScopeTick("trader:joe");
+
+            assertTrue(store.scopeTickDue("trader:joe"));
+            assertEquals(now[0], store.nextScopeTickAt("trader:joe"));
+        }
+    }
+
     private static void setLastTick(Connection connection, String offerId, long tick) throws Exception {
+        setLastTick(connection, "global", offerId, tick);
+    }
+
+    private static void setLastTick(Connection connection, String scope, String offerId, long tick) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "UPDATE shop_offer_economy_state SET last_tick_at = ? WHERE scope = 'global' AND offer_id = ?")) {
+                "UPDATE shop_offer_economy_state SET last_tick_at = ? WHERE scope = ? AND offer_id = ?")) {
             statement.setLong(1, tick);
-            statement.setString(2, offerId);
+            statement.setString(2, scope);
+            statement.setString(3, offerId);
             statement.executeUpdate();
         }
     }
@@ -182,7 +257,8 @@ public class ShopEconomyRulesTest {
 
         assertEquals(0L, TraderService.automaticDrainBase(hybrid, 10L, 10L));
         assertEquals(1L, TraderService.automaticDrainBase(hybrid, 11L, 10L));
-        assertEquals(10L, TraderService.automaticDrainBase(offer(ShopStockMode.SYSTEM_SUPPLIED), 10L, 10L));
+        assertEquals(0L, TraderService.automaticDrainBase(offer(ShopStockMode.SYSTEM_SUPPLIED), 10L, 10L));
+        assertEquals(5L, TraderService.automaticDrainBase(offer(ShopStockMode.LOOT), 15L, 10L));
     }
 
     @Test

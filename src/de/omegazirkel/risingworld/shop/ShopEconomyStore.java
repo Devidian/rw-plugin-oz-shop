@@ -7,6 +7,8 @@ import java.util.function.LongSupplier;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.List;
 
 import de.omegazirkel.risingworld.Shop;
 
@@ -52,6 +54,13 @@ public class ShopEconomyStore {
             Long globalDailySellLimit) {
     }
 
+    /** A committed, scope-wide stock reconciliation suitable for an operator report. */
+    public record ScopeTickResult(String scope, List<OfferTick> changes, long completedAt) {
+        public boolean changed() { return changes != null && !changes.isEmpty(); }
+    }
+
+    public record OfferTick(String offerId, long previousStock, long stock) { }
+
     private final Connection connection;
     private final LongSupplier clock;
     private long tickIntervalMillis = ONE_HOUR_MILLIS;
@@ -70,9 +79,42 @@ public class ShopEconomyStore {
         tickIntervalMillis = Math.max(1, hours) * ONE_HOUR_MILLIS;
     }
 
-    public void reconcile(Collection<ShopOffer> offers, Collection<ShopZone> zones) {
+    /** Creates a missing cadence row without moving an established scope. */
+    public void initializeScope(String scope) {
+        String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
+        if (scopeLastTick(effectiveScope) <= 0L) {
+            long legacyTick = maxOfferTick(effectiveScope);
+            storeScopeTick(effectiveScope, legacyTick > 0L ? legacyTick : clock.getAsLong());
+        }
+    }
+
+    public boolean scopeTickDue(String scope) {
+        String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
+        initializeScope(effectiveScope);
+        return clock.getAsLong() - scopeLastTick(effectiveScope) >= tickIntervalMillis;
+    }
+
+    public void requestImmediateScopeTick(String scope) {
+        String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
+        storeScopeTick(effectiveScope, clock.getAsLong() - tickIntervalMillis);
+    }
+
+    public void completeScopeTick(String scope) {
+        storeScopeTick(scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim(), clock.getAsLong());
+    }
+
+    public List<ScopeTickResult> reconcile(Collection<ShopOffer> offers, Collection<ShopZone> zones) {
+        return reconcile(offers, zones, false);
+    }
+
+    /** Runs every applicable scope immediately when an administrator requests a tick. */
+    public List<ScopeTickResult> reconcileNow(Collection<ShopOffer> offers, Collection<ShopZone> zones) {
+        return reconcile(offers, zones, true);
+    }
+
+    private List<ScopeTickResult> reconcile(Collection<ShopOffer> offers, Collection<ShopZone> zones, boolean force) {
         if (offers == null || offers.isEmpty()) {
-            return;
+            return List.of();
         }
         for (ShopOffer offer : offers) {
             if (offer == null || offer.getId() == null || offer.getId().isBlank() || !offer.isSystemOffer()) {
@@ -88,7 +130,18 @@ public class ShopEconomyStore {
                 }
             }
         }
-        applyTicks(offers, zones);
+        initializeScope(GLOBAL_SCOPE);
+        if (zones != null) for (ShopZone zone : zones) if (zone != null && zone.getAreaId() > 0L) initializeScope(scope(zone));
+        List<ScopeTickResult> results = new ArrayList<>();
+        ScopeTickResult global = reconcileScope(GLOBAL_SCOPE, offers, force);
+        if (global.changed()) results.add(global);
+        if (zones != null) for (ShopZone zone : zones) {
+            if (zone != null && zone.getAreaId() > 0L) {
+                ScopeTickResult result = reconcileScope(scope(zone), offers, force);
+                if (result.changed()) results.add(result);
+            }
+        }
+        return List.copyOf(results);
     }
 
     public void recordSystemSale(String scope, ShopOffer offer, long value) {
@@ -97,7 +150,6 @@ public class ShopEconomyStore {
         }
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
-        applyTick(effectiveScope, offer);
         long amount = Math.max(0, offer.getAmount());
         long stockLimit = Math.max(0L, offer.getDefaultStockLimit());
         long now = clock.getAsLong();
@@ -170,7 +222,6 @@ public class ShopEconomyStore {
         }
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
-        applyTick(effectiveScope, offer);
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT stock
                 FROM shop_offer_economy_state
@@ -202,7 +253,6 @@ public class ShopEconomyStore {
         }
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
-        applyTick(effectiveScope, offer);
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT stock
                 FROM shop_offer_economy_state
@@ -246,7 +296,6 @@ public class ShopEconomyStore {
         }
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
-        applyTick(effectiveScope, offer);
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT stock
                 FROM shop_offer_economy_state
@@ -325,7 +374,9 @@ public class ShopEconomyStore {
                     targetStock = stock;
                 }
                 long baseline = lastTickAt > 0L ? lastTickAt : now;
-                long nextDrainAt = nextEconomyTickAt(baseline, targetStock, offer.getDrainPercent(), drainRate);
+                long nextDrainAt = automaticDrainEnabled(offer)
+                        ? nextEconomyTickAt(baseline, targetStock, offer.getDrainPercent(), drainRate)
+                        : 0L;
                 long nextRestockAt = automaticRestockEnabled(offer)
                         ? nextEconomyTickAt(baseline, targetStock, offer.getRestockPercent(), refillRate)
                         : 0L;
@@ -341,6 +392,13 @@ public class ShopEconomyStore {
                     + offer.getId() + ": " + ex.getMessage());
             return new EconomyTickStatus(0L, 0L, 0L, automatic, false);
         }
+    }
+
+    /** Shared scope cadence for UI; it remains meaningful even when an offer has no stock movement configured. */
+    public long nextScopeTickAt(String scope) {
+        String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
+        long last = scopeLastTick(effectiveScope);
+        return (last > 0L ? last : clock.getAsLong()) + tickIntervalMillis;
     }
 
     public boolean configure(String scope, String offerId, long stock, double drainRate, double refillRate) {
@@ -539,6 +597,13 @@ public class ShopEconomyStore {
                         PRIMARY KEY(scope, offer_id, player_id, day_start)
                     );
                     """);
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS shop_economy_scope_ticks (
+                        scope TEXT PRIMARY KEY,
+                        last_tick_at BIGINT NOT NULL DEFAULT 0,
+                        updated_at BIGINT NOT NULL DEFAULT 0
+                    )
+                    """);
         } catch (SQLException ex) {
             Shop.logger().error("Could not initialize shop economy database: " + ex.getMessage());
         }
@@ -563,6 +628,101 @@ public class ShopEconomyStore {
                 }
             }
         }
+    }
+
+    /**
+     * Computes and stores all due offer changes for one scope in one SQLite
+     * transaction. Scope ticks deliberately replace opportunistic per-offer
+     * reads so a report can never describe a partially persisted scope.
+     */
+    private ScopeTickResult reconcileScope(String scope, Collection<ShopOffer> offers, boolean force) {
+        if (offers == null || offers.isEmpty()) return new ScopeTickResult(scope, List.of(), 0L);
+        long now = clock.getAsLong();
+        long lastTick = scopeLastTick(scope);
+        if (lastTick <= 0L) {
+            lastTick = maxOfferTick(scope);
+            if (lastTick <= 0L) {
+                storeScopeTick(scope, now);
+                return new ScopeTickResult(scope, List.of(), now);
+            }
+            storeScopeTick(scope, lastTick);
+        }
+        long elapsed = now - lastTick;
+        if (!force && elapsed < tickIntervalMillis) return new ScopeTickResult(scope, List.of(), lastTick);
+        double elapsedHours = force ? Math.max(1.0d, tickIntervalMillis / (double) ONE_HOUR_MILLIS)
+                : elapsed / (double) ONE_HOUR_MILLIS;
+        List<OfferTick> changes = new ArrayList<>();
+        for (ShopOffer offer : offers) {
+            if (offer == null || !offer.isSystemOffer() || !automaticTicksEnabled(offer)) continue;
+            EconomyState state = stateForWithoutTick(scope, offer);
+            long next = reconciledStock(offer, state, elapsedHours);
+            if (next != state.stock()) changes.add(new OfferTick(offer.getId(), state.stock(), next));
+        }
+        if (changes.isEmpty()) {
+            storeScopeTick(scope, now);
+            return new ScopeTickResult(scope, List.of(), now);
+        }
+        boolean previousAutoCommit = true;
+        try {
+            previousAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (PreparedStatement update = connection.prepareStatement("""
+                    UPDATE shop_offer_economy_state SET stock = ?, last_tick_at = ?, updated_at = ?
+                    WHERE scope = ? AND offer_id = ?
+                    """)) {
+                for (OfferTick change : changes) {
+                    update.setLong(1, change.stock()); update.setLong(2, now); update.setLong(3, now);
+                    update.setString(4, scope); update.setString(5, change.offerId()); update.addBatch();
+                }
+                update.executeBatch();
+            }
+            storeScopeTick(scope, now);
+            connection.commit();
+            return new ScopeTickResult(scope, List.copyOf(changes), now);
+        } catch (SQLException | RuntimeException ex) {
+            try { connection.rollback(); } catch (SQLException ignored) { }
+            Shop.logger().error("Could not reconcile economy scope " + scope + ": " + ex.getMessage());
+            return new ScopeTickResult(scope, List.of(), lastTick);
+        } finally {
+            try { connection.setAutoCommit(previousAutoCommit); } catch (SQLException ignored) { }
+        }
+    }
+
+    private long reconciledStock(ShopOffer offer, EconomyState state, double elapsedHours) {
+        long stock = state.stock(); long target = state.targetStock() > 0L ? state.targetStock()
+                : state.stockLimit() > 0L ? state.stockLimit() : stock;
+        boolean drainEnabled = automaticDrainEnabled(offer); boolean refillEnabled = automaticRestockEnabled(offer);
+        long drain = drainEnabled && target > 0L && offer.getDrainPercent() > 0.0d
+                ? targetDrainAmount(target, offer.getDrainPercent(), offer.getDrainMax(), elapsedHours)
+                : drainEnabled ? (long) Math.floor(state.drainRate() * elapsedHours) : 0L;
+        long refill = refillEnabled && target > 0L && offer.getRestockPercent() > 0.0d
+                ? targetRestockAmount(target, offer.getRestockPercent(), offer.getRestockMax(), elapsedHours)
+                : refillEnabled ? (long) Math.floor(state.refillRate() * elapsedHours) : 0L;
+        if (refill <= 0L && refillEnabled && minimumSystemRestockEnabled(offer, state.refillRate()) && elapsedHours >= 1.0d)
+            refill = Math.max(1L, (long) Math.floor(elapsedHours));
+        long next = Math.max(0L, stock - Math.min(drain, Math.max(0L, stock - target)));
+        if (refill > 0L && (target <= 0L || next < target)) next = target > 0L ? Math.min(target, next + refill) : next + refill;
+        return state.stockLimit() > 0L ? Math.min(state.stockLimit(), next) : next;
+    }
+
+    private long scopeLastTick(String scope) {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT last_tick_at FROM shop_economy_scope_ticks WHERE scope = ?")) {
+            statement.setString(1, scope); try (ResultSet result = statement.executeQuery()) { return result.next() ? result.getLong(1) : 0L; }
+        } catch (SQLException ex) { return 0L; }
+    }
+
+    private long maxOfferTick(String scope) {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT MAX(last_tick_at) FROM shop_offer_economy_state WHERE scope = ?")) {
+            statement.setString(1, scope); try (ResultSet result = statement.executeQuery()) { return result.next() ? result.getLong(1) : 0L; }
+        } catch (SQLException ex) { return 0L; }
+    }
+
+    private void storeScopeTick(String scope, long tick) {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO shop_economy_scope_ticks(scope, last_tick_at, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(scope) DO UPDATE SET last_tick_at = excluded.last_tick_at, updated_at = excluded.updated_at
+                """)) { statement.setString(1, scope); statement.setLong(2, tick); statement.setLong(3, tick); statement.executeUpdate();
+        } catch (SQLException ex) { throw new IllegalStateException("Could not store economy scope tick", ex); }
     }
 
     private void applyTick(String scope, ShopOffer offer) {
@@ -606,9 +766,11 @@ public class ShopEconomyStore {
         if (targetStock <= 0L && stock > 0L) {
             targetStock = stock;
         }
+        boolean automaticDrain = automaticDrainEnabled(offer);
         boolean automaticRestock = automaticRestockEnabled(offer);
         boolean minimumSystemRestock = automaticRestock && minimumSystemRestockEnabled(offer, refillRate);
-        if (drainRate <= 0.0d && (!automaticRestock || refillRate <= 0.0d) && offer.getDrainPercent() <= 0.0d
+        if ((!automaticDrain || drainRate <= 0.0d) && (!automaticRestock || refillRate <= 0.0d)
+                && (!automaticDrain || offer.getDrainPercent() <= 0.0d)
                 && (!automaticRestock || offer.getRestockPercent() <= 0.0d) && !minimumSystemRestock) {
             return;
         }
@@ -621,9 +783,9 @@ public class ShopEconomyStore {
             return;
         }
         double elapsedHours = elapsedMillis / (double) ONE_HOUR_MILLIS;
-        long drain = targetStock > 0L && offer.getDrainPercent() > 0.0d
+        long drain = automaticDrain && targetStock > 0L && offer.getDrainPercent() > 0.0d
                 ? targetDrainAmount(targetStock, offer.getDrainPercent(), offer.getDrainMax(), elapsedHours)
-                : (long) Math.floor(drainRate * elapsedHours);
+                : automaticDrain ? (long) Math.floor(drainRate * elapsedHours) : 0L;
         long refill = automaticRestock && targetStock > 0L && offer.getRestockPercent() > 0.0d
                 ? targetRestockAmount(targetStock, offer.getRestockPercent(), offer.getRestockMax(), elapsedHours)
                 : (long) Math.floor(refillRate * elapsedHours);
@@ -636,13 +798,11 @@ public class ShopEconomyStore {
         if (drain == 0L && refill == 0L) {
             return;
         }
-        long newStock = Math.max(0L, stock - drain);
+        long drainCeiling = Math.max(0L, stock - targetStock);
+        long newStock = Math.max(0L, stock - Math.min(drain, drainCeiling));
         long refillCeiling = targetStock > 0L ? targetStock : stockLimit;
         if (refill > 0L && (refillCeiling <= 0L || newStock < refillCeiling)) {
-            newStock += refill;
-        }
-        if (refillCeiling > 0L) {
-            newStock = Math.min(refillCeiling, newStock);
+            newStock = refillCeiling > 0L ? Math.min(refillCeiling, newStock + refill) : newStock + refill;
         }
         if (stockLimit > 0L) {
             newStock = Math.min(stockLimit, newStock);
@@ -659,11 +819,17 @@ public class ShopEconomyStore {
                 || offer.getStockMode() == ShopStockMode.HYBRID;
     }
 
-    private static boolean automaticRestockEnabled(ShopOffer offer) {
-        return offer != null && offer.getStockMode() != ShopStockMode.LOOT;
+    static boolean automaticDrainEnabled(ShopOffer offer) {
+        return offer != null && (offer.getStockMode() == ShopStockMode.LOOT
+                || offer.getStockMode() == ShopStockMode.HYBRID);
     }
 
-    private static boolean minimumSystemRestockEnabled(ShopOffer offer, double legacyRate) {
+    static boolean automaticRestockEnabled(ShopOffer offer) {
+        return offer != null && (offer.getStockMode() == ShopStockMode.SYSTEM_SUPPLIED
+                || offer.getStockMode() == ShopStockMode.HYBRID);
+    }
+
+    static boolean minimumSystemRestockEnabled(ShopOffer offer, double legacyRate) {
         return offer != null
                 && offer.getStockMode() == ShopStockMode.SYSTEM_SUPPLIED
                 && offer.getRestockPercent() <= 0.0d

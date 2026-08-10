@@ -35,6 +35,10 @@ public class PluginSettings {
     public boolean generateDefinitionExports = false;
     public boolean dynamicEconomyEnabled = false;
     public int economyTickIntervalHours = 1;
+    public boolean economyReportGlobal = false;
+    public boolean economyReportZones = false;
+    public boolean economyReportTraders = false;
+    public String economyReportRecipients = "";
     public boolean exposeShopZones = true;
     private Path settingsFile;
 
@@ -109,6 +113,14 @@ public class PluginSettings {
                     defaults.getProperty("dynamicEconomyEnabled", "false")).contentEquals("true");
             economyTickIntervalHours = Math.max(1, Integer.parseInt(settings.getProperty("economyTickIntervalHours",
                     defaults.getProperty("economyTickIntervalHours", "1"))));
+            economyReportGlobal = settings.getProperty("economyReportGlobal",
+                    defaults.getProperty("economyReportGlobal", "false")).contentEquals("true");
+            economyReportZones = settings.getProperty("economyReportZones",
+                    defaults.getProperty("economyReportZones", "false")).contentEquals("true");
+            economyReportTraders = settings.getProperty("economyReportTraders",
+                    defaults.getProperty("economyReportTraders", "false")).contentEquals("true");
+            economyReportRecipients = settings.getProperty("economyReportRecipients",
+                    defaults.getProperty("economyReportRecipients", "")).trim();
             exposeShopZones = settings.getProperty("exposeShopZones",
                     defaults.getProperty("exposeShopZones", "true")).contentEquals("true");
 
@@ -158,6 +170,15 @@ public class PluginSettings {
                 entry("economyTickIntervalHours", "Economy tick interval hours",
                         "Hours between automatic stock reconciliation ticks. Fractions accumulate until at least one item changes.",
                         economyTickIntervalHours, "1", AdminSettingsType.INTEGER),
+                entry("economyReportGlobal", "Global economy reports", "Sends a report after changed global stock ticks.",
+                        economyReportGlobal, "false", AdminSettingsType.BOOLEAN),
+                entry("economyReportZones", "Zone economy reports", "Sends a report after changed zone stock ticks.",
+                        economyReportZones, "false", AdminSettingsType.BOOLEAN),
+                entry("economyReportTraders", "Trader economy reports", "Reserves reports for changed trader stock ticks.",
+                        economyReportTraders, "false", AdminSettingsType.BOOLEAN),
+                entry("economyReportRecipients", "Economy report recipients",
+                        "Comma-separated exact player names; append ;de or ;en to choose each report language.", economyReportRecipients, "",
+                        AdminSettingsType.STRING),
                 AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
                 entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
                         AdminSettingsType.BOOLEAN),

@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.DynamicEconomyPricing;
+import de.omegazirkel.risingworld.shop.EconomyReportService;
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
 import de.omegazirkel.risingworld.shop.ShopErrorCode;
 import de.omegazirkel.risingworld.shop.ShopItemNames;
@@ -49,6 +50,7 @@ import de.omegazirkel.risingworld.tools.ui.PluginInfoStatusProviders;
 import de.omegazirkel.risingworld.tools.ui.PluginShortcutVisibility;
 import de.omegazirkel.risingworld.tools.ui.SharedIndicators;
 import net.risingworld.api.Plugin;
+import net.risingworld.api.Server;
 import net.risingworld.api.Timer;
 import net.risingworld.api.events.player.PlayerCommandEvent;
 import net.risingworld.api.events.player.PlayerNpcInteractionEvent;
@@ -110,6 +112,7 @@ class ShopRuntime extends Plugin {
         copyDefaultTraderOffers();
         traderGeneratorConfig = loadTraderGeneratorConfig();
         reloadSystemOffers();
+        initializeEconomyScopes();
 
         PluginGUI.getInstance((Shop) this);
         ShopOfferIcons.PreloadResult iconPreload = ShopOfferIcons.preload(service.listSystemOffers());
@@ -156,6 +159,7 @@ class ShopRuntime extends Plugin {
         logger().setLevel(s.logLevel);
         zoneService = new ShopZoneService((Shop) this, sqliteCon, s.shopZonesFile);
         reloadSystemOffers();
+        initializeEconomyScopes();
         syncEconomyTimer();
     }
 
@@ -515,9 +519,11 @@ class ShopRuntime extends Plugin {
         if (player == null || !player.isAdmin()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
-        boolean added = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
-        return added ? ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_ADDED", player), null)
-                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_ADD_FAILED", player));
+        SystemOfferEditor.AddResult result = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
+        if (result == SystemOfferEditor.AddResult.ADDED) return ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_ADDED", player), null);
+        String key = result == SystemOfferEditor.AddResult.TARGET_READ_ONLY
+                ? "TC_SHOP_EDITOR_FILE_READ_ONLY" : "TC_SHOP_EDITOR_ADD_FAILED";
+        return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get(key, player));
     }
 
     public ShopPurchaseResult removeOffer(Player player, Trader trader, ShopOffer offer) {
@@ -723,6 +729,22 @@ class ShopRuntime extends Plugin {
         }
         String scope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
         return economyStore.tickStatusFor(scope, offer);
+    }
+
+    public ShopEconomyStore.EconomyTickStatus economyTickStatusFor(Trader trader, ShopOffer offer) {
+        if (offer == null || economyStore == null) return ShopEconomyStore.EconomyTickStatus.inactive();
+        return economyStore.tickStatusFor(trader == null ? "global" : trader.economyScope(), offer);
+    }
+
+    public long nextEconomyTickAt(Trader trader) {
+        return economyStore == null ? 0L : economyStore.nextScopeTickAt(trader == null ? "global" : trader.economyScope());
+    }
+
+    public void forceEconomyTick(Player player, Trader trader) {
+        if (player == null || !player.isAdmin()) return;
+        String scope = trader == null ? currentShopZone(player).map(ShopEconomyStore::scopeFor).orElse("global")
+                : trader.economyScope();
+        economyStore.requestImmediateScopeTick(scope);
     }
 
     public ShopOffer dynamicEconomyOffer(Player player, ShopOffer offer, int quantity) {
@@ -1208,19 +1230,45 @@ class ShopRuntime extends Plugin {
         return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, message);
     }
 
-    private void reconcileEconomyState() {
+    private void reconcileEconomyState() { reconcileEconomyState(false); }
+
+    private void reconcileEconomyState(boolean force) {
         if (economyStore != null && service != null) {
             economyStore.setTickIntervalHours(s.economyTickIntervalHours);
-            economyStore.reconcile(service.listSystemOffers(), listShopZones());
+            for (ShopEconomyStore.ScopeTickResult result : (force
+                    ? economyStore.reconcileNow(service.listSystemOffers(), listShopZones())
+                    : economyStore.reconcile(service.listSystemOffers(), listShopZones()))) {
+                EconomyReportService.report((Shop) this, t, s, result, service.listSystemOffers(), null, s.dynamicEconomyEnabled);
+                refreshOpenShopOverlays(result);
+            }
             WalletBridge wallet = new WalletBridge((Shop) this);
             String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
             if (traderService != null && wallet.hasSystemAccountApi() && !wallet.worldSystemAccountId().isBlank()) {
                 for (Trader trader : listTraders()) {
-                    traderService.reconcileEconomy(trader, listTraderSystemOffers(trader), economyStore, wallet, currency,
+                    ShopEconomyStore.ScopeTickResult result = traderService.reconcileEconomy(trader,
+                            listTraderSystemOffers(trader), economyStore, wallet, currency, s.dynamicEconomyEnabled, force);
+                    EconomyReportService.report((Shop) this, t, s, result, listTraderSystemOffers(trader), trader,
                             s.dynamicEconomyEnabled);
+                    refreshOpenShopOverlays(result);
                 }
             }
         }
+    }
+
+    private void refreshOpenShopOverlays(ShopEconomyStore.ScopeTickResult result) {
+        if (result == null || !result.changed()) return;
+        for (Player player : Server.getAllPlayers()) {
+            Object overlay = player.getAttribute("oz.shop.ui.overlay");
+            if (overlay instanceof ShopOverlay shopOverlay) shopOverlay.refreshAfterEconomyTick(result.scope());
+        }
+    }
+
+    private void initializeEconomyScopes() {
+        if (economyStore == null || service == null) return;
+        economyStore.setTickIntervalHours(s.economyTickIntervalHours);
+        economyStore.initializeScope("global");
+        for (ShopZone zone : listShopZones()) economyStore.initializeScope(ShopEconomyStore.scopeFor(zone));
+        for (Trader trader : listTraders()) economyStore.initializeScope(trader.economyScope());
     }
 
     private void makeTrader(Player player) {
@@ -1417,7 +1465,7 @@ class ShopRuntime extends Plugin {
             return;
         }
         stopEconomyTimer();
-        float intervalSeconds = Math.max(1, s.economyTickIntervalHours) * 3600f;
+        float intervalSeconds = 5f;
         economyTimer = new Timer(intervalSeconds, intervalSeconds, -1, () -> {
             if (s == null || economyStore == null) {
                 return;

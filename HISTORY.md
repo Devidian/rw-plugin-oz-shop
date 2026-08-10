@@ -2,6 +2,13 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.5.3] - 2026-08-10 | Scope economy and trader reports
+
+- fix: reconcile automatic stock consistently for global shops, zones, and NPC traders: system-supplied offers only restock, hybrids drain and restock, loot only drains, and player-supplied/static offers do not reconcile automatically.
+- fix: keep one durable cadence per scope, initialize legacy scopes on enable, and let administrators schedule the viewed scope for its next scheduler pass.
+- fix: hide global-shop tick controls when the global shop is unavailable, refresh affected open overlays after stock-changing ticks, and report a clear error for read-only trader offer files.
+- feat: send optional localized economy reports with item movement, effective currency, trader name, position, balance, and profit/loss.
+
 ## [0.5.2] - 2026-08-09 | Trader quote consistency
 
 - fix: calculate trader buyback and sale prices from the same scoped stock state in cards, detail previews, and transactions.

@@ -77,7 +77,7 @@ Large animals are not classified as T11 unless the game exposes them as inventor
 
 For offer semantics, `buyEnabled=true` means players can sell matching items to the system shop. `sellEnabled=true` means players can buy the offer from the system shop.
 
-`LOOT` is the T0 stock mode: players can both buy and sell, and the normal drain tick continuously removes stock. `LOOT` never performs an automatic restock.
+`LOOT` is the T0 stock mode: players can both buy and sell, and the normal drain tick removes only stock above target. `LOOT` never performs an automatic restock. Across global, zone, and NPC-trader scopes, restock runs only below target and is capped at target; drain runs only above target and is capped at target. `SYSTEM_SUPPLIED` is restock-only, `HYBRID` uses both directions, and `PLAYER_SUPPLIED`/`STATIC` never run automatic stock movement.
 
 Invalid offers use `basePrice=9999`, `stockMode=STATIC`, and `isEnabled=false`. They remain in `system-offers.complete.json` and are excluded from the generated runtime default and tier files.
 

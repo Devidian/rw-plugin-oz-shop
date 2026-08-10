@@ -55,6 +55,7 @@ import net.risingworld.api.ui.style.ScaleMode;
 import net.risingworld.api.ui.style.TextAnchor;
 import net.risingworld.api.ui.style.Unit;
 import net.risingworld.api.ui.style.Wrap;
+import net.risingworld.api.Timer;
 
 // TODO: refactor -> extend new BasePluginOverlayWithTabs from Tools to reduce code here
 public class ShopOverlay extends OZUIElement {
@@ -76,6 +77,7 @@ public class ShopOverlay extends OZUIElement {
     private Tab activeTab = Tab.SYSTEM;
     private final WalletBridge walletBridge;
     private Trader trader;
+    private Timer economyCountdownTimer;
     private ShopZone pendingRemoveZone;
     private Trader pendingDissolveTrader;
     private boolean pendingResetZoneStocks;
@@ -122,6 +124,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void rebuild() {
+        stopEconomyCountdown();
         if (trader == null && (activeTab == Tab.SYSTEM || activeTab == Tab.PLUGIN) && !plugin.isShopAvailableFor(player)) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
         }
@@ -194,6 +197,43 @@ public class ShopOverlay extends OZUIElement {
         closeLabel.setTextAlign(TextAnchor.MiddleCenter);
         closeButton.addChild(closeLabel);
         panel.addChild(closeButton);
+        setupEconomyCountdown();
+    }
+
+    private void setupEconomyCountdown() {
+        if (trader == null && !plugin.isSystemShopAvailableFor(player)) return;
+        UILabel countdown = label(economyCountdownText(), 18, Font.DefaultBold);
+        OZUIElement entry = new OZUIElement();
+        entry.setPivot(Pivot.UpperRight); entry.style.position.set(Position.Absolute);
+        entry.style.right.set(60, Unit.Pixel); entry.style.top.set(18, Unit.Pixel); entry.setSize(270, 34, false);
+        entry.setBackgroundColor(0.08f, 0.08f, 0.08f, 0.55f); entry.setBorder(1);
+        entry.setBorderColor(0.95f, 0.75f, 0.25f, 0.48f); entry.setBorderEdgeRadius(4, false);
+        countdown.setPivot(Pivot.MiddleCenter); countdown.setPosition(50, 50, true); countdown.setSize(100, 100, true);
+        countdown.setTextAlign(TextAnchor.MiddleCenter); entry.addChild(countdown); panel.addChild(entry);
+        if (player.isAdmin()) {
+            AdvancedButton trigger = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_RUN_ECONOMY_TICK", player),
+                    event -> plugin.forceEconomyTick(player, trader));
+            trigger.setPivot(Pivot.UpperRight); trigger.style.position.set(Position.Absolute);
+            // Keep this independent action outside the countdown container.
+            trigger.style.right.set(520, Unit.Pixel); trigger.style.top.set(18, Unit.Pixel); trigger.setSize(120, 34, false);
+            trigger.setBorderEdgeRadius(3, false); styleResetButton(trigger); panel.addChild(trigger);
+        }
+        economyCountdownTimer = new Timer(1f, 1f, -1, () -> countdown.setText(economyCountdownText()));
+        economyCountdownTimer.start();
+    }
+
+    private String economyCountdownText() {
+        // The countdown represents the scope cadence. Per-offer movements are
+        // deliberately not used here, otherwise an immediate scope tick stays hidden.
+        long next = plugin.nextEconomyTickAt(trader);
+        long remaining = Math.max(0L, next - System.currentTimeMillis()) / 1000L;
+        return t.get("TC_SHOP_UI_NEXT_STOCK_TICK", player).replace("PH_TIME", String.format(Locale.ROOT,
+                "%02d:%02d:%02d", remaining / 3600L, (remaining / 60L) % 60L, remaining % 60L));
+    }
+
+    private void stopEconomyCountdown() {
+        if (economyCountdownTimer != null && !economyCountdownTimer.isKilled()) economyCountdownTimer.kill();
+        economyCountdownTimer = null;
     }
 
     private void setupTabs() {
@@ -876,8 +916,6 @@ public class ShopOverlay extends OZUIElement {
         addAdminEconomyLine(options, x, 82, t.get("TC_SHOP_UI_ADMIN_RESTOCK", player)
                 .replace("PH_PERCENT", String.valueOf(offer.getRestockPercent()))
                 .replace("PH_MAX", String.valueOf(offer.getRestockMax())));
-        addAdminEconomyLine(options, x, 100, adminNextTickLabel(plugin.economyTickStatusFor(player, offer)));
-
         AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player),
                 event -> showResetStockConfirmation(offer, state));
         reset.setPivot(Pivot.UpperLeft);
@@ -2360,8 +2398,18 @@ public class ShopOverlay extends OZUIElement {
     }
 
     public void close() {
+        stopEconomyCountdown();
         player.removeUIElement(this);
         player.deleteAttribute("oz.shop.ui.overlay");
         CursorManager.hide(player);
+    }
+
+    /** Rebuild only an overlay whose displayed stock belongs to the completed scope. */
+    public void refreshAfterEconomyTick(String scope) {
+        if (scope == null || scope.isBlank()) return;
+        String displayedScope = trader == null
+                ? plugin.currentShopZone(player).map(ShopEconomyStore::scopeFor).orElse("global")
+                : trader.economyScope();
+        if (scope.equals(displayedScope)) rebuild();
     }
 }
