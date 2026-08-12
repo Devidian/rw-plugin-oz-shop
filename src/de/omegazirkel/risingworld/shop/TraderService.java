@@ -176,6 +176,10 @@ public final class TraderService {
         return 0L;
     }
 
+    public static boolean hasSufficientBasePayoutBalance(long traderBalance, long basePayout) {
+        return Math.max(0L, traderBalance) >= Math.max(0L, basePayout);
+    }
+
     private static long safeValue(long amount, double basePrice) {
         if (amount <= 0L || basePrice <= 0.0d || !Double.isFinite(basePrice)) return 0L;
         double value = amount * basePrice;

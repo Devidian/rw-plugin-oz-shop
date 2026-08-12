@@ -262,6 +262,19 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
+    public void traderBuybackRequiresTheNormalModifierPayoutBeforeWorldPremiumFunding() {
+        assertFalse(TraderService.hasSufficientBasePayoutBalance(19L, 20L));
+        assertTrue(TraderService.hasSufficientBasePayoutBalance(20L, 20L));
+        assertTrue(TraderService.hasSufficientBasePayoutBalance(100L, 20L));
+    }
+
+    @Test
+    public void traderNormalModifierCapUsesAggregatePayoutRounding() {
+        assertEquals(290L, ShopService.traderPayoutCap(290L, 96.75d * 3.0d));
+        assertEquals(290L, ShopService.traderPayoutCap(350L, 290.25d));
+    }
+
+    @Test
     public void quantityAwareStockCapRejectsFullRequestedAmount() throws Exception {
         ShopOffer offer = offer(ShopStockMode.HYBRID).economyCopy(3, 10.0d, 25L, 35L);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {

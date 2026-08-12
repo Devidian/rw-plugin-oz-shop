@@ -436,6 +436,11 @@ class ShopRuntime extends Plugin {
                 : effective.getCurrencyIdentifier();
         String premiumCorrelation = "trader:" + trader.npcId() + ":modifier-premium:" + UUID.randomUUID();
         long premium = quote.worldModifierPremium();
+        long traderBalance = traderBalance(wallet, trader, currency);
+        if (!TraderService.hasSufficientBasePayoutBalance(traderBalance, quote.traderPayoutCap())) {
+            return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED,
+                    t.get("TC_SHOP_TRADER_INSUFFICIENT_BALANCE", player));
+        }
         if (premium > 0L) {
             WalletBridge.WalletTransferCallResult funding = wallet.transferWorldToSystemIdempotent(trader.accountId(), premium,
                     "Trader modifier premium: " + effective.getId(), currency, "OZ - Shop", premiumCorrelation);
@@ -455,7 +460,12 @@ class ShopRuntime extends Plugin {
         if (trader == null) return 0L;
         String currency = s.systemShopCurrency.isBlank() ? new WalletBridge((Shop) this).defaultCurrencyIdentifier()
                 : s.systemShopCurrency;
-        return new WalletBridge((Shop) this).systemAccountBalances(trader.accountId()).stream()
+        return traderBalance(new WalletBridge((Shop) this), trader, currency);
+    }
+
+    private long traderBalance(WalletBridge wallet, Trader trader, String currency) {
+        if (wallet == null || trader == null || currency == null || currency.isBlank()) return 0L;
+        return wallet.systemAccountBalances(trader.accountId()).stream()
                 .filter(balance -> balance.currencyIdentifier().equalsIgnoreCase(currency)).mapToLong(WalletBridge.SystemBalanceInfo::balance)
                 .findFirst().orElse(0L);
     }
@@ -490,10 +500,18 @@ class ShopRuntime extends Plugin {
         if (trader == null || offer == null || !offer.isSystemOffer() || !offer.canPlayerSellToSystem() || economyStore == null) return "";
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(trader.economyScope(), player.getDbID(), effective);
-        if (check.allowed()) return "";
-        String key = "TC_SHOP_DYNAMIC_STOCK_FULL".equals(check.messageKey())
-                ? "TC_SHOP_TRADER_DYNAMIC_STOCK_FULL" : check.messageKey();
-        return t.get(key, player);
+        if (!check.allowed()) {
+            String key = "TC_SHOP_DYNAMIC_STOCK_FULL".equals(check.messageKey())
+                    ? "TC_SHOP_TRADER_DYNAMIC_STOCK_FULL" : check.messageKey();
+            return t.get(key, player);
+        }
+        ShopService.SellQuote quote = service.quoteSell(player, effective);
+        if (!quote.sellable()) return "";
+        WalletBridge wallet = new WalletBridge((Shop) this);
+        String currency = effective.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                : effective.getCurrencyIdentifier();
+        return TraderService.hasSufficientBasePayoutBalance(traderBalance(wallet, trader, currency), quote.traderPayoutCap())
+                ? "" : t.get("TC_SHOP_TRADER_INSUFFICIENT_BALANCE", player);
     }
 
     public Trader renameTrader(long npcId, String name) {

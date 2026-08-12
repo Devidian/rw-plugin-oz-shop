@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.5.6] - 2026-08-12 | Trader buyback funding
+
+- fix: fund only the modifier premium of NPC-trader buybacks from the world account, calculate that normal-modifier threshold with aggregate payout rounding, and block sales when the trader cannot cover it.
+
 ## [0.5.5] - 2026-08-10 | Economy-report setting translations
 
 - fix: translate all economy-report settings in German and English.

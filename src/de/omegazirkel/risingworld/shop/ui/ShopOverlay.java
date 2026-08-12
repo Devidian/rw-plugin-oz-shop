@@ -93,6 +93,7 @@ public class ShopOverlay extends OZUIElement {
     private ShopOffer selectedSystemEffectiveOffer;
     private UILabel selectedSystemBuyPreviewLabel;
     private UILabel selectedSystemSellPreviewLabel;
+    private UILabel selectedSystemStatusLabel;
     private AdvancedButton selectedSystemBuyButton;
     private AdvancedButton selectedSystemSellButton;
     private int selectedSystemInventoryAmount;
@@ -137,6 +138,7 @@ public class ShopOverlay extends OZUIElement {
         selectedSystemEffectiveOffer = null;
         selectedSystemBuyPreviewLabel = null;
         selectedSystemSellPreviewLabel = null;
+        selectedSystemStatusLabel = null;
         selectedSystemBuyButton = null;
         selectedSystemSellButton = null;
         selectedSystemInventoryAmount = 0;
@@ -758,6 +760,7 @@ public class ShopOverlay extends OZUIElement {
             selectedSystemEffectiveOffer = null;
             selectedSystemBuyPreviewLabel = null;
             selectedSystemSellPreviewLabel = null;
+            selectedSystemStatusLabel = null;
             selectedSystemBuyButton = null;
             selectedSystemSellButton = null;
             selectedSystemInventoryAmount = 0;
@@ -821,15 +824,13 @@ public class ShopOverlay extends OZUIElement {
         String buyDisabled = buyDisabledReason(effectiveOffer, 1);
         String sellDisabled = sellDisabledReason(effectiveOffer, 1);
         String statusText = economyDisabledLabel(buyDisabled, sellDisabled);
-        if (!statusText.isBlank()) {
-            UILabel status = label(statusText, 11, Font.Default);
-            status.setPivot(Pivot.UpperLeft);
-            status.setPosition(292, 82, false);
-            status.setSize(440, 18, false);
-            status.setFontColor(0xD89272FF);
-            status.setTextWrap(true);
-            options.addChild(status);
-        }
+        selectedSystemStatusLabel = label(statusText, 11, Font.Default);
+        selectedSystemStatusLabel.setPivot(Pivot.UpperLeft);
+        selectedSystemStatusLabel.setPosition(292, 82, false);
+        selectedSystemStatusLabel.setSize(440, 18, false);
+        selectedSystemStatusLabel.setFontColor(0xD89272FF);
+        selectedSystemStatusLabel.setTextWrap(true);
+        options.addChild(selectedSystemStatusLabel);
 
         // a container for buy and sale buttons
         OZUIElement optionActions = new OZUIElement();
@@ -1514,6 +1515,12 @@ public class ShopOverlay extends OZUIElement {
         }
         if (selectedSystemSellPreviewLabel != null) {
             selectedSystemSellPreviewLabel.setText(systemSellPreviewText(selectedSystemEffectiveOffer, newText));
+        }
+        if (selectedSystemStatusLabel != null) {
+            int quantity = quantityForAmount(selectedSystemEffectiveOffer, newText);
+            selectedSystemStatusLabel.setText(economyDisabledLabel(
+                    buyDisabledReason(selectedSystemEffectiveOffer, quantity),
+                    sellDisabledReason(selectedSystemEffectiveOffer, quantity)));
         }
         updateSelectedSystemBuyButton(newText);
         updateSelectedSystemSellButton(newText);

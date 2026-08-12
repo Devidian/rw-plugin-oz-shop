@@ -345,12 +345,13 @@ public class ShopService {
                 int maxDurability = maxDurability(item);
                 if (maxDurability > 0 && item.getDurability() <= 0) continue;
                 Modifier modifier = item.getModifier();
+                double normalPayout = conditionAdjustedPayoutExact(unitPayout, item.getDurability(), maxDurability,
+                        Modifier.Normal);
                 double itemPayout = conditionAdjustedPayoutExact(unitPayout, item.getDurability(), maxDurability,
                         modifier);
                 selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item),
                         maxDurability, modifier == null ? "Normal" : modifier.name(),
-                        modifierPayoutMultiplier(modifier), floorPayout(conditionAdjustedPayoutExact(unitPayout,
-                                item.getDurability(), maxDurability, Modifier.Normal) * amount),
+                        modifierPayoutMultiplier(modifier), normalPayout * amount, floorPayout(normalPayout * amount),
                         floorPayout(itemPayout * amount)));
                 payout += itemPayout * amount;
                 remaining -= amount;
@@ -736,6 +737,11 @@ public class ShopService {
         return payout <= 0.0d ? 0L : (long) Math.floor(payout + 1.0E-9d);
     }
 
+    /** Applies the same aggregate rounding as the actual player payout. */
+    static long traderPayoutCap(long payout, double normalPayout) {
+        return Math.min(Math.max(0L, payout), floorPayout(normalPayout));
+    }
+
     static double modifierPayoutMultiplier(Modifier modifier) {
         Modifier effective = modifier == null ? Modifier.Normal : modifier;
         if (effective == Modifier.Normal) return 1.0d;
@@ -839,7 +845,7 @@ public class ShopService {
     }
 
     private record SellSelection(int slot, SlotType slotType, int originalStack, int amount, ItemState state,
-            int maxDurability, String modifier, double modifierMultiplier, long basePayout,
+            int maxDurability, String modifier, double modifierMultiplier, double normalPayout, long basePayout,
             long adjustedPayout) {
     }
 
@@ -861,12 +867,12 @@ public class ShopService {
         public long payout() { return payout; }
         /** Trader-funded amount is capped at the equivalent Normal-modifier payout. */
         public long traderPayoutCap() {
-            long cap = 0L;
+            double normalPayout = 0.0d;
             for (SellSelection selection : selections) {
-                // The stored base payout is the Normal-modifier amount for this exact durability state.
-                cap = Math.min(Long.MAX_VALUE - cap, Math.max(0L, selection.basePayout()));
+                normalPayout = Math.min(Double.MAX_VALUE - normalPayout,
+                        normalPayout + Math.max(0.0d, selection.normalPayout()));
             }
-            return Math.min(payout, cap);
+            return ShopService.traderPayoutCap(payout, normalPayout);
         }
         public long worldModifierPremium() { return Math.max(0L, payout - traderPayoutCap()); }
         public int amount() { return amount; }
