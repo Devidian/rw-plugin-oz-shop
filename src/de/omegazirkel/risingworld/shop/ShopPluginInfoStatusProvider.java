@@ -24,7 +24,7 @@ public class ShopPluginInfoStatusProvider implements PluginInfoStatusProvider {
     @Override
     public String getInfo(Player player) {
         PluginSettings settings = PluginSettings.getInstance();
-        return t().get("TC_SHOP_INFO_PANEL_INFO", player)
+        return t().get("tc.shop.info.panel.info", player)
                 .replace("PH_PLUGIN_NAME", pluginName)
                 .replace("PH_VERSION", version)
                 .replace("PH_PLUGIN_CMD", settings.shopCommand);
@@ -34,7 +34,7 @@ public class ShopPluginInfoStatusProvider implements PluginInfoStatusProvider {
     public String getStatus(Player player) {
         PluginSettings settings = PluginSettings.getInstance();
         ShopZone currentZone = plugin.currentShopZone(player).orElse(null);
-        return t().get("TC_SHOP_INFO_PANEL_STATUS", player)
+        return t().get("tc.shop.info.panel.status", player)
                 .replace("PH_WALLET_STATUS", available(plugin.walletAvailable()))
                 .replace("PH_SHOP_ENABLED", String.valueOf(settings.shopEnabled))
                 .replace("PH_SYSTEM_SHOP_ENABLED", String.valueOf(settings.systemShopEnabled))

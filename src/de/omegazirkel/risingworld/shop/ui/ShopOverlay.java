@@ -23,11 +23,11 @@ import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.tools.Colors;
 import de.omegazirkel.risingworld.tools.I18n;
 import de.omegazirkel.risingworld.tools.ui.AdvancedButtonFactory;
-import de.omegazirkel.risingworld.tools.ui.CursorManager;
 import de.omegazirkel.risingworld.tools.ui.AdvancedButton;
 import de.omegazirkel.risingworld.tools.ui.Dropdown;
 import de.omegazirkel.risingworld.tools.ui.DropdownOption;
 import de.omegazirkel.risingworld.tools.ui.OZUIElement;
+import de.omegazirkel.risingworld.tools.ui.BasePluginOverlayWithTabs;
 import de.omegazirkel.risingworld.tools.ui.AssetManager;
 import de.omegazirkel.risingworld.tools.ui.table.TableCell;
 import de.omegazirkel.risingworld.tools.ui.table.TableRow;
@@ -58,22 +58,20 @@ import net.risingworld.api.ui.style.Wrap;
 import net.risingworld.api.Timer;
 
 // TODO: refactor -> extend new BasePluginOverlayWithTabs from Tools to reduce code here
-public class ShopOverlay extends OZUIElement {
+public class ShopOverlay extends BasePluginOverlayWithTabs {
     private static final int PANEL_HEIGHT = 680;
     private static final int BODY_HEIGHT = 520;
     private static final int TABLE_BODY_HEIGHT = 420;
     private static final int SYSTEM_LIST_HEIGHT = 390;
     private static final int SYSTEM_OPTIONS_HEIGHT = BODY_HEIGHT - SYSTEM_LIST_HEIGHT - 1;
     private static final int SYSTEM_OPTIONS_Y = SYSTEM_LIST_HEIGHT + 0;
-    protected static String titleLabelKey = "TC_SHOP_UI_TITLE";
-    protected static String descLabelKey = "TC_SHOP_UI_SUBTITLE";
+    protected static String titleLabelKey = "tc.shop.ui.title";
+    protected static String descLabelKey = "tc.shop.ui.subtitle";
 
     private final Shop plugin;
     private final Player player;
     private final I18n t;
     private final Colors c = Colors.getInstance();
-    private OZUIElement panel;
-    private OZUIElement body;
     private Tab activeTab = Tab.SYSTEM;
     private final WalletBridge walletBridge;
     private Trader trader;
@@ -112,19 +110,51 @@ public class ShopOverlay extends OZUIElement {
     }
 
     public ShopOverlay(Shop plugin, Player player, Trader trader) {
+        super(player, closed -> closed.deleteAttribute("oz.shop.ui.overlay"));
         this.plugin = plugin;
         this.player = player;
         this.trader = trader;
         this.walletBridge = new WalletBridge(plugin);
         this.t = I18n.getInstance(plugin);
-        setClickable(false);
         setPivot(Pivot.UpperLeft);
         setSize(100, 100, true);
         setBackgroundColor(0, 0, 0, 0.4f);
         rebuild();
     }
 
-    private void rebuild() {
+    @Override
+    protected I18n t() {
+        return t;
+    }
+
+    @Override
+    protected float panelHeightPixels() {
+        return PANEL_HEIGHT;
+    }
+
+    @Override
+    protected float bodyHeightPixels() {
+        return BODY_HEIGHT;
+    }
+
+    @Override
+    protected String titleText() {
+        return trader == null ? t.get(titleLabelKey, player)
+                : t.get("tc.shop.trader.ui.title", player).replace("PH_TRADER", trader.name());
+    }
+
+    @Override
+    protected String descriptionText() {
+        return trader == null ? t.get(descLabelKey, player) : t.get("tc.shop.trader.ui.subtitle", player);
+    }
+
+    @Override
+    protected String legendText() {
+        return "";
+    }
+
+    @Override
+    protected void rebuild() {
         stopEconomyCountdown();
         if (trader == null && (activeTab == Tab.SYSTEM || activeTab == Tab.PLUGIN) && !plugin.isShopAvailableFor(player)) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
@@ -142,20 +172,8 @@ public class ShopOverlay extends OZUIElement {
         selectedSystemBuyButton = null;
         selectedSystemSellButton = null;
         selectedSystemInventoryAmount = 0;
-        removeAllChilds();
-        panel = new OZUIElement();
-        panel.setPivot(Pivot.MiddleCenter);
-        panel.setPosition(50f, 50f, true);
-        panel.style.width.set(88f, Unit.Percent);
-        panel.style.height.set(PANEL_HEIGHT, Unit.Pixel);
-        panel.setBackgroundColor(0, 0, 0, 0.88f);
-        panel.setBorderColor(0.95f, 0.75f, 0.25f, 0.6f);
-        panel.setBorder(1);
-        panel.setBorderEdgeRadius(6, false);
-        addChild(panel);
-
-        setupHeader();
-        setupTabs();
+        super.rebuild();
+        setupEconomyCountdown();
         setupWalletBalanceBar();
         setupBody();
         setupRemoveConfirmation();
@@ -165,7 +183,7 @@ public class ShopOverlay extends OZUIElement {
 
     private void setupHeader() {
         UILabel title = new UILabel(trader == null ? t.get(titleLabelKey, player)
-                : t.get("TC_SHOP_TRADER_UI_TITLE", player).replace("PH_TRADER", trader.name()));
+                : t.get("tc.shop.trader.ui.title", player).replace("PH_TRADER", trader.name()));
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(24, 18, false);
         title.setFont(Font.DefaultBold);
@@ -173,7 +191,7 @@ public class ShopOverlay extends OZUIElement {
         panel.addChild(title);
 
         UILabel subtitle = new UILabel(trader == null ? t.get(descLabelKey, player)
-                : t.get("TC_SHOP_TRADER_UI_SUBTITLE", player));
+                : t.get("tc.shop.trader.ui.subtitle", player));
         subtitle.setPivot(Pivot.UpperLeft);
         subtitle.setPosition(24, 52, false);
         subtitle.setFont(Font.Default);
@@ -213,7 +231,7 @@ public class ShopOverlay extends OZUIElement {
         countdown.setPivot(Pivot.MiddleCenter); countdown.setPosition(50, 50, true); countdown.setSize(100, 100, true);
         countdown.setTextAlign(TextAnchor.MiddleCenter); entry.addChild(countdown); panel.addChild(entry);
         if (player.isAdmin()) {
-            AdvancedButton trigger = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_RUN_ECONOMY_TICK", player),
+            AdvancedButton trigger = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.run.economy.tick", player),
                     event -> plugin.forceEconomyTick(player, trader));
             trigger.setPivot(Pivot.UpperRight); trigger.style.position.set(Position.Absolute);
             // Keep this independent action outside the countdown container.
@@ -229,7 +247,7 @@ public class ShopOverlay extends OZUIElement {
         // deliberately not used here, otherwise an immediate scope tick stays hidden.
         long next = plugin.nextEconomyTickAt(trader);
         long remaining = Math.max(0L, next - System.currentTimeMillis()) / 1000L;
-        return t.get("TC_SHOP_UI_NEXT_STOCK_TICK", player).replace("PH_TIME", String.format(Locale.ROOT,
+        return t.get("tc.shop.ui.next.stock.tick", player).replace("PH_TIME", String.format(Locale.ROOT,
                 "%02d:%02d:%02d", remaining / 3600L, (remaining / 60L) % 60L, remaining % 60L));
     }
 
@@ -238,23 +256,24 @@ public class ShopOverlay extends OZUIElement {
         economyCountdownTimer = null;
     }
 
-    private void setupTabs() {
+    @Override
+    protected void setupTabs() {
         boolean playerShopAvailable = trader != null || plugin.isShopAvailableFor(player);
         int adminX = 24;
         if (playerShopAvailable) {
-            panel.addChild(tab(t.get(trader == null ? "TC_SHOP_UI_TAB_SYSTEM" : "TC_SHOP_TRADER_UI_TAB_SYSTEM", player), 24, 86, 170, Tab.SYSTEM));
-            if (trader == null || trader.pluginShopEnabled()) panel.addChild(tab(t.get("TC_SHOP_UI_TAB_PLUGIN", player), 194, 86, 170, Tab.PLUGIN));
+            panel.addChild(tab(t.get(trader == null ? "tc.shop.ui.tab.system" : "tc.shop.trader.ui.tab.system", player), 24, 86, 170, Tab.SYSTEM));
+            if (trader == null || trader.pluginShopEnabled()) panel.addChild(tab(t.get("tc.shop.ui.tab.plugin", player), 194, 86, 170, Tab.PLUGIN));
             adminX = 364;
         }
         if (player.isAdmin()) {
             if (trader != null) {
-                panel.addChild(tab(t.get("TC_SHOP_TRADER_UI_TAB_SETTINGS", player), adminX, 86, 170, Tab.ZONE));
-                panel.addChild(tab(t.get("TC_SHOP_TRADER_UI_TAB_ADMIN", player), adminX + 170, 86, 170, Tab.ADMIN));
+                panel.addChild(tab(t.get("tc.shop.trader.ui.tab.settings", player), adminX, 86, 170, Tab.ZONE));
+                panel.addChild(tab(t.get("tc.shop.trader.ui.tab.admin", player), adminX + 170, 86, 170, Tab.ADMIN));
             } else if (plugin.isInValidArea(player)) {
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ZONE", player), adminX, 86, 170, Tab.ZONE));
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), adminX + 170, 86, 170, Tab.ADMIN));
+                panel.addChild(tab(t.get("tc.shop.ui.tab.zone", player), adminX, 86, 170, Tab.ZONE));
+                panel.addChild(tab(t.get("tc.shop.ui.tab.admin", player), adminX + 170, 86, 170, Tab.ADMIN));
             } else {
-                panel.addChild(tab(t.get("TC_SHOP_UI_TAB_ADMIN", player), adminX, 86, 170, Tab.ADMIN));
+                panel.addChild(tab(t.get("tc.shop.ui.tab.admin", player), adminX, 86, 170, Tab.ADMIN));
             }
         }
     }
@@ -315,12 +334,12 @@ public class ShopOverlay extends OZUIElement {
         } else if (activeTab == Tab.SYSTEM) {
             if (trader != null || plugin.isSystemShopAvailableFor(player)) {
                 setupSystemShop(trader == null ? plugin.listSystemOffers(player) : plugin.listTraderSystemOffers(trader),
-                        t.get(trader == null ? "TC_SHOP_UI_EMPTY_SYSTEM" : "TC_SHOP_TRADER_UI_EMPTY_SYSTEM", player));
+                        t.get(trader == null ? "tc.shop.ui.empty.system" : "tc.shop.trader.ui.empty.system", player));
             } else {
-                setupSystemShop(List.of(), t.get("TC_SHOP_SYSTEM_DISABLED", player));
+                setupSystemShop(List.of(), t.get("tc.shop.system.disabled", player));
             }
         } else if (activeTab == Tab.PLUGIN) {
-            setupOffers(plugin.listPluginOffers(), t.get("TC_SHOP_UI_EMPTY_PLUGIN", player), OfferAction.BUY);
+            setupOffers(plugin.listPluginOffers(), t.get("tc.shop.ui.empty.plugin", player), OfferAction.BUY);
         } else {
             if (trader != null) setupTraderManagement(); else setupAdminTable();
         }
@@ -379,7 +398,7 @@ public class ShopOverlay extends OZUIElement {
         entry.setBorderColor(0.95f, 0.75f, 0.25f, 0.48f);
         entry.setBorderEdgeRadius(4, false);
 
-        UILabel account = label(t.get("TC_SHOP_TRADER_UI_ACCOUNT_LABEL", player), 12, Font.DefaultBold);
+        UILabel account = label(t.get("tc.shop.trader.ui.account.label", player), 12, Font.DefaultBold);
         account.setPivot(Pivot.UpperLeft);
         account.setPosition(10, 3, false);
         account.setSize(92, 18, false);
@@ -448,10 +467,10 @@ public class ShopOverlay extends OZUIElement {
     private void setupOfferTable(List<ShopOffer> offers, String emptyText, OfferAction action) {
         TableScrollView table = new TableScrollView(
                 Arrays.asList(
-                        t.get("TC_SHOP_UI_COL_OFFER", player),
-                        t.get("TC_SHOP_UI_COL_PRICE", player),
-                        t.get("TC_SHOP_UI_COL_SOURCE", player),
-                        t.get("TC_SHOP_UI_COL_ACTION", player)),
+                        t.get("tc.shop.ui.col.offer", player),
+                        t.get("tc.shop.ui.col.price", player),
+                        t.get("tc.shop.ui.col.source", player),
+                        t.get("tc.shop.ui.col.action", player)),
                 Arrays.asList(42f, 18f, 22f, 18f));
         table.setScrollBodyHeight(TABLE_BODY_HEIGHT);
 
@@ -543,7 +562,7 @@ public class ShopOverlay extends OZUIElement {
         scroll.addChild(wrapper);
 
         if (filtered.isEmpty()) {
-            UILabel empty = label(enabled.isEmpty() ? emptyText : t.get("TC_SHOP_UI_EMPTY_FILTER", player), 15,
+            UILabel empty = label(enabled.isEmpty() ? emptyText : t.get("tc.shop.ui.empty.filter", player), 15,
                     Font.Default);
             empty.setPivot(Pivot.UpperLeft);
             empty.setPosition(12, 12, false);
@@ -560,7 +579,7 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void setupSystemSearch() {
-        UILabel label = label(t.get("TC_SHOP_UI_SEARCH", player), 14, Font.Default);
+        UILabel label = label(t.get("tc.shop.ui.search", player), 14, Font.Default);
         label.setPivot(Pivot.UpperLeft);
         label.setPosition(12, 12, false);
         label.setSize(72, 26, false);
@@ -573,7 +592,7 @@ public class ShopOverlay extends OZUIElement {
         searchField.setMaxCharacters(80);
         body.addChild(searchField);
 
-        AdvancedButton apply = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SEARCH_APPLY", player), event -> {
+        AdvancedButton apply = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.search.apply", player), event -> {
             searchField.getCurrentText(player, text -> {
                 systemOfferFilter = text == null ? "" : text.trim();
                 selectedSystemOffer = null;
@@ -585,7 +604,7 @@ public class ShopOverlay extends OZUIElement {
         apply.setSize(92, 30, false);
         body.addChild(apply);
 
-        AdvancedButton clear = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SEARCH_CLEAR", player), event -> {
+        AdvancedButton clear = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.search.clear", player), event -> {
             systemOfferFilter = "";
             selectedSystemOffer = null;
             rebuild();
@@ -597,8 +616,8 @@ public class ShopOverlay extends OZUIElement {
 
         AdvancedButton inventoryOnly = AdvancedButtonFactory.defaultButton(
                 t.get(systemOffersInInventoryOnly
-                        ? "TC_SHOP_UI_INVENTORY_FILTER_ACTIVE"
-                        : "TC_SHOP_UI_INVENTORY_FILTER", player), event -> {
+                        ? "tc.shop.ui.inventory.filter.active"
+                        : "tc.shop.ui.inventory.filter", player), event -> {
                     systemOffersInInventoryOnly = !systemOffersInInventoryOnly;
                     selectedSystemOffer = null;
                     rebuild();
@@ -611,7 +630,7 @@ public class ShopOverlay extends OZUIElement {
         }
         body.addChild(inventoryOnly);
         if (player.isAdmin() && hasEditableOfferFile()) {
-            AdvancedButton add = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_EDITOR_ADD", player), event -> selectOfferToAdd());
+            AdvancedButton add = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.add", player), event -> selectOfferToAdd());
             add.setPivot(Pivot.UpperLeft); add.setPosition(776, 8, false); add.setSize(180, 30, false);
             add.setBorderEdgeRadius(3, false);
             styleResetButton(add);
@@ -649,7 +668,7 @@ public class ShopOverlay extends OZUIElement {
         title.setTextAlign(TextAnchor.UpperLeft);
         card.addChild(title);
 
-        UILabel stock = label(t.get("TC_SHOP_UI_STOCK", player)
+        UILabel stock = label(t.get("tc.shop.ui.stock", player)
                 .replace("PH_STOCK", stockLabel(displayOffer, economyStateFor(displayOffer))), 12, Font.Default);
         stock.setPivot(Pivot.UpperLeft);
         stock.setPosition(58, 54, false);
@@ -675,7 +694,7 @@ public class ShopOverlay extends OZUIElement {
 
         int priceY = 116;
         if (displayOffer.canPlayerBuyFromSystem()) {
-            UILabel buyPrice = label(t.get("TC_SHOP_UI_BUY_PRICE", player)
+            UILabel buyPrice = label(t.get("tc.shop.ui.buy.price", player)
                     .replace("PH_PRICE", offerUnitPrice(displayOffer, OfferAction.BUY)), 13, Font.DefaultBold);
             buyPrice.setPivot(Pivot.UpperLeft);
             buyPrice.setPosition(12, priceY, false);
@@ -686,7 +705,7 @@ public class ShopOverlay extends OZUIElement {
         }
 
         if (displayOffer.canPlayerSellToSystem()) {
-            UILabel sellPrice = label(t.get("TC_SHOP_UI_SELL_PRICE", player)
+            UILabel sellPrice = label(t.get("tc.shop.ui.sell.price", player)
                     .replace("PH_PRICE", offerUnitPrice(displayOffer, OfferAction.SELL)), 13, Font.DefaultBold);
             sellPrice.setPivot(Pivot.UpperLeft);
             sellPrice.setPosition(12, priceY, false);
@@ -764,7 +783,7 @@ public class ShopOverlay extends OZUIElement {
             selectedSystemBuyButton = null;
             selectedSystemSellButton = null;
             selectedSystemInventoryAmount = 0;
-            UILabel empty = label(t.get(trader == null ? "TC_SHOP_UI_OPTIONS_EMPTY" : "TC_SHOP_TRADER_UI_OPTIONS_EMPTY", player), 14, Font.Default);
+            UILabel empty = label(t.get(trader == null ? "tc.shop.ui.options.empty" : "tc.shop.trader.ui.options.empty", player), 14, Font.Default);
             empty.setPivot(Pivot.UpperLeft);
             empty.setPosition(12, 12, false);
             empty.setSize(90, 26, true);
@@ -781,7 +800,7 @@ public class ShopOverlay extends OZUIElement {
         title.setSize(260, 24, false);
         options.addChild(title);
 
-        UILabel stock = label(t.get("TC_SHOP_UI_STOCK", player)
+        UILabel stock = label(t.get("tc.shop.ui.stock", player)
                 .replace("PH_STOCK", stockLabel(effectiveOffer, economyStateFor(effectiveOffer))), 12, Font.Default);
         stock.setPivot(Pivot.UpperLeft);
         stock.setPosition(12, 36, false);
@@ -789,7 +808,7 @@ public class ShopOverlay extends OZUIElement {
         stock.setFontColor(0xC8C0B2FF);
         options.addChild(stock);
 
-        UILabel mode = label(t.get("TC_SHOP_UI_STOCK_MODE", player)
+        UILabel mode = label(t.get("tc.shop.ui.stock.mode", player)
                 .replace("PH_MODE", stockModeLabel(effectiveOffer.getStockMode())), 11, Font.Default);
         mode.setPivot(Pivot.UpperLeft);
         mode.setPosition(12, 56, false);
@@ -798,7 +817,7 @@ public class ShopOverlay extends OZUIElement {
         options.addChild(mode);
 
         if (effectiveOffer.usesPlayerSellLimits() || player.isAdmin()) {
-            UILabel limits = label(t.get("TC_SHOP_UI_SELL_LIMITS", player)
+            UILabel limits = label(t.get("tc.shop.ui.sell.limits", player)
                     .replace("PH_LIMITS", sellLimitLabel(effectiveOffer)), 11, Font.Default);
             limits.setPivot(Pivot.UpperLeft);
             limits.setPosition(12, 76, false);
@@ -807,7 +826,7 @@ public class ShopOverlay extends OZUIElement {
             options.addChild(limits);
         }
 
-        UILabel amountLabel = label(t.get("TC_SHOP_UI_AMOUNT", player), 13, Font.Default);
+        UILabel amountLabel = label(t.get("tc.shop.ui.amount", player), 13, Font.Default);
         amountLabel.setPivot(Pivot.UpperLeft);
         amountLabel.setPosition(292, 16, false);
         amountLabel.setSize(72, 24, false);
@@ -842,7 +861,7 @@ public class ShopOverlay extends OZUIElement {
         options.addChild(optionActions);
 
         if (effectiveOffer.canPlayerBuyFromSystem()) {
-            AdvancedButton buy = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_BUY_SELECTED", player),
+            AdvancedButton buy = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.buy.selected", player),
                     event -> executeSystemAction(effectiveOffer, amountField, false));
             buy.setPivot(Pivot.UpperLeft);
             buy.setPosition(0, 12, false);
@@ -856,7 +875,7 @@ public class ShopOverlay extends OZUIElement {
 
         int inventoryAmount = inventoryAmount(effectiveOffer);
         selectedSystemInventoryAmount = inventoryAmount;
-        UILabel inventory = label(t.get("TC_SHOP_UI_INVENTORY", player)
+        UILabel inventory = label(t.get("tc.shop.ui.inventory", player)
                 .replace("PH_AMOUNT", String.valueOf(inventoryAmount)), 12, Font.Default);
         inventory.setPivot(Pivot.UpperLeft);
         inventory.setPosition(292, 52, false);
@@ -883,7 +902,7 @@ public class ShopOverlay extends OZUIElement {
         options.addChild(selectedSystemSellPreviewLabel);
 
         if (effectiveOffer.canPlayerSellToSystem()) {
-            AdvancedButton sell = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SELL_SELECTED", player),
+            AdvancedButton sell = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.sell.selected", player),
                     event -> executeSystemAction(effectiveOffer, amountField, true));
 
             selectedSystemSellButton = sell;
@@ -898,26 +917,26 @@ public class ShopOverlay extends OZUIElement {
 
     private void addAdminEconomyDetails(OZUIElement options, ShopOffer offer, ShopEconomyStore.EconomyState state) {
         int x = 784;
-        UILabel heading = label(t.get("TC_SHOP_UI_ADMIN_ECONOMY_TITLE", player), 12, Font.DefaultBold);
+        UILabel heading = label(t.get("tc.shop.ui.admin.economy.title", player), 12, Font.DefaultBold);
         heading.setPivot(Pivot.UpperLeft);
         heading.setPosition(x, 6, false);
         heading.setSize(260, 18, false);
         heading.setFontColor(0xF2C766FF);
         options.addChild(heading);
 
-        addAdminEconomyLine(options, x, 28, t.get("TC_SHOP_UI_ADMIN_STOCKS", player)
+        addAdminEconomyLine(options, x, 28, t.get("tc.shop.ui.admin.stocks", player)
                 .replace("PH_STOCK", String.valueOf(state.stock()))
                 .replace("PH_TARGET", String.valueOf(state.targetStock()))
                 .replace("PH_LIMIT", String.valueOf(state.stockLimit())));
-        addAdminEconomyLine(options, x, 46, t.get("TC_SHOP_UI_ADMIN_MODE", player)
+        addAdminEconomyLine(options, x, 46, t.get("tc.shop.ui.admin.mode", player)
                 .replace("PH_MODE", stockModeLabel(offer.getStockMode())));
-        addAdminEconomyLine(options, x, 64, t.get("TC_SHOP_UI_ADMIN_DRAIN", player)
+        addAdminEconomyLine(options, x, 64, t.get("tc.shop.ui.admin.drain", player)
                 .replace("PH_PERCENT", String.valueOf(offer.getDrainPercent()))
                 .replace("PH_MAX", String.valueOf(offer.getDrainMax())));
-        addAdminEconomyLine(options, x, 82, t.get("TC_SHOP_UI_ADMIN_RESTOCK", player)
+        addAdminEconomyLine(options, x, 82, t.get("tc.shop.ui.admin.restock", player)
                 .replace("PH_PERCENT", String.valueOf(offer.getRestockPercent()))
                 .replace("PH_MAX", String.valueOf(offer.getRestockMax())));
-        AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player),
+        AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.admin.reset.target", player),
                 event -> showResetStockConfirmation(offer, state));
         reset.setPivot(Pivot.UpperLeft);
         reset.setPosition(x + 286, 42, false);
@@ -926,9 +945,9 @@ public class ShopOverlay extends OZUIElement {
         styleResetButton(reset);
         options.addChild(reset);
         if (hasEditableOfferFile()) {
-            AdvancedButton edit = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_EDITOR_EDIT", player), event -> showOfferEditor(offer));
+            AdvancedButton edit = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.edit", player), event -> showOfferEditor(offer));
             edit.setPivot(Pivot.UpperLeft); edit.setPosition(x + 286, 12, false); edit.setSize(180, 28, false); edit.setBorderEdgeRadius(3, false); styleResetButton(edit); options.addChild(edit);
-            AdvancedButton remove = AdvancedButtonFactory.danger(t.get("TC_SHOP_EDITOR_REMOVE", player), event -> showOfferRemoveConfirmation(offer));
+            AdvancedButton remove = AdvancedButtonFactory.danger(t.get("tc.shop.editor.remove", player), event -> showOfferRemoveConfirmation(offer));
             remove.setPivot(Pivot.UpperLeft); remove.setPosition(x + 286, 72, false); remove.setSize(180, 28, false); remove.setBorderEdgeRadius(3, false); styleResetButton(remove); options.addChild(remove);
         }
     }
@@ -938,18 +957,24 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void selectOfferToAdd() {
-        player.showItemSelectionMenu(true, true, true, true, item -> {
-            if (item == null || item.getName() == null || item.getName().isBlank()) return;
-            ShopPurchaseResult result = plugin.addOfferFromCatalog(player, trader, item.getName(), item.getVariant());
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            if (result.success) { selectedSystemOffer = null; rebuild(); }
+        player.showItemSelectionMenu(true, true, true, false, item -> {
+            if (item != null && item.getName() != null && !item.getName().isBlank()) {
+                ShopPurchaseResult result = plugin.addOfferFromCatalog(player, trader, item.getName(), item.getVariant());
+                player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+            }
+            // Item selection closes a modal client-side. Recreate it instead
+            // of rebuilding its stale root. Remove that root server-side too
+            // so the fresh modal becomes the sole active input target.
+            player.removeUIElement(this);
+            if (trader == null) plugin.openShopUI(player);
+            else plugin.openTraderUI(player, trader);
         });
     }
 
     private void showOfferRemoveConfirmation(ShopOffer offer) {
-        showSimpleConfirmation(t.get("TC_SHOP_EDITOR_REMOVE_CONFIRM_TITLE", player),
-                t.get("TC_SHOP_EDITOR_REMOVE_CONFIRM_TEXT", player).replace("PH_OFFER", offerTitle(offer)),
-                t.get("TC_SHOP_EDITOR_REMOVE", player), () -> {
+        showSimpleConfirmation(t.get("tc.shop.editor.remove.confirm.title", player),
+                t.get("tc.shop.editor.remove.confirm.text", player).replace("PH_OFFER", offerTitle(offer)),
+                t.get("tc.shop.editor.remove", player), () -> {
                     ShopPurchaseResult result = plugin.removeOffer(player, trader, offer);
                     player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
                     if (result.success) { selectedSystemOffer = null; rebuild(); }
@@ -961,7 +986,7 @@ public class ShopOverlay extends OZUIElement {
         OZUIElement dialog = new OZUIElement(); dialog.setPivot(Pivot.MiddleCenter); dialog.setPosition(50, 50, true); dialog.setSize(500, 210, false); dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f); dialog.setBorder(1); dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f); dialog.setBorderEdgeRadius(6, false);
         UILabel title = label(titleText, 20, Font.DefaultBold); title.setPivot(Pivot.UpperLeft); title.setPosition(18, 16, false); title.setSize(464, 28, false); dialog.addChild(title);
         UILabel text = label(content, 14, Font.Default); text.setPivot(Pivot.UpperLeft); text.setPosition(18, 56, false); text.setSize(464, 88, false); text.setTextWrap(true); dialog.addChild(text);
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker)); cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 192, false); cancel.setSize(150, 30, false); dialog.addChild(cancel);
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker)); cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 192, false); cancel.setSize(150, 30, false); dialog.addChild(cancel);
         UIElement okay = danger ? AdvancedButtonFactory.danger(confirmText, event -> { panel.removeChild(blocker); confirm.run(); }) : AdvancedButtonFactory.ok(confirmText, event -> { panel.removeChild(blocker); confirm.run(); }); okay.setPivot(Pivot.LowerRight); okay.setPosition(482, 192, false); okay.setSize(180, 30, false); dialog.addChild(okay);
         blocker.addChild(dialog); panel.addChild(blocker);
     }
@@ -972,7 +997,7 @@ public class ShopOverlay extends OZUIElement {
         OZUIElement dialog = new OZUIElement(); dialog.setPivot(Pivot.MiddleCenter); dialog.setPosition(50, 50, true);
         dialog.setSize(690, 610, false); dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f); dialog.setBorder(1);
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f); dialog.setBorderEdgeRadius(6, false);
-        UILabel title = label(t.get("TC_SHOP_EDITOR_EDIT", player) + ": " + offerTitle(offer), 18, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.editor.edit", player) + ": " + offerTitle(offer), 18, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft); title.setPosition(18, 14, false); title.setSize(650, 26, false); dialog.addChild(title);
         Map<String, UITextField> fields = new LinkedHashMap<>();
         String[] keys = { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockPercent", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
@@ -985,11 +1010,11 @@ public class ShopOverlay extends OZUIElement {
         UILabel modeCaption = label(t.get("TC_SHOP_EDITOR_FIELD_stockMode", player), 12, Font.Default); modeCaption.setPivot(Pivot.UpperLeft); modeCaption.setPosition(18, 242, false); modeCaption.setSize(300, 18, false); dialog.addChild(modeCaption);
         Dropdown modeDropdown = new Dropdown(Arrays.stream(ShopStockMode.values()).map(mode -> new DropdownOption(mode.name(), stockModeLabel(mode))).toList(), offer.getStockMode().name(), null);
         modeDropdown.setPivot(Pivot.UpperLeft); modeDropdown.setPosition(18, 262, false); modeDropdown.setSize(300, 28, false); dialog.addChild(modeDropdown);
-        UILabel readonly = label(t.get("TC_SHOP_EDITOR_READONLY", player).replace("PH_ID", offer.getId()).replace("PH_ITEM", offer.getItemName()).replace("PH_VARIANT", String.valueOf(offer.getItemVariant())), 11, Font.Default);
+        UILabel readonly = label(t.get("tc.shop.editor.readonly", player).replace("PH_ID", offer.getId()).replace("PH_ITEM", offer.getItemName()).replace("PH_VARIANT", String.valueOf(offer.getItemVariant())), 11, Font.Default);
         readonly.setPivot(Pivot.UpperLeft); readonly.setPosition(18, 500, false); readonly.setSize(650, 28, false); readonly.setTextWrap(true); dialog.addChild(readonly);
         UILabel context = label(editorContext(), 11, Font.Default); context.setPivot(Pivot.UpperLeft); context.setPosition(18, 536, false); context.setSize(650, 24, false); context.setTextWrap(true); context.setFontColor(0xC8C0B2FF); dialog.addChild(context);
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker)); cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 590, false); cancel.setSize(150, 30, false); dialog.addChild(cancel);
-        UIElement save = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_SAVE", player), event -> collectEditorFields(fields, new LinkedHashMap<>(), keys, 0, values -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker)); cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 590, false); cancel.setSize(150, 30, false); dialog.addChild(cancel);
+        UIElement save = AdvancedButtonFactory.ok(t.get("tc.shop.ui.save", player), event -> collectEditorFields(fields, new LinkedHashMap<>(), keys, 0, values -> {
             values.put("stockMode", modeDropdown.getSelectedKey());
             panel.removeChild(blocker); ShopPurchaseResult result = plugin.updateOffer(player, trader, offer, values);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message); if (result.success) rebuild();
@@ -1003,7 +1028,7 @@ public class ShopOverlay extends OZUIElement {
         if ("stockMode".equals(key)) { collectEditorFields(fields, values, keys, index + 1, done); return; }
         fields.get(key).getCurrentText(player, value -> {
             try { values.put(key, editorValue(key, value)); collectEditorFields(fields, values, keys, index + 1, done); }
-            catch (IllegalArgumentException ex) { player.sendTextMessage(c.error + t.get("TC_SHOP_EDITOR_INVALID_VALUE", player)); }
+            catch (IllegalArgumentException ex) { player.sendTextMessage(c.error + t.get("tc.shop.editor.invalid.value", player)); }
         });
     }
 
@@ -1016,10 +1041,10 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private String editorContext() {
-        if (trader != null) return t.get("TC_SHOP_EDITOR_CONTEXT_TRADER", player).replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())).replace("PH_FILE", trader.systemOffersFile());
+        if (trader != null) return t.get("tc.shop.editor.context.trader", player).replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())).replace("PH_FILE", trader.systemOffersFile());
         ShopZone zone = plugin.currentShopZone(player).orElse(null);
-        return zone == null ? t.get("TC_SHOP_EDITOR_CONTEXT_GLOBAL", player).replace("PH_FILE", plugin.selectedSystemOfferFile(player))
-                : t.get("TC_SHOP_EDITOR_CONTEXT_ZONE", player).replace("PH_AREA", zone.getAreaName()).replace("PH_ID", String.valueOf(zone.getAreaId())).replace("PH_FILE", plugin.selectedSystemOfferFile(player));
+        return zone == null ? t.get("tc.shop.editor.context.global", player).replace("PH_FILE", plugin.selectedSystemOfferFile(player))
+                : t.get("tc.shop.editor.context.zone", player).replace("PH_AREA", zone.getAreaName()).replace("PH_ID", String.valueOf(zone.getAreaId())).replace("PH_FILE", plugin.selectedSystemOfferFile(player));
     }
 
     private String editorValue(ShopOffer offer, String key) {
@@ -1059,13 +1084,13 @@ public class ShopOverlay extends OZUIElement {
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         dialog.setBorderEdgeRadius(6, false);
 
-        UILabel title = label(t.get("TC_SHOP_UI_ADMIN_RESET_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.admin.reset.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 16, false);
         title.setSize(400, 28, false);
         dialog.addChild(title);
 
-        UILabel text = label(t.get("TC_SHOP_UI_ADMIN_RESET_CONFIRM_TEXT", player)
+        UILabel text = label(t.get("tc.shop.ui.admin.reset.confirm.text", player)
                 .replace("PH_OFFER", offerTitle(offer))
                 .replace("PH_STOCK", String.valueOf(state.stock()))
                 .replace("PH_TARGET", String.valueOf(state.targetStock())), 14, Font.Default);
@@ -1076,13 +1101,13 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker));
         cancel.setPivot(Pivot.LowerLeft);
         cancel.setPosition(18, 192, false);
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_ADMIN_RESET_TARGET", player), event -> {
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("tc.shop.ui.admin.reset.target", player), event -> {
             panel.removeChild(blocker);
             ShopPurchaseResult result = plugin.resetSystemOfferStockToTarget(player, offer);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
@@ -1204,7 +1229,7 @@ public class ShopOverlay extends OZUIElement {
         try {
             return pricedOffer.getPrice(player) + " " + currency;
         } catch (RuntimeException ex) {
-            return t.get("TC_SHOP_UI_PRICE_ERROR", player);
+            return t.get("tc.shop.ui.price.error", player);
         }
     }
 
@@ -1216,7 +1241,7 @@ public class ShopOverlay extends OZUIElement {
         try {
             if (offer.isSystemOffer() && action == OfferAction.SELL) {
                 return formatUnitAmount(Math.max(0.0d, systemUnitPrice(pricedOffer, action))) + " " + currencyIdentifier(offer)
-                        + t.get("TC_SHOP_UI_UNIT_PRICE_SUFFIX", player);
+                        + t.get("tc.shop.ui.unit.price.suffix", player);
             }
             double price = offer.isSystemOffer()
                     ? systemUnitPrice(pricedOffer, action)
@@ -1224,9 +1249,9 @@ public class ShopOverlay extends OZUIElement {
                             ? pricedOffer.getBuyPrice() / units
                             : pricedOffer.getPrice(player) / units);
             return formatUnitAmount(Math.max(0.0d, price)) + " " + currencyIdentifier(offer)
-                    + t.get("TC_SHOP_UI_UNIT_PRICE_SUFFIX", player);
+                    + t.get("tc.shop.ui.unit.price.suffix", player);
         } catch (RuntimeException ex) {
-            return t.get("TC_SHOP_UI_PRICE_ERROR", player);
+            return t.get("tc.shop.ui.price.error", player);
         }
     }
 
@@ -1277,7 +1302,7 @@ public class ShopOverlay extends OZUIElement {
 
     private UIElement actionButton(ShopOffer offer, OfferAction action) {
         AdvancedButton button = AdvancedButtonFactory
-                .defaultButton(t.get(action == OfferAction.SELL ? "TC_SHOP_UI_SELL" : "TC_SHOP_UI_BUY", player), event -> {
+                .defaultButton(t.get(action == OfferAction.SELL ? "tc.shop.ui.sell" : "tc.shop.ui.buy", player), event -> {
                     if (action == OfferAction.BUY && !offer.isSystemOffer()
                             && ShopPlayerPreferences.pluginPurchaseConfirmationEnabled(player)) {
                         showPluginPurchaseConfirmation(offer);
@@ -1299,7 +1324,7 @@ public class ShopOverlay extends OZUIElement {
         player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
         if (result.success && action == OfferAction.BUY && !offer.isSystemOffer()
                 && ShopPlayerPreferences.pluginPurchaseSuccessMessageEnabled(player)) {
-            player.showSuccessMessageBox(t.get("TC_SHOP_UI_TITLE", player), result.message);
+            player.showSuccessMessageBox(t.get("tc.shop.ui.title", player), result.message);
         }
         rebuild();
     }
@@ -1321,13 +1346,13 @@ public class ShopOverlay extends OZUIElement {
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         dialog.setBorderEdgeRadius(6, false);
 
-        UILabel title = label(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.plugin.purchase.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 16, false);
         title.setSize(464, 28, false);
         dialog.addChild(title);
 
-        UILabel text = label(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM_TEXT", player)
+        UILabel text = label(t.get("tc.shop.ui.plugin.purchase.confirm.text", player)
                 .replace("PH_OFFER", offerTitle(offer))
                 .replace("PH_PRICE", offerPrice(offer, OfferAction.BUY)), 14, Font.Default);
         text.setPivot(Pivot.UpperLeft);
@@ -1337,13 +1362,13 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker));
         cancel.setPivot(Pivot.LowerLeft);
         cancel.setPosition(18, 212, false);
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_PLUGIN_PURCHASE_CONFIRM", player), event -> {
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("tc.shop.ui.plugin.purchase.confirm", player), event -> {
             panel.removeChild(blocker);
             completePluginOfferAction(offer, OfferAction.BUY);
         });
@@ -1369,7 +1394,7 @@ public class ShopOverlay extends OZUIElement {
                 return;
             }
             if (sellToSystem && requiredSystemSellAmount(offer, amountText) > inventoryAmount(offer)) {
-                player.sendTextMessage(c.warning + t.get("TC_SHOP_UI_NOT_IN_INVENTORY", player));
+                player.sendTextMessage(c.warning + t.get("tc.shop.ui.not.in.inventory", player));
                 refreshSystemOptions();
                 return;
             }
@@ -1413,13 +1438,13 @@ public class ShopOverlay extends OZUIElement {
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         dialog.setBorderEdgeRadius(6, false);
 
-        UILabel title = label(t.get("TC_SHOP_UI_SELL_CONDITION_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.sell.condition.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 16, false);
         title.setSize(724, 28, false);
         dialog.addChild(title);
 
-        UILabel intro = label(t.get("TC_SHOP_UI_SELL_CONDITION_CONFIRM_TEXT", player)
+        UILabel intro = label(t.get("tc.shop.ui.sell.condition.confirm.text", player)
                 .replace("PH_OFFER", offerTitle(offer)), 13, Font.Default);
         intro.setPivot(Pivot.UpperLeft);
         intro.setPosition(18, 52, false);
@@ -1440,7 +1465,7 @@ public class ShopOverlay extends OZUIElement {
         breakdown.setTextWrap(true);
         breakdownScroll.addChild(breakdown);
 
-        UILabel total = label(t.get("TC_SHOP_UI_SELL_CONDITION_TOTAL", player)
+        UILabel total = label(t.get("tc.shop.ui.sell.condition.total", player)
                 .replace("PH_PAYOUT", quote.payout() + " " + currencyIdentifier(offer)), 15, Font.DefaultBold);
         total.setPivot(Pivot.UpperLeft);
         total.setPosition(18, 350, false);
@@ -1448,13 +1473,13 @@ public class ShopOverlay extends OZUIElement {
         total.setFontColor(0xF2C766FF);
         dialog.addChild(total);
 
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> panel.removeChild(blocker));
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker));
         cancel.setPivot(Pivot.LowerLeft);
         cancel.setPosition(18, 422, false);
         cancel.setSize(170, 30, false);
         dialog.addChild(cancel);
 
-        AdvancedButton confirm = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_SELL_CONFIRM", player), event -> {
+        AdvancedButton confirm = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.sell.confirm", player), event -> {
             panel.removeChild(blocker);
             completeSystemAction(offer, quantity, true);
         });
@@ -1478,7 +1503,7 @@ public class ShopOverlay extends OZUIElement {
             int durabilityPercent = line.maxDurability() <= 0 ? 100
                     : (int) Math.round(100.0d * line.durability() / line.maxDurability());
             int modifierPercent = (int) Math.round(100.0d * line.modifierMultiplier());
-            lines.append(t.get("TC_SHOP_UI_SELL_CONDITION_LINE", player)
+            lines.append(t.get("tc.shop.ui.sell.condition.line", player)
                     .replace("PH_AMOUNT", String.valueOf(line.amount()))
                     .replace("PH_DURABILITY_PERCENT", String.valueOf(durabilityPercent))
                     .replace("PH_DURABILITY", String.valueOf(line.durability()))
@@ -1494,7 +1519,7 @@ public class ShopOverlay extends OZUIElement {
     private void refreshSelectedSystemTradeState(ShopOffer offer) {
         ShopOffer effectiveOffer = plugin.configuredSystemOffer(player, offer);
         if (selectedSystemCardStockLabel != null) {
-            selectedSystemCardStockLabel.setText(t.get("TC_SHOP_UI_STOCK", player)
+            selectedSystemCardStockLabel.setText(t.get("tc.shop.ui.stock", player)
                     .replace("PH_STOCK", stockLabel(effectiveOffer, economyStateFor(effectiveOffer))));
         }
         refreshSystemOptions();
@@ -1546,34 +1571,34 @@ public class ShopOverlay extends OZUIElement {
 
     private String stockLabel(ShopOffer offer, ShopEconomyStore.EconomyState state) {
         if (offer != null && offer.getStockMode() == ShopStockMode.STATIC) {
-            return t.get("TC_SHOP_UI_STOCK_UNLIMITED", player);
+            return t.get("tc.shop.ui.stock.unlimited", player);
         }
         if (state == null || !state.limited()) {
-            return t.get("TC_SHOP_UI_STOCK_UNLIMITED", player);
+            return t.get("tc.shop.ui.stock.unlimited", player);
         }
         return state.stock() + " / " + state.stockLimit();
     }
 
     private String adminNextTickLabel(ShopEconomyStore.EconomyTickStatus status) {
         if (status == null || !status.active()) {
-            return t.get("TC_SHOP_UI_ADMIN_NEXT_TICK", player)
-                    .replace("PH_DRAIN", t.get("TC_SHOP_UI_TICK_INACTIVE", player))
-                    .replace("PH_RESTOCK", t.get("TC_SHOP_UI_TICK_INACTIVE", player));
+            return t.get("tc.shop.ui.admin.next.tick", player)
+                    .replace("PH_DRAIN", t.get("tc.shop.ui.tick.inactive", player))
+                    .replace("PH_RESTOCK", t.get("tc.shop.ui.tick.inactive", player));
         }
-        return t.get("TC_SHOP_UI_ADMIN_NEXT_TICK", player)
+        return t.get("tc.shop.ui.admin.next.tick", player)
                 .replace("PH_DRAIN", tickLabel(status.nextDrainAt()))
                 .replace("PH_RESTOCK", tickLabel(status.nextRestockAt()));
     }
 
     private String tickLabel(long timestamp) {
         if (timestamp <= 0L) {
-            return t.get("TC_SHOP_UI_TICK_INACTIVE", player);
+            return t.get("tc.shop.ui.tick.inactive", player);
         }
         long remainingMillis = timestamp - System.currentTimeMillis();
         if (remainingMillis <= 0L) {
-            return t.get("TC_SHOP_UI_TICK_NOW", player);
+            return t.get("tc.shop.ui.tick.now", player);
         }
-        return t.get("TC_SHOP_UI_TICK_IN", player)
+        return t.get("tc.shop.ui.tick.in", player)
                 .replace("PH_TIME", durationLabel(remainingMillis));
     }
 
@@ -1595,7 +1620,7 @@ public class ShopOverlay extends OZUIElement {
         int quantity = quantityForAmount(offer, amountText);
         ShopService.SellQuote quote = sellQuote(offer, quantity);
         String currency = currencyIdentifier(offer);
-        return t.get("TC_SHOP_UI_SELL_PREVIEW", player)
+        return t.get("tc.shop.ui.sell.preview", player)
                 .replace("PH_PRICE", quantity <= 0 || !quote.sellable()
                         ? "0 " + currency
                         : quote.payout() + " " + currency);
@@ -1611,12 +1636,12 @@ public class ShopOverlay extends OZUIElement {
                 : plugin.dynamicTraderOffer(trader, offer, quantity);
         String currency = currencyIdentifier(offer);
         try {
-            return t.get("TC_SHOP_UI_BUY_PREVIEW", player)
+            return t.get("tc.shop.ui.buy.preview", player)
                     .replace("PH_PRICE", quantity <= 0
                             ? "0 " + currency
                             : pricedOffer.getPrice(player) + " " + currency);
         } catch (RuntimeException ex) {
-            return t.get("TC_SHOP_UI_PRICE_ERROR", player);
+            return t.get("tc.shop.ui.price.error", player);
         }
     }
 
@@ -1804,18 +1829,18 @@ public class ShopOverlay extends OZUIElement {
 
     private String sellLimitLabel(ShopOffer offer) {
         if (offer == null || !offer.usesPlayerSellLimits()) {
-            return t.get("TC_SHOP_UI_LIMIT_NONE", player);
+            return t.get("tc.shop.ui.limit.none", player);
         }
         long playerLimit = offer.getPerPlayerDailySellLimit();
         long globalLimit = offer.getGlobalDailySellLimit();
         if (playerLimit <= 0L && globalLimit <= 0L) {
-            return t.get("TC_SHOP_UI_LIMIT_NONE", player);
+            return t.get("tc.shop.ui.limit.none", player);
         }
         String playerPart = playerLimit > 0L
-                ? t.get("TC_SHOP_UI_LIMIT_PLAYER", player).replace("PH_LIMIT", String.valueOf(playerLimit))
+                ? t.get("tc.shop.ui.limit.player", player).replace("PH_LIMIT", String.valueOf(playerLimit))
                 : "";
         String globalPart = globalLimit > 0L
-                ? t.get("TC_SHOP_UI_LIMIT_GLOBAL", player).replace("PH_LIMIT", String.valueOf(globalLimit))
+                ? t.get("tc.shop.ui.limit.global", player).replace("PH_LIMIT", String.valueOf(globalLimit))
                 : "";
         if (playerPart.isBlank()) {
             return globalPart;
@@ -1833,17 +1858,17 @@ public class ShopOverlay extends OZUIElement {
             return "";
         }
         if (buyBlocked && sellBlocked && buyDisabled.equals(sellDisabled)) {
-            return t.get("TC_SHOP_UI_ECONOMY_BLOCKED", player).replace("PH_REASON", buyDisabled);
+            return t.get("tc.shop.ui.economy.blocked", player).replace("PH_REASON", buyDisabled);
         }
         if (buyBlocked && sellBlocked) {
-            return t.get("TC_SHOP_UI_ECONOMY_BLOCKED_BUY_SELL", player)
+            return t.get("tc.shop.ui.economy.blocked.buy.sell", player)
                     .replace("PH_BUY_REASON", buyDisabled)
                     .replace("PH_SELL_REASON", sellDisabled);
         }
         if (buyBlocked) {
-            return t.get("TC_SHOP_UI_ECONOMY_BLOCKED_BUY", player).replace("PH_REASON", buyDisabled);
+            return t.get("tc.shop.ui.economy.blocked.buy", player).replace("PH_REASON", buyDisabled);
         }
-        return t.get("TC_SHOP_UI_ECONOMY_BLOCKED_SELL", player).replace("PH_REASON", sellDisabled);
+        return t.get("tc.shop.ui.economy.blocked.sell", player).replace("PH_REASON", sellDisabled);
     }
 
     private UITextField textField(String value) {
@@ -1869,7 +1894,7 @@ public class ShopOverlay extends OZUIElement {
     private void setupZoneTab() {
         Area area = player.getCurrentArea();
         if (area == null || area.getID() <= 0L) {
-            UILabel empty = label(t.get("TC_SHOP_ZONE_NO_AREA", player), 15, Font.Default);
+            UILabel empty = label(t.get("tc.shop.zone.no.area", player), 15, Font.Default);
             empty.setPivot(Pivot.UpperLeft);
             empty.setPosition(18, 18, false);
             empty.setSize(90, 40, true);
@@ -1886,25 +1911,25 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void setupUnmarkedZone(Area area) {
-        UILabel title = label(t.get("TC_SHOP_UI_ZONE_CURRENT_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.zone.current.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 18, false);
         title.setSize(520, 30, false);
         body.addChild(title);
 
-        addZoneLine(18, 64, t.get("TC_SHOP_UI_ZONE_AREA_NAME", player)
+        addZoneLine(18, 64, t.get("tc.shop.ui.zone.area.name", player)
                 .replace("PH_AREA", areaName(area)));
-        addZoneLine(18, 88, t.get("TC_SHOP_UI_ZONE_AREA_ID", player)
+        addZoneLine(18, 88, t.get("tc.shop.ui.zone.area.id", player)
                 .replace("PH_AREA_ID", String.valueOf(area.getID())));
 
-        AdvancedButton create = AdvancedButtonFactory.defaultButton(t.get("TC_MENU_SHOP_ZONE_CREATE", player), event -> {
+        AdvancedButton create = AdvancedButtonFactory.defaultButton(t.get("tc.menu.shop.zone.create", player), event -> {
             plugin.createOrEnableCurrentZone(player).ifPresentOrElse(zone -> {
-                player.sendTextMessage(c.okay + t.get("TC_SHOP_ZONE_CREATED", player)
+                player.sendTextMessage(c.okay + t.get("tc.shop.zone.created", player)
                         .replace("PH_AREA", zone.getAreaName())
                         .replace("PH_AREA_ID", String.valueOf(zone.getAreaId())));
                 activeTab = Tab.ZONE;
                 rebuild();
-            }, () -> player.sendTextMessage(c.warning + t.get("TC_SHOP_ZONE_NO_AREA", player)));
+            }, () -> player.sendTextMessage(c.warning + t.get("tc.shop.zone.no.area", player)));
         });
         create.setPivot(Pivot.UpperLeft);
         create.setPosition(18, 130, false);
@@ -1913,17 +1938,17 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void setupMarkedZone(Area area, ShopZone zone) {
-        UILabel title = label(t.get("TC_SHOP_UI_ZONE_CONFIG_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.zone.config.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 18, false);
         title.setSize(520, 30, false);
         body.addChild(title);
 
-        addZoneLine(18, 54, t.get("TC_SHOP_UI_ZONE_AREA_INFO", player)
+        addZoneLine(18, 54, t.get("tc.shop.ui.zone.area.info", player)
                 .replace("PH_AREA", areaName(area))
                 .replace("PH_AREA_ID", String.valueOf(area.getID())));
 
-        addZoneLabel(18, 92, t.get("TC_SHOP_UI_ZONE_NAME_LABEL", player));
+        addZoneLabel(18, 92, t.get("tc.shop.ui.zone.name.label", player));
         zoneNameDraft = zone.getAreaName();
         zoneNameField = textField(zone.getAreaName());
         zoneNameField.setPivot(Pivot.UpperLeft);
@@ -1931,30 +1956,30 @@ public class ShopOverlay extends OZUIElement {
         zoneNameField.setSize(320, 30, false);
         zoneNameField.setMaxCharacters(80);
         body.addChild(zoneNameField);
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_SAVE", player), 354, 118, 118,
+        body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 118, 118,
                 event -> zoneNameField.getCurrentText(player, value -> {
                     ShopZone updated = plugin.setZoneName(zone.getAreaId(), value);
                     if (updated == null) {
-                        player.sendTextMessage(c.error + t.get("TC_SHOP_UI_ZONE_NAME_UPDATE_FAILED", player));
+                        player.sendTextMessage(c.error + t.get("tc.shop.ui.zone.name.update.failed", player));
                     } else {
-                        player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_ZONE_NAME_UPDATED", player)
+                        player.sendTextMessage(c.okay + t.get("tc.shop.ui.zone.name.updated", player)
                                 .replace("PH_AREA", updated.getAreaName()));
                     }
                     rebuild();
                 })));
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_ZONE_SYNC_NAME", player), 486, 118, 150,
+        body.addChild(zoneButton(t.get("tc.shop.ui.zone.sync.name", player), 486, 118, 150,
                 event -> {
                     ShopZone updated = plugin.syncCurrentZoneName(player);
                     if (updated == null) {
-                        player.sendTextMessage(c.error + t.get("TC_SHOP_UI_ZONE_NAME_UPDATE_FAILED", player));
+                        player.sendTextMessage(c.error + t.get("tc.shop.ui.zone.name.update.failed", player));
                     } else {
-                        player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_ZONE_NAME_UPDATED", player)
+                        player.sendTextMessage(c.okay + t.get("tc.shop.ui.zone.name.updated", player)
                                 .replace("PH_AREA", updated.getAreaName()));
                     }
                     rebuild();
                 }));
 
-        addZoneLabel(18, 172, t.get("TC_SHOP_UI_ZONE_OFFERS_FILE_LABEL", player));
+        addZoneLabel(18, 172, t.get("tc.shop.ui.zone.offers.file.label", player));
         zoneOfferFileDraft = zone.getSystemOffersFile();
         zoneOfferFileField = textField(zone.getSystemOffersFile());
         zoneOfferFileField.setPivot(Pivot.UpperLeft);
@@ -1962,27 +1987,27 @@ public class ShopOverlay extends OZUIElement {
         zoneOfferFileField.setSize(320, 30, false);
         zoneOfferFileField.setMaxCharacters(120);
         body.addChild(zoneOfferFileField);
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_SAVE", player), 354, 198, 118,
+        body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 198, 118,
                 event -> zoneOfferFileField.getCurrentText(player, value -> {
                     updateZoneOfferFile(zone, value);
                 })));
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_ZONE_OFFERS_RESET", player), 486, 198, 150,
+        body.addChild(zoneButton(t.get("tc.shop.ui.zone.offers.reset", player), 486, 198, 150,
                 event -> {
                     updateZoneOfferFile(zone, "");
                     rebuild();
                 }));
 
-        addZoneLabel(18, 254, t.get("TC_SHOP_UI_ZONE_SYSTEMSHOP_LABEL", player));
+        addZoneLabel(18, 254, t.get("tc.shop.ui.zone.systemshop.label", player));
         body.addChild(systemShopModeButton(zone, -1, 18, 284));
         body.addChild(systemShopModeButton(zone, 0, 140, 284));
         body.addChild(systemShopModeButton(zone, 1, 262, 284));
 
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_ZONE_RESET_STOCKS", player), 18, 354, 260,
+        body.addChild(zoneButton(t.get("tc.shop.ui.zone.reset.stocks", player), 18, 354, 260,
                 event -> {
                     pendingResetZoneStocks = true;
                     rebuild();
                 }));
-        UIElement remove = zoneButton(t.get("TC_SHOP_UI_ZONE_REMOVE", player), 304, 354, 220,
+        UIElement remove = zoneButton(t.get("tc.shop.ui.zone.remove", player), 304, 354, 220,
                 event -> {
                     pendingRemoveZone = zone;
                     rebuild();
@@ -2012,37 +2037,37 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private void setupTraderSettings() {
-        UILabel title = label(t.get("TC_SHOP_TRADER_UI_SETTINGS_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.trader.ui.settings.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 18, false);
         title.setSize(600, 30, false);
         body.addChild(title);
-        addZoneLine(18, 56, t.get("TC_SHOP_TRADER_UI_ACCOUNT", player)
+        addZoneLine(18, 56, t.get("tc.shop.trader.ui.account", player)
                 .replace("PH_BALANCE", String.valueOf(plugin.traderBalance(trader))));
-        addZoneLabel(18, 96, t.get("TC_SHOP_TRADER_UI_NAME", player));
+        addZoneLabel(18, 96, t.get("tc.shop.trader.ui.name", player));
         UITextField nameField = textField(trader.name());
         nameField.setPivot(Pivot.UpperLeft); nameField.setPosition(18, 122, false); nameField.setSize(320, 30, false);
         body.addChild(nameField);
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_SAVE", player), 354, 122, 118, event ->
+        body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 122, 118, event ->
                 nameField.getCurrentText(player, value -> { trader = plugin.renameTrader(trader.npcId(), value); rebuild(); })));
-        addZoneLabel(18, 176, t.get("TC_SHOP_TRADER_UI_OFFERS_FILE", player));
+        addZoneLabel(18, 176, t.get("tc.shop.trader.ui.offers.file", player));
         UITextField fileField = textField(trader.systemOffersFile());
         fileField.setPivot(Pivot.UpperLeft); fileField.setPosition(18, 202, false); fileField.setSize(320, 30, false);
         body.addChild(fileField);
-        body.addChild(zoneButton(t.get("TC_SHOP_UI_SAVE", player), 354, 202, 118, event ->
+        body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 202, 118, event ->
                 fileField.getCurrentText(player, this::saveTraderOfferFile)));
-        body.addChild(zoneButton(t.get(trader.pluginShopEnabled() ? "TC_SHOP_TRADER_UI_PLUGIN_ON" : "TC_SHOP_TRADER_UI_PLUGIN_OFF", player),
+        body.addChild(zoneButton(t.get(trader.pluginShopEnabled() ? "tc.shop.trader.ui.plugin.on" : "tc.shop.trader.ui.plugin.off", player),
                 18, 270, 260, event -> {
                     trader = plugin.setTraderPluginShopEnabled(trader.npcId(), !trader.pluginShopEnabled());
                     if (!trader.pluginShopEnabled() && activeTab == Tab.PLUGIN) activeTab = Tab.SYSTEM;
                     rebuild();
                 }));
-        body.addChild(zoneButton(t.get("TC_SHOP_TRADER_REPLENISH", player), 294, 270, 178, event -> {
+        body.addChild(zoneButton(t.get("tc.shop.trader.replenish", player), 294, 270, 178, event -> {
             ShopPurchaseResult result = plugin.replenishTraderStartCapital(player, trader);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
             rebuild();
         }));
-        UIElement dissolve = zoneButton(t.get("TC_SHOP_TRADER_UI_DISSOLVE", player), 18, 340, 260,
+        UIElement dissolve = zoneButton(t.get("tc.shop.trader.ui.dissolve", player), 18, 340, 260,
                 event -> { pendingDissolveTrader = trader; rebuild(); });
         if (dissolve instanceof AdvancedButton dissolveButton) styleResetButton(dissolveButton);
         body.addChild(dissolve);
@@ -2057,37 +2082,46 @@ public class ShopOverlay extends OZUIElement {
         dialog.setPivot(Pivot.MiddleCenter); dialog.setPosition(50, 50, true); dialog.setSize(540, 230, false);
         dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f); dialog.setBorder(1);
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f); dialog.setBorderEdgeRadius(6, false);
-        UILabel title = label(t.get("TC_SHOP_TRADER_UI_DISSOLVE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.trader.ui.dissolve.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft); title.setPosition(18, 16, false); title.setSize(500, 28, false);
         dialog.addChild(title);
-        UILabel text = label(t.get("TC_SHOP_TRADER_UI_DISSOLVE_CONFIRM_TEXT", player)
+        UILabel text = label(t.get("tc.shop.trader.ui.dissolve.confirm.text", player)
                 .replace("PH_TRADER", pendingDissolveTrader.name()), 14, Font.Default);
         text.setPivot(Pivot.UpperLeft); text.setPosition(18, 56, false); text.setSize(500, 100, false);
         text.setTextWrap(true); text.setTextAlign(TextAnchor.UpperLeft); dialog.addChild(text);
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> {
             pendingDissolveTrader = null; rebuild();
         });
         cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 212, false); cancel.setSize(170, 30, false);
         dialog.addChild(cancel);
-        UIElement dissolve = AdvancedButtonFactory.danger(t.get("TC_SHOP_TRADER_UI_DISSOLVE", player), event -> {
-            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader);
+        AdvancedButton unlink = AdvancedButtonFactory.defaultButton(t.get("tc.shop.trader.ui.dissolve.unlink", player), event -> {
+            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader, false);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
             pendingDissolveTrader = null;
             if (result.success) close(); else rebuild();
         });
-        dissolve.setPivot(Pivot.LowerRight); dissolve.setPosition(522, 212, false); dissolve.setSize(180, 30, false);
-        dialog.addChild(dissolve);
+        styleConditionSellButton(unlink);
+        unlink.setPivot(Pivot.LowerLeft); unlink.setPosition(198, 212, false); unlink.setSize(160, 30, false);
+        dialog.addChild(unlink);
+        AdvancedButton deleteNpc = AdvancedButtonFactory.danger(t.get("tc.shop.trader.ui.dissolve.npc", player), event -> {
+            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader, true);
+            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+            pendingDissolveTrader = null;
+            if (result.success) close(); else rebuild();
+        });
+        deleteNpc.setPivot(Pivot.LowerRight); deleteNpc.setPosition(522, 212, false); deleteNpc.setSize(154, 30, false);
+        dialog.addChild(deleteNpc);
         blocker.addChild(dialog); panel.addChild(blocker);
     }
 
     private void setupTraderManagement() {
-        TableScrollView table = new TableScrollView(Arrays.asList(t.get("TC_SHOP_TRADER_UI_COL_NAME", player),
-                t.get("TC_SHOP_TRADER_UI_COL_ID", player), t.get("TC_SHOP_TRADER_UI_COL_BALANCE", player),
-                t.get("TC_SHOP_TRADER_UI_COL_CREATOR", player), t.get("TC_SHOP_UI_COL_ACTION", player)),
+        TableScrollView table = new TableScrollView(Arrays.asList(t.get("tc.shop.trader.ui.col.name", player),
+                t.get("tc.shop.trader.ui.col.id", player), t.get("tc.shop.trader.ui.col.balance", player),
+                t.get("tc.shop.trader.ui.col.creator", player), t.get("tc.shop.ui.col.action", player)),
                 Arrays.asList(28f, 16f, 20f, 22f, 14f));
         table.setScrollBodyHeight(TABLE_BODY_HEIGHT);
         List<Trader> traders = plugin.listTraders();
-        if (traders.isEmpty()) table.addRow(textOnlyRow(t.get("TC_SHOP_TRADER_UI_EMPTY", player)));
+        if (traders.isEmpty()) table.addRow(textOnlyRow(t.get("tc.shop.trader.ui.empty", player)));
         else for (Trader value : traders) table.addRow(new TableRow(Arrays.asList(labelCell(value.name(), 28f),
                 labelCell(String.valueOf(value.npcId()), 16f), labelCell(String.valueOf(plugin.traderBalance(value)), 20f),
                 labelCell(value.createdBy(), 22f), new TableCell(traderTeleportButton(value), 14f))));
@@ -2095,9 +2129,9 @@ public class ShopOverlay extends OZUIElement {
     }
 
     private UIElement traderTeleportButton(Trader value) {
-        AdvancedButton button = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_TRADER_UI_TELEPORT", player), event -> {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(t.get("tc.shop.trader.ui.teleport", player), event -> {
             net.risingworld.api.objects.Npc npc = World.getNpc(value.npcId());
-            if (npc == null || npc.isDead()) player.sendTextMessage(c.warning + t.get("TC_SHOP_TRADER_UI_UNAVAILABLE", player));
+            if (npc == null || npc.isDead()) player.sendTextMessage(c.warning + t.get("tc.shop.trader.ui.unavailable", player));
             else player.setPosition(npc.getPosition());
         });
         button.setPivot(Pivot.UpperLeft); button.setPosition(4, 5, false); button.setSize(82, 22, false);
@@ -2118,7 +2152,7 @@ public class ShopOverlay extends OZUIElement {
         AdvancedButton button = AdvancedButtonFactory.defaultButton(systemShopModeLabel(mode), event -> {
             ShopZone updated = plugin.setZoneSystemShop(zone.getAreaId(), mode);
             if (updated != null) {
-                player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_SYSTEMSHOP_UPDATED", player)
+                player.sendTextMessage(c.okay + t.get("tc.shop.ui.systemshop.updated", player)
                         .replace("PH_AREA", updated.getAreaName())
                         .replace("PH_MODE", systemShopLabel(updated)));
             }
@@ -2138,43 +2172,43 @@ public class ShopOverlay extends OZUIElement {
 
     private String systemShopModeLabel(int mode) {
         return switch (mode) {
-            case 0 -> t.get("TC_SHOP_UI_SYSTEMSHOP_DISABLED", player);
-            case 1 -> t.get("TC_SHOP_UI_SYSTEMSHOP_ENABLED", player);
-            default -> t.get("TC_SHOP_UI_SYSTEMSHOP_INHERIT", player);
+            case 0 -> t.get("tc.shop.ui.systemshop.disabled", player);
+            case 1 -> t.get("tc.shop.ui.systemshop.enabled", player);
+            default -> t.get("tc.shop.ui.systemshop.inherit", player);
         };
     }
 
     private void updateZoneOfferFile(ShopZone zone, String value) {
         String normalized = value == null ? "" : value.trim();
         if (!normalized.isBlank() && !plugin.offerFileExists(normalized)) {
-            showSimpleConfirmation(t.get("TC_SHOP_EDITOR_CREATE_FILE_TITLE", player),
-                    t.get("TC_SHOP_EDITOR_CREATE_FILE_TEXT", player).replace("PH_FILE", normalized),
-                    t.get("TC_SHOP_EDITOR_CREATE_FILE", player), () -> {
-                        if (!plugin.createOfferFile(normalized)) player.sendTextMessage(c.error + t.get("TC_SHOP_EDITOR_CREATE_FILE_FAILED", player));
+            showSimpleConfirmation(t.get("tc.shop.editor.create.file.title", player),
+                    t.get("tc.shop.editor.create.file.text", player).replace("PH_FILE", normalized),
+                    t.get("tc.shop.editor.create.file", player), () -> {
+                        if (!plugin.createOfferFile(normalized)) player.sendTextMessage(c.error + t.get("tc.shop.editor.create.file.failed", player));
                         else { updateZoneOfferFile(zone, normalized); rebuild(); }
                     }, false);
             return;
         }
         ShopZone updated = plugin.setZoneSystemOffersFile(zone.getAreaId(), normalized);
         if (updated == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_UI_ZONE_OFFERS_UPDATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.ui.zone.offers.update.failed", player));
             return;
         }
         plugin.reloadShopZones();
-        player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_ZONE_OFFERS_UPDATED", player)
+        player.sendTextMessage(c.okay + t.get("tc.shop.ui.zone.offers.updated", player)
                 .replace("PH_AREA", updated.getAreaName())
                 .replace("PH_FILE", updated.getSystemOffersFile().isBlank()
-                        ? t.get("TC_SHOP_UI_ZONE_OFFERS_DEFAULT", player)
+                        ? t.get("tc.shop.ui.zone.offers.default", player)
                         : updated.getSystemOffersFile()));
     }
 
     private void saveTraderOfferFile(String value) {
         String normalized = value == null ? "" : value.trim();
         if (!normalized.isBlank() && !plugin.offerFileExists(normalized)) {
-            showSimpleConfirmation(t.get("TC_SHOP_EDITOR_CREATE_FILE_TITLE", player),
-                    t.get("TC_SHOP_EDITOR_CREATE_FILE_TEXT", player).replace("PH_FILE", normalized),
-                    t.get("TC_SHOP_EDITOR_CREATE_FILE", player), () -> {
-                        if (!plugin.createOfferFile(normalized)) player.sendTextMessage(c.error + t.get("TC_SHOP_EDITOR_CREATE_FILE_FAILED", player));
+            showSimpleConfirmation(t.get("tc.shop.editor.create.file.title", player),
+                    t.get("tc.shop.editor.create.file.text", player).replace("PH_FILE", normalized),
+                    t.get("tc.shop.editor.create.file", player), () -> {
+                        if (!plugin.createOfferFile(normalized)) player.sendTextMessage(c.error + t.get("tc.shop.editor.create.file.failed", player));
                         else { trader = plugin.setTraderOffersFile(trader.npcId(), normalized); rebuild(); }
                     }, false);
             return;
@@ -2189,17 +2223,17 @@ public class ShopOverlay extends OZUIElement {
     private void setupAdminTable() {
         TableScrollView table = new TableScrollView(
                 Arrays.asList(
-                        t.get("TC_SHOP_UI_COL_AREA", player),
-                        t.get("TC_SHOP_UI_COL_AREA_ID", player),
-                        t.get("TC_SHOP_UI_COL_SYSTEMSHOP", player),
-                        t.get("TC_SHOP_UI_COL_CREATED_BY", player),
-                        t.get("TC_SHOP_UI_COL_ACTION", player)),
+                        t.get("tc.shop.ui.col.area", player),
+                        t.get("tc.shop.ui.col.area.id", player),
+                        t.get("tc.shop.ui.col.systemshop", player),
+                        t.get("tc.shop.ui.col.created.by", player),
+                        t.get("tc.shop.ui.col.action", player)),
                 Arrays.asList(34f, 14f, 18f, 18f, 16f));
         table.setScrollBodyHeight(TABLE_BODY_HEIGHT);
 
         List<ShopZone> zones = plugin.listShopZones();
         if (zones.isEmpty()) {
-            table.addRow(textOnlyRow(t.get("TC_SHOP_UI_EMPTY_AREAS", player)));
+            table.addRow(textOnlyRow(t.get("tc.shop.ui.empty.areas", player)));
         } else {
             for (ShopZone zone : zones) {
                 table.addRow(zoneRow(zone));
@@ -2222,7 +2256,7 @@ public class ShopOverlay extends OZUIElement {
             int next = zone.getSystemShop() == -1 ? 0 : zone.getSystemShop() == 0 ? 1 : -1;
             ShopZone updated = plugin.setZoneSystemShop(zone.getAreaId(), next);
             if (updated != null) {
-                player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_SYSTEMSHOP_UPDATED", player)
+                player.sendTextMessage(c.okay + t.get("tc.shop.ui.systemshop.updated", player)
                         .replace("PH_AREA", updated.getAreaName())
                         .replace("PH_MODE", systemShopLabel(updated)));
             }
@@ -2237,14 +2271,14 @@ public class ShopOverlay extends OZUIElement {
 
     private String systemShopLabel(ShopZone zone) {
         return switch (zone.getSystemShop()) {
-            case 0 -> t.get("TC_SHOP_UI_SYSTEMSHOP_DISABLED", player);
-            case 1 -> t.get("TC_SHOP_UI_SYSTEMSHOP_ENABLED", player);
-            default -> t.get("TC_SHOP_UI_SYSTEMSHOP_INHERIT", player);
+            case 0 -> t.get("tc.shop.ui.systemshop.disabled", player);
+            case 1 -> t.get("tc.shop.ui.systemshop.enabled", player);
+            default -> t.get("tc.shop.ui.systemshop.inherit", player);
         };
     }
 
     private UIElement removeZoneButton(ShopZone zone) {
-        AdvancedButton button = AdvancedButtonFactory.defaultButton(t.get("TC_SHOP_UI_REMOVE", player), event -> {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.remove", player), event -> {
             pendingRemoveZone = zone;
             rebuild();
         });
@@ -2278,13 +2312,13 @@ public class ShopOverlay extends OZUIElement {
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         dialog.setBorderEdgeRadius(6, false);
 
-        UILabel title = label(t.get("TC_SHOP_UI_REMOVE_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.remove.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 16, false);
         title.setSize(380, 28, false);
         dialog.addChild(title);
 
-        UILabel text = label(t.get("TC_SHOP_UI_REMOVE_CONFIRM_TEXT", player)
+        UILabel text = label(t.get("tc.shop.ui.remove.confirm.text", player)
                 .replace("PH_AREA", pendingRemoveZone.getAreaName()), 14, Font.Default);
         text.setPivot(Pivot.UpperLeft);
         text.setPosition(18, 56, false);
@@ -2293,7 +2327,7 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> {
             pendingRemoveZone = null;
             rebuild();
         });
@@ -2302,10 +2336,10 @@ public class ShopOverlay extends OZUIElement {
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement remove = AdvancedButtonFactory.danger(t.get("TC_SHOP_UI_REMOVE", player), event -> {
+        UIElement remove = AdvancedButtonFactory.danger(t.get("tc.shop.ui.remove", player), event -> {
             if (plugin.shopZoneService().deleteAreaZone(pendingRemoveZone.getAreaId())) {
                 plugin.reloadShopZones();
-                player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_AREA_REMOVED", player)
+                player.sendTextMessage(c.okay + t.get("tc.shop.ui.area.removed", player)
                         .replace("PH_AREA", pendingRemoveZone.getAreaName()));
             }
             pendingRemoveZone = null;
@@ -2347,13 +2381,13 @@ public class ShopOverlay extends OZUIElement {
         dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
         dialog.setBorderEdgeRadius(6, false);
 
-        UILabel title = label(t.get("TC_SHOP_UI_ZONE_RESET_CONFIRM_TITLE", player), 20, Font.DefaultBold);
+        UILabel title = label(t.get("tc.shop.ui.zone.reset.confirm.title", player), 20, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft);
         title.setPosition(18, 16, false);
         title.setSize(420, 28, false);
         dialog.addChild(title);
 
-        UILabel text = label(t.get("TC_SHOP_UI_ZONE_RESET_CONFIRM_TEXT", player)
+        UILabel text = label(t.get("tc.shop.ui.zone.reset.confirm.text", player)
                 .replace("PH_AREA", zone.getAreaName()), 14, Font.Default);
         text.setPivot(Pivot.UpperLeft);
         text.setPosition(18, 56, false);
@@ -2362,7 +2396,7 @@ public class ShopOverlay extends OZUIElement {
         text.setTextAlign(TextAnchor.UpperLeft);
         dialog.addChild(text);
 
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("TC_BTN_CANCEL", player), event -> {
+        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> {
             pendingResetZoneStocks = false;
             rebuild();
         });
@@ -2371,7 +2405,7 @@ public class ShopOverlay extends OZUIElement {
         cancel.setSize(150, 30, false);
         dialog.addChild(cancel);
 
-        UIElement confirm = AdvancedButtonFactory.ok(t.get("TC_SHOP_UI_ZONE_RESET_STOCKS", player), event -> {
+        UIElement confirm = AdvancedButtonFactory.ok(t.get("tc.shop.ui.zone.reset.stocks", player), event -> {
             pendingResetZoneStocks = false;
             ShopPurchaseResult result = plugin.resetCurrentZoneStocksToTarget(player);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
@@ -2406,9 +2440,7 @@ public class ShopOverlay extends OZUIElement {
 
     public void close() {
         stopEconomyCountdown();
-        player.removeUIElement(this);
-        player.deleteAttribute("oz.shop.ui.overlay");
-        CursorManager.hide(player);
+        super.close();
     }
 
     /** Rebuild only an overlay whose displayed stock belongs to the completed scope. */

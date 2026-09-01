@@ -51,16 +51,16 @@ public class PluginGUI {
 
     private void showShopMenu(Player player) {
         List<MenuItem> items = new ArrayList<>();
-        items.add(new MenuItem("oz-shop", t(player, "TC_MENU_SHOP_LIST"),
+        items.add(new MenuItem("oz-shop", t(player, "tc.menu.shop.list"),
                 this::openDirectShop));
         if (player.isAdmin() && plugin.currentShopZone(player).isEmpty()) {
-            items.add(new MenuItem("oz-shop", t(player, "TC_MENU_SHOP_ZONE_CREATE"),
+            items.add(new MenuItem("oz-shop", t(player, "tc.menu.shop.zone.create"),
                     this::createOrEnableZone));
         }
         if (player.isAdmin()) {
-            items.add(new MenuItem("create-trader", t(player, "TC_MENU_SHOP_TRADER_CREATE"), this::createTrader));
+            items.add(new MenuItem("create-trader", t(player, "tc.menu.shop.trader.create"), this::createTrader));
         }
-        items.add(new MenuItem("info-status", t(player, "TC_MENU_SHOP_INFO_STATUS"), p -> {
+        items.add(new MenuItem("info-status", t(player, "tc.menu.shop.info.status"), p -> {
             p.hideRadialMenu(true);
             PluginInfoStatusProviders.show(p, Shop.name);
         }));
@@ -71,23 +71,23 @@ public class PluginGUI {
     private void openDirectShop(Player player) {
         player.hideRadialMenu(true);
         if (player.isAdmin() && !plugin.isShopAvailableFor(player)) {
-            plugin.executeDelayed(0.05f, () -> plugin.openShopUI(player));
+            plugin.openShopUI(player);
             return;
         }
         if (!plugin.isShopAvailableFor(player)) {
             player.sendTextMessage(c.warning + plugin.shopUnavailableMessage(player));
             return;
         }
-        plugin.executeDelayed(0.05f, () -> plugin.openShopUI(player));
+        plugin.openShopUI(player);
     }
 
     private void createOrEnableZone(Player player) {
         player.hideRadialMenu(true);
         plugin.createOrEnableCurrentZone(player).ifPresentOrElse(zone -> {
-            player.sendTextMessage(c.okay + t(player, "TC_SHOP_ZONE_CREATED")
+            player.sendTextMessage(c.okay + t(player, "tc.shop.zone.created")
                     .replace("PH_AREA", zone.getAreaName())
                     .replace("PH_AREA_ID", String.valueOf(zone.getAreaId())));
-        }, () -> player.sendTextMessage(c.warning + t(player, "TC_SHOP_ZONE_NO_AREA")));
+        }, () -> player.sendTextMessage(c.warning + t(player, "tc.shop.zone.no.area")));
     }
 
     private void createTrader(Player player) {

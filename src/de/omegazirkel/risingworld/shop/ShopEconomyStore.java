@@ -249,7 +249,7 @@ public class ShopEconomyStore {
             return EconomyCheck.ok();
         }
         if (!offer.canPlayerSellToSystem()) {
-            return EconomyCheck.rejected("TC_SHOP_DYNAMIC_STOCK_FULL");
+            return EconomyCheck.rejected("tc.shop.dynamic.stock.full");
         }
         String effectiveScope = scope == null || scope.isBlank() ? GLOBAL_SCOPE : scope.trim();
         ensureOfferState(effectiveScope, offer);
@@ -267,26 +267,26 @@ public class ShopEconomyStore {
                 long stock = result.getLong("stock");
                 long stockLimit = Math.max(0L, offer.getDefaultStockLimit());
                 if (stockLimit > 0L && stock + Math.max(0, offer.getAmount()) > stockLimit) {
-                    return EconomyCheck.rejected("TC_SHOP_DYNAMIC_STOCK_FULL");
+                    return EconomyCheck.rejected("tc.shop.dynamic.stock.full");
                 }
                 long amount = Math.max(0L, offer.getAmount());
                 long dayStart = dayStart(System.currentTimeMillis());
                 if (offer.usesPlayerSellLimits() && offer.getGlobalDailySellLimit() > 0L
                         && counterAmount(effectiveScope, offer.getId(), "global", dayStart) + amount
                                 > offer.getGlobalDailySellLimit()) {
-                    return EconomyCheck.rejected("TC_SHOP_DAILY_SELL_LIMIT_GLOBAL");
+                    return EconomyCheck.rejected("tc.shop.daily.sell.limit.global");
                 }
                 if (offer.usesPlayerSellLimits() && offer.getPerPlayerDailySellLimit() > 0L
                         && counterAmount(effectiveScope, offer.getId(), playerKey(playerId), dayStart) + amount
                                 > offer.getPerPlayerDailySellLimit()) {
-                    return EconomyCheck.rejected("TC_SHOP_DAILY_SELL_LIMIT_PLAYER");
+                    return EconomyCheck.rejected("tc.shop.daily.sell.limit.player");
                 }
                 return EconomyCheck.ok();
             }
         } catch (SQLException ex) {
             Shop.logger().error("Could not check shop buy stock for " + effectiveScope + "/" + offer.getId() + ": "
                     + ex.getMessage());
-            return EconomyCheck.rejected("TC_SHOP_STOCK_UPDATE_FAILED");
+            return EconomyCheck.rejected("tc.shop.stock.update.failed");
         }
     }
 

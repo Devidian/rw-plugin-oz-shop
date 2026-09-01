@@ -1,0 +1,619 @@
+{
+  "tc": {
+    "btn": {
+      "cancel": "Abbrechen",
+      "layout": {
+        "card": "Karten",
+        "list": "Liste"
+      }
+    },
+    "data": {
+      "col": {
+        "description": "Beschreibung"
+      },
+      "desc": "Hier kannst du gespeicherte Spielerdaten für PH_PLUGIN_NAME ansehen.",
+      "empty": "Für dieses Plugin sind noch keine gespeicherten Spielerdaten verfügbar.",
+      "shop": {
+        "layout": "Shop-Angebotslayout"
+      },
+      "title": "Gespeicherte Daten für PH_PLUGIN_NAME"
+    },
+    "label": {
+      "shop": {
+        "layout": "Shop-Angebotslayout",
+        "plugin": {
+          "purchase": {
+            "confirmation": "Kaufbestätigung für Plugin-Angebote anzeigen",
+            "success": {
+              "message": "Erfolgsmeldung nach Plugin-Kauf anzeigen"
+            }
+          }
+        },
+        "shortcut": "Shop-Shortcut in /ozt und Inventar anzeigen"
+      }
+    },
+    "menu": {
+      "shop": {
+        "info": {
+          "status": "Info / Status"
+        },
+        "list": "Angebote anzeigen",
+        "trader": {
+          "create": "Händler erstellen"
+        },
+        "zone": {
+          "create": "Area als Shop markieren"
+        }
+      }
+    },
+    "msg": {
+      "plugin": {
+        "welcome": "ℹ️ \u003ccolor\u003d#F00000\u003ePH_PLUGIN_NAME\u003c/color\u003e | \u003ccolor\u003d#F0F000\u003evPH_PLUGIN_VERSION\u003c/color\u003e | \u003ccolor\u003d#C0C0C0\u003e/PH_PLUGIN_CMD\u003c/color\u003e | geladen!"
+      }
+    },
+    "settings": {
+      "desc": "Hier kannst du spielerbezogene Einstellungen für PH_PLUGIN_NAME anpassen.",
+      "empty": "Für PH_PLUGIN_NAME sind noch keine Spieler-Einstellungen verfügbar.",
+      "title": "Plugin Einstellungen für PH_PLUGIN_NAME"
+    },
+    "setting": {
+      "dynamiceconomyenabled": {
+        "desc": "Aktiviert lagerbasierte Kauf-/Verkaufspreis-Multiplikatoren; Lagerregeln bleiben auch bei deaktivierter Option aktiv.",
+        "label": "Dynamische Wirtschaft aktivieren"
+      },
+      "economyreportglobal": {
+        "desc": "Sendet nach geänderten globalen Lager-Ticks einen Bericht.",
+        "label": "Globale Wirtschaftsberichte"
+      },
+      "economyreportrecipients": {
+        "desc": "Kommagetrennte exakte Spielernamen; mit ;de oder ;en wird die Berichtssprache je Empfänger festgelegt.",
+        "label": "Empfänger der Wirtschaftsberichte"
+      },
+      "economyreporttraders": {
+        "desc": "Reserviert Berichte für geänderte Händler-Lager-Ticks.",
+        "label": "Händler-Wirtschaftsberichte"
+      },
+      "economyreportzones": {
+        "desc": "Sendet nach geänderten Zonen-Lager-Ticks einen Bericht.",
+        "label": "Zonen-Wirtschaftsberichte"
+      },
+      "economytickintervalhours": {
+        "desc": "Intervall in Stunden für die dynamische Shop-Ökonomie.",
+        "label": "Ökonomie-Intervall"
+      },
+      "exposeshopzones": {
+        "desc": "Erlaubt Bridge-Layern Lesezugriff auf Shop-Zonen.",
+        "label": "Shop-Zonen bereitstellen"
+      },
+      "general": {
+        "desc": "Protokollierung, Reload, Befehl und Willkommensverhalten.",
+        "label": "Allgemein"
+      },
+      "generatedefinitionexports": {
+        "desc": "Schreibt generierte Item- und Rezept-Exportdateien neben die Systemangebote.",
+        "label": "Definitions-Exporte erzeugen"
+      },
+      "loglevel": {
+        "desc": "Steuert die Shop-Logging-Ausgabe.",
+        "label": "Log-Level"
+      },
+      "reloadonchange": {
+        "desc": "Lädt Einstellungen und Systemangebote neu, wenn sich settings.properties ändert.",
+        "label": "Bei Änderung neu laden"
+      },
+      "requireshopzone": {
+        "desc": "Beschränkt Spieler-Reiter auf Shop-Areas; Admin-Reiter bleiben verfügbar.",
+        "label": "Shop-Zone erforderlich"
+      },
+      "sendpluginwelcome": {
+        "desc": "Zeigt beim Betreten eine kurze Shop-Nachricht.",
+        "label": "Willkommensnachricht"
+      },
+      "shopaccess": {
+        "desc": "Spieler-Shop-Zugriff und Shop-Gebietsverhalten.",
+        "label": "Shop-Zugriff"
+      },
+      "shopcommand": {
+        "desc": "Chat-Befehl zum Anzeigen und Kaufen von Shop-Angeboten.",
+        "label": "Shop-Befehl"
+      },
+      "shopenabled": {
+        "desc": "Erlaubt Spielern die Shop-Nutzung.",
+        "label": "Shop aktiviert"
+      },
+      "shopzonesfile": {
+        "desc": "JSON-Datei für adminverwaltete Shop-Areas.",
+        "label": "Shop-Zonen-Datei"
+      },
+      "showshopzoneindicator": {
+        "desc": "Zeigt einen kompakten HUD-Indikator unter der LandClaim-Area-Info, solange Spieler in einer Shop-Area sind.",
+        "label": "Shop-Area-Indikator"
+      },
+      "systemoffersfile": {
+        "desc": "JSON-Datei für adminverwaltete Systemangebote.",
+        "label": "Systemangebote-Datei"
+      },
+      "systemshopcurrency": {
+        "desc": "Zentrale Wallet-Währung für alle Systemshop-Angebote; leer nutzt Wallet-Standard oder alte Angebotswährung.",
+        "label": "Systemshop-Währung"
+      },
+      "systemshopenabled": {
+        "desc": "Erlaubt Systemshop-Angebote, sofern eine Shop-Area diesen Wert nicht überschreibt.",
+        "label": "Systemshop aktiviert"
+      },
+      "systemshop": {
+        "desc": "Systemangebotsdatei und Systemshop-Verhalten.",
+        "label": "Systemshop"
+      }
+    },
+    "shop": {
+      "daily": {
+        "sell": {
+          "limit": {
+            "global": "Der Systemshop hat das heutige Ankaufslimit für diesen Gegenstand erreicht.",
+            "player": "Du hast dein heutiges Verkaufslimit für diesen Gegenstand erreicht."
+          }
+        }
+      },
+      "default": {
+        "currency": "Standard"
+      },
+      "disabled": "Der Shop ist aktuell deaktiviert.",
+      "dynamic": {
+        "stock": {
+          "empty": "Dieses Systemshop-Angebot ist aktuell nicht auf Lager.",
+          "full": "Der Systemshop kauft diesen Gegenstand aktuell nicht weiter an."
+        }
+      },
+      "economy": {
+        "json": {
+          "only": "Wirtschaftsdefinitions-Overrides werden für PH_OFFER nicht mehr gespeichert. Bearbeite die Systemangebote-JSON-Datei und nutze /PH_PLUGIN_CMD reload."
+        },
+        "report": {
+          "balance": "Neuer Kontostand PH_BALANCE PH_CURRENCY, dies entspricht einem PH_RESULT von PH_DELTA PH_CURRENCY",
+          "body": "Bereich: PH_SCOPE\nPH_CHANGES",
+          "drain": "Ware PH_ITEM ans System verkauft, PH_AMOUNT Einheiten für PH_VALUE PH_CURRENCY",
+          "loss": "Verlust",
+          "profit": "Gewinn",
+          "restock": "Ware PH_ITEM vom System gekauft, PH_AMOUNT Einheiten für PH_VALUE PH_CURRENCY",
+          "subject": "Shop-Wirtschaftsbericht: PH_SCOPE",
+          "trader": "Händler: PH_TRADER (Position: PH_POSITION)"
+        },
+        "updated": "Wirtschaftseinstellungen für PH_OFFER aktualisiert.",
+        "update": {
+          "failed": "Systemshop-Wirtschaftseinstellungen konnten nicht aktualisiert werden."
+        },
+        "usage": "Systemshop-Wirtschaftsdefinitionen werden in JSON konfiguriert. Bearbeite die Systemangebote-Datei und nutze /PH_PLUGIN_CMD reload."
+      },
+      "editor": {
+        "add": {
+          "$value": "Artikel hinzufügen",
+          "failed": "Der Artikel ist bereits vorhanden oder im vollständigen Systemkatalog nicht verfügbar."
+        },
+        "added": "Artikel zur Angebotsdatei hinzugefügt.",
+        "context": {
+          "global": "Kontext: globaler Systemshop | Datei: PH_FILE",
+          "trader": "Kontext: Händler PH_TRADER (#PH_ID) | Datei: PH_FILE",
+          "zone": "Kontext: Zone PH_AREA (#PH_ID) | Datei: PH_FILE"
+        },
+        "create": {
+          "file": {
+            "$value": "Leere Datei erstellen",
+            "failed": "Die Angebotsdatei konnte nicht erstellt werden.",
+            "text": "PH_FILE existiert nicht. Jetzt eine leere Angebotsdatei erstellen?",
+            "title": "Angebotsdatei erstellen?"
+          }
+        },
+        "default": {
+          "file": "Mitgelieferte Standard-Angebotsdateien können nicht im Spiel bearbeitet werden."
+        },
+        "edit": "Artikel bearbeiten",
+        "file": {
+          "read": {
+            "only": "Die Händlerdatei ist schreibgeschützt und kann nicht geändert werden."
+          }
+        },
+        "invalid": {
+          "value": "Gib gültige nicht-negative Zahlenwerte und einen gültigen Bestandsmodus ein."
+        },
+        "not": {
+          "allowed": "Nur Administratoren können Angebotsdateien bearbeiten."
+        },
+        "readonly": "Schreibgeschützt: ID PH_ID | Item PH_ITEM | Variante PH_VARIANT | Aktiviert: true",
+        "remove": {
+          "$value": "Artikel entfernen",
+          "confirm": {
+            "text": "PH_OFFER aus dieser Angebotsdatei und dem aktuellen Shopbestand entfernen?",
+            "title": "Artikel entfernen?"
+          },
+          "failed": "Der Artikel konnte nicht aus der Angebotsdatei entfernt werden."
+        },
+        "removed": "Artikel aus Angebotsdatei und aktuellem Bestand entfernt.",
+        "saved": "Artikelkonfiguration gespeichert.",
+        "save": {
+          "failed": "Die Artikelkonfiguration konnte nicht gespeichert werden."
+        }
+      },
+      "info": {
+        "panel": {
+          "info": "\u003cb\u003ePH_PLUGIN_NAME\u003c/b\u003e\nVersion: PH_VERSION\nBefehl: /PH_PLUGIN_CMD\n\nShop stellt Systemangebote und von Plugins registrierte Kaufaktionen mit Wallet-Zahlungen bereit.",
+          "status": "\u003cb\u003eShop Status\u003c/b\u003e\nWallet: PH_WALLET_STATUS\nShop aktiv: PH_SHOP_ENABLED\nSystemshop aktiv: PH_SYSTEM_SHOP_ENABLED\nDefinitions-Exporte: PH_DEFINITION_EXPORTS\nDynamische Wirtschaft: PH_DYNAMIC_ECONOMY\nShop-Zone erforderlich: PH_REQUIRE_SHOP_ZONE\nAktuelle Zone: PH_CURRENT_ZONE\nShop-Zonen: PH_SHOP_ZONES\nSystemangebote: PH_SYSTEM_OFFERS\nPlugin-Angebote: PH_PLUGIN_OFFERS"
+        }
+      },
+      "no": {
+        "offers": "Es sind keine Shop-Angebote verfügbar."
+      },
+      "purchase": {
+        "completed": "PH_AMOUNT× PH_OFFER gekauft."
+      },
+      "reloaded": "PH_COUNT System-Shop-Angebote neu geladen.",
+      "sale": {
+        "completed": "PH_AMOUNT× PH_OFFER verkauft."
+      },
+      "stock": {
+        "offer": {
+          "not": {
+            "found": "Systemshop-Angebot nicht gefunden."
+          }
+        },
+        "updated": "Lagerbestand für PH_OFFER auf PH_STOCK gesetzt.",
+        "update": {
+          "failed": "Systemshop-Lagerbestand konnte nicht aktualisiert werden."
+        },
+        "usage": "Nutze /PH_PLUGIN_CMD stock \u003cangebot-id\u003e \u003clagerbestand\u003e."
+      },
+      "system": {
+        "disabled": "Der Systemshop ist hier aktuell deaktiviert."
+      },
+      "title": "Verfügbare Shop-Angebote",
+      "trader": {
+        "created": "Händler PH_TRADER (#PH_ID) wurde erstellt.",
+        "create": {
+          "failed": "Der NPC-Händler konnte nicht registriert werden."
+        },
+        "dissolved": "Händlershop PH_TRADER wurde aufgelöst.",
+        "dissolve": {
+          "failed": "Der Händlershop konnte nicht vollständig aufgelöst werden."
+        },
+        "dynamic": {
+          "stock": {
+            "empty": "Dieses Händlerangebot ist aktuell nicht auf Lager.",
+            "full": "Der Händler kauft diesen Gegenstand aktuell nicht weiter an."
+          }
+        },
+        "insufficient": {
+          "balance": "Verkauf nicht möglich, Händlerkontostand unzureichend."
+        },
+        "no": {
+          "npc": "Du musst einen NPC in höchstens 10 Metern Entfernung ansehen."
+        },
+        "prefix": {
+          "female": "Händlerin",
+          "male": "Händler"
+        },
+        "replenish": {
+          "$value": "Startkapital auffüllen",
+          "failed": "Der Händler konnte nicht vom Weltkonto aufgefüllt werden."
+        },
+        "replenished": "PH_TRADER erhielt PH_AMOUNT Startkapital vom Weltkonto.",
+        "ui": {
+          "account": {
+            "$value": "Händlerkonto: PH_BALANCE",
+            "label": "Händlerkonto"
+          },
+          "col": {
+            "balance": "Kontostand",
+            "creator": "Erstellt von",
+            "id": "ID",
+            "name": "Name"
+          },
+          "dissolve": {
+            "$value": "Händler auflösen",
+            "confirm": {
+              "text": "Der Händlershop von PH_TRADER wird geschlossen. Alle Lagerbestände werden zum Basispreis verkauft, alle Kontostände ins Weltkonto übertragen und das Händlerkonto archiviert. Soll der NPC bestehen bleiben oder ebenfalls gelöscht werden?",
+              "title": "Händler wirklich auflösen?"
+            },
+            "npc": "Beides löschen",
+            "unlink": "Nur Shop löschen"
+          },
+          "empty": {
+            "$value": "Keine NPC-Händler registriert.",
+            "system": "Es sind keine Händlerangebote verfügbar."
+          },
+          "name": "NPC-Name",
+          "offers": {
+            "file": "Händlerangebote-Datei"
+          },
+          "options": {
+            "empty": "Wähle ein Händlerangebot aus."
+          },
+          "plugin": {
+            "off": "Plugin-Shop aktivieren",
+            "on": "Plugin-Shop deaktivieren"
+          },
+          "settings": {
+            "title": "Händlereinstellungen"
+          },
+          "subtitle": "Angebote und Kontostand dieses Händlers.",
+          "tab": {
+            "admin": "Händlerverwaltung",
+            "settings": "Händlereinstellungen",
+            "system": "Händlershop"
+          },
+          "teleport": "Teleport",
+          "title": "Händler: PH_TRADER",
+          "unavailable": "Dieser Händler ist aktuell nicht verfügbar."
+        },
+        "wallet": {
+          "failed": "Das Händlerkonto konnte nicht erstellt oder finanziert werden. Aktualisiere OZ - Wallet."
+        }
+      },
+      "ui": {
+        "admin": {
+          "drain": "Abfluss: PH_PERCENT% max PH_MAX",
+          "economy": {
+            "title": "Wirtschaft"
+          },
+          "mode": "Modus: PH_MODE",
+          "next": {
+            "tick": "Nächster Tick: Abfluss PH_DRAIN / Auffüllen PH_RESTOCK"
+          },
+          "reset": {
+            "confirm": {
+              "text": "Bestand von PH_OFFER im aktuellen Shop-Kontext von PH_STOCK auf Ziel PH_TARGET setzen?",
+              "title": "Bestand auf Ziel setzen?"
+            },
+            "target": "Zielbestand setzen"
+          },
+          "restock": "Auffüllen: PH_PERCENT% max PH_MAX",
+          "stocks": "Bestand PH_STOCK / Ziel PH_TARGET / Limit PH_LIMIT",
+          "stock": {
+            "reset": {
+              "done": "Bestand für PH_OFFER auf Ziel PH_STOCK gesetzt."
+            }
+          }
+        },
+        "amount": "Menge",
+        "area": {
+          "removed": "Shop-Status von PH_AREA entfernt."
+        },
+        "buy": {
+          "$value": "Kaufen",
+          "preview": "Kauf: PH_PRICE",
+          "price": "Kauf: PH_PRICE",
+          "selected": "Kaufen"
+        },
+        "col": {
+          "action": "Aktion",
+          "area": {
+            "$value": "Area",
+            "id": "Area-ID"
+          },
+          "created": {
+            "by": "Erstellt von"
+          },
+          "offer": "Angebot",
+          "price": "Preis",
+          "source": "Quelle",
+          "systemshop": "Systemshop"
+        },
+        "economy": {
+          "blocked": {
+            "$value": "Wirtschaft: PH_REASON",
+            "buy": {
+              "$value": "Kauf blockiert: PH_REASON",
+              "sell": "Kauf: PH_BUY_REASON | Verkauf: PH_SELL_REASON"
+            },
+            "sell": "Verkauf blockiert: PH_REASON"
+          }
+        },
+        "empty": {
+          "areas": "Es sind keine Shop-Areas konfiguriert.",
+          "filter": "Keine passenden Systemshop-Angebote gefunden.",
+          "plugin": "Es sind keine Pluginshop-Angebote verfügbar.",
+          "sell": "Der Systemshop kauft aktuell keine Gegenstände an.",
+          "system": "Es sind keine Systemshop-Angebote verfügbar."
+        },
+        "inventory": {
+          "$value": "Inventar: PH_AMOUNT",
+          "filter": {
+            "$value": "Nur Angebote im Besitz",
+            "active": "✓ Nur Angebote im Besitz"
+          }
+        },
+        "limit": {
+          "global": "global PH_LIMIT/Tag",
+          "none": "♾️/Tag",
+          "player": "Spieler PH_LIMIT/Tag"
+        },
+        "next": {
+          "stock": {
+            "tick": {
+              "$value": "Neue Ware in PH_TIME",
+              "inactive": "Keine neue Ware geplant"
+            }
+          }
+        },
+        "not": {
+          "in": {
+            "inventory": "Nicht im Inventar"
+          }
+        },
+        "options": {
+          "empty": "Wähle ein Systemshop-Angebot aus."
+        },
+        "plugin": {
+          "purchase": {
+            "confirm": {
+              "$value": "Kauf bestätigen",
+              "text": "Möchtest du PH_OFFER für PH_PRICE kaufen?",
+              "title": "Kauf bestätigen"
+            }
+          }
+        },
+        "price": {
+          "error": "Preisfehler"
+        },
+        "remove": {
+          "$value": "Entfernen",
+          "confirm": {
+            "text": "Shop-Status von PH_AREA entfernen? Spieler verlieren hier ggf. den Shop-Zugriff, wenn Shop-Zonen erforderlich sind.",
+            "title": "Shop-Area entfernen?"
+          }
+        },
+        "run": {
+          "economy": {
+            "tick": "Tick starten"
+          }
+        },
+        "save": "Speichern",
+        "search": {
+          "$value": "Suche",
+          "apply": "Suchen",
+          "clear": "Leeren"
+        },
+        "selected": "Ausgewählt",
+        "select": {
+          "item": "Auswählen"
+        },
+        "sell": {
+          "$value": "Verkaufen",
+          "condition": {
+            "confirm": {
+              "text": "Die Auszahlung für PH_OFFER berücksichtigt Haltbarkeit und Modifier.",
+              "title": "Verkauf bestätigen"
+            },
+            "line": "PH_AMOUNT× | Haltbarkeit PH_DURABILITY/PH_MAX_DURABILITY (PH_DURABILITY_PERCENT%) | Modifier PH_MODIFIER (PH_MODIFIER_PERCENT%) | Basis PH_BASE | Auszahlung PH_PAYOUT",
+            "total": "Gesamtauszahlung: PH_PAYOUT"
+          },
+          "confirm": "Verkauf bestätigen",
+          "limits": "Verkaufslimits: PH_LIMITS",
+          "preview": "Auszahlung: PH_PRICE",
+          "price": "Verkauf: PH_PRICE",
+          "selected": "Verkaufen"
+        },
+        "stock": {
+          "$value": "Bestand: PH_STOCK",
+          "mode": {
+            "$value": "Modus: PH_MODE",
+            "hybrid": "Hybridware",
+            "loot": "Loot / Trödel",
+            "player": {
+              "supplied": "Spielerware"
+            },
+            "static": "statisch",
+            "system": {
+              "supplied": "Systemware"
+            }
+          },
+          "unlimited": "♾️"
+        },
+        "subtitle": "Verfügbare System- und Plugin-Angebote.",
+        "systemshop": {
+          "disabled": "deaktiviert",
+          "enabled": "aktiviert",
+          "inherit": "erben",
+          "updated": "Systemshop-Modus für PH_AREA ist jetzt PH_MODE."
+        },
+        "tab": {
+          "admin": "Zonenverwaltung",
+          "plugin": "Pluginshop",
+          "sell": "Verkaufen",
+          "system": "Systemshop",
+          "zone": "Zone"
+        },
+        "tick": {
+          "in": "in PH_TIME",
+          "inactive": "inaktiv",
+          "now": "jetzt"
+        },
+        "title": "Shop",
+        "unit": {
+          "price": {
+            "suffix": "/ Stück"
+          }
+        },
+        "wallet": {
+          "balances": "Wallet-Guthaben"
+        },
+        "zone": {
+          "area": {
+            "id": "Area-ID: PH_AREA_ID",
+            "info": "Rising-World-Area: PH_AREA (#PH_AREA_ID)",
+            "name": "Area: PH_AREA"
+          },
+          "config": {
+            "title": "Shop-Zone konfigurieren"
+          },
+          "current": {
+            "title": "Aktuelle Area"
+          },
+          "name": {
+            "label": "Name der Zone",
+            "updated": "Shop-Zone heißt jetzt PH_AREA.",
+            "update": {
+              "failed": "Name der Shop-Zone konnte nicht aktualisiert werden."
+            }
+          },
+          "offers": {
+            "default": "Standard",
+            "file": {
+              "label": "Systemangebote-Datei"
+            },
+            "reset": "Zurücksetzen",
+            "updated": "Systemangebote-Datei für PH_AREA ist jetzt PH_FILE.",
+            "update": {
+              "failed": "Systemangebote-Datei für diese Shop-Area konnte nicht aktualisiert werden."
+            }
+          },
+          "remove": "Shop-Zone auflösen",
+          "reset": {
+            "confirm": {
+              "text": "Alle Systemangebote der Zone PH_AREA auf ihren Zielbestand setzen?",
+              "title": "Zonenbestände auf Ziel setzen?"
+            },
+            "stocks": "Zonenbestände auf Ziel setzen"
+          },
+          "stocks": {
+            "reset": {
+              "done": "PH_COUNT Zonenangebote auf Zielbestand gesetzt."
+            }
+          },
+          "sync": {
+            "name": "Synchronisieren"
+          },
+          "systemshop": {
+            "label": "Systemshop"
+          }
+        }
+      },
+      "usage": "Nutze /PH_PLUGIN_CMD list, /PH_PLUGIN_CMD buy \u003cangebot-id\u003e [menge] oder /PH_PLUGIN_CMD sell \u003cangebot-id\u003e [menge].",
+      "warn": {
+        "wallet": {
+          "missing": "OZ - Shop benötigt OZ - Wallet. Käufe sind deaktiviert, bis Wallet installiert und geladen ist."
+        }
+      },
+      "zone": {
+        "created": "Area PH_AREA (#PH_AREA_ID) ist jetzt eine Shop-Area.",
+        "no": {
+          "area": "Du musst in einer bestehenden Area stehen, um sie als Shop-Area zu markieren."
+        },
+        "required": "Du kannst den Shop nur in einer Area nutzen, die als Shop-Area markiert ist."
+      }
+    }
+  },
+  "TC_SHOP_EDITOR_FIELD_basePrice": "Basispreis",
+  "TC_SHOP_EDITOR_FIELD_drainMax": "Abfluss Maximum",
+  "TC_SHOP_EDITOR_FIELD_drainPercent": "Abfluss Prozent",
+  "TC_SHOP_EDITOR_FIELD_globalDailySellLimit": "Globales Tages-Ankaufslimit",
+  "TC_SHOP_EDITOR_FIELD_maxPriceMultiplier": "Maximaler Preismodifier",
+  "TC_SHOP_EDITOR_FIELD_minPriceMultiplier": "Minimaler Preismodifier",
+  "TC_SHOP_EDITOR_FIELD_perPlayerDailySellLimit": "Spieler Tages-Ankaufslimit",
+  "TC_SHOP_EDITOR_FIELD_restockMax": "Auffüllen Maximum",
+  "TC_SHOP_EDITOR_FIELD_restockPercent": "Auffüllen Prozent",
+  "TC_SHOP_EDITOR_FIELD_spreadPercent": "Spread Prozent",
+  "TC_SHOP_EDITOR_FIELD_stock": "Bestand",
+  "TC_SHOP_EDITOR_FIELD_stockLimit": "Bestandslimit",
+  "TC_SHOP_EDITOR_FIELD_stockMode": "Modus",
+  "TC_SHOP_EDITOR_FIELD_targetStock": "Zielbestand"
+}

@@ -9,20 +9,17 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.logging.log4j.Level;
-
 import de.omegazirkel.risingworld.Shop;
 import de.omegazirkel.risingworld.tools.OZLogger;
 import de.omegazirkel.risingworld.tools.settings.AdminSettingsEntry;
 import de.omegazirkel.risingworld.tools.settings.AdminSettingsType;
+import de.omegazirkel.risingworld.tools.settings.JsonSettingsFile;
 import de.omegazirkel.risingworld.tools.settings.SettingsFileEditor;
 
 public class PluginSettings {
     private static PluginSettings instance;
     private static Shop plugin;
 
-    public String logLevel = Level.ALL.name();
-    public boolean reloadOnChange = true;
     public String shopCommand = "shop";
     public boolean enableWelcomeMessage = false;
     public String systemOffersFile = "system-offers.json";
@@ -62,33 +59,21 @@ public class PluginSettings {
     }
 
     public void initSettings() {
-        initSettings((plugin.getPath() != null ? plugin.getPath() : ".") + "/settings.properties");
+        initSettings(JsonSettingsFile.worldSettingsFile(plugin.getPath() != null ? plugin.getPath() : ".").toString());
     }
 
     public void initSettings(String filePath) {
         settingsFile = Paths.get(filePath);
-        Path defaultSettingsFile = settingsFile.resolveSibling("settings.default.properties");
+        Path defaultSettingsFile = settingsFile.resolveSibling("settings.default.json");
+        Path legacySettingsFile = settingsFile.resolveSibling("settings.properties");
         try {
-            if (Files.notExists(settingsFile) && Files.exists(defaultSettingsFile)) {
-                logger().info("settings.properties not found, copying from settings.default.properties...");
-                Files.copy(defaultSettingsFile, settingsFile);
-            }
-            Properties settings = new Properties();
-            Properties defaults = new Properties();
-            if (Files.exists(defaultSettingsFile)) {
-                try (FileInputStream in = new FileInputStream(defaultSettingsFile.toFile())) {
-                    defaults.load(new InputStreamReader(in, "UTF8"));
-                }
-            }
-            if (Files.exists(settingsFile)) {
-                try (FileInputStream in = new FileInputStream(settingsFile.toFile())) {
-                    settings.load(new InputStreamReader(in, "UTF8"));
-                }
-            }
+            if (JsonSettingsFile.migrateLegacyProperties(legacySettingsFile, settingsFile))
+                logger().info("Migrated legacy settings.properties to " + settingsFile.getFileName());
+            if (Files.notExists(settingsFile) && Files.exists(defaultSettingsFile))
+                JsonSettingsFile.writeFlatAtomically(settingsFile, JsonSettingsFile.loadFlat(defaultSettingsFile));
+            Properties settings = loadSettings(settingsFile);
+            Properties defaults = loadSettings(defaultSettingsFile);
 
-            logLevel = settings.getProperty("logLevel", defaults.getProperty("logLevel", "ALL"));
-            reloadOnChange = settings.getProperty("reloadOnChange", defaults.getProperty("reloadOnChange", "true"))
-                    .contentEquals("true");
             shopCommand = settings.getProperty("shopCommand", defaults.getProperty("shopCommand", "shop"));
             enableWelcomeMessage = settings
                     .getProperty("sendPluginWelcome", defaults.getProperty("sendPluginWelcome", "false"))
@@ -133,7 +118,6 @@ public class PluginSettings {
             logger().info("System shop is " + (systemShopEnabled ? "enabled" : "disabled"));
             logger().info("Shop access is " + (shopEnabled ? "enabled" : "disabled")
                     + (requireShopZone ? " and zone-gated" : " globally available"));
-            logger().setLevel(logLevel);
         } catch (IOException ex) {
             logger().error("IOException on initSettings: " + ex.getMessage());
             ex.printStackTrace();
@@ -142,12 +126,7 @@ public class PluginSettings {
 
     public List<AdminSettingsEntry> adminSettingsEntries() {
         return List.of(
-                AdminSettingsEntry.group("general", "General", "Logging, reload, command, and welcome behavior."),
-                entry("logLevel", "Log level", "Controls Shop logging verbosity.", logLevel, "ALL",
-                        AdminSettingsType.STRING),
-                entry("reloadOnChange", "Reload on change",
-                        "Reloads settings and system offers when settings.properties changes.", reloadOnChange, "true",
-                        AdminSettingsType.BOOLEAN),
+                AdminSettingsEntry.group("general", "General", "Command and welcome behavior."),
                 entry("shopCommand", "Shop command", "Chat command used to list and buy shop offers.", shopCommand,
                         "shop", AdminSettingsType.STRING),
                 entry("sendPluginWelcome", "Welcome message", "Shows a short Shop message when a player joins.",
@@ -200,5 +179,14 @@ public class PluginSettings {
             AdminSettingsType type) {
         return new AdminSettingsEntry(key, label, description, String.valueOf(value), defaultValue, type, false,
                 newValue -> SettingsFileEditor.writeValue(settingsFile, key, newValue));
+    }
+
+    private Properties loadSettings(Path file) throws IOException {
+        if (!file.getFileName().toString().endsWith(".properties")) return JsonSettingsFile.loadProperties(file);
+        Properties properties = new Properties();
+        if (Files.exists(file)) try (FileInputStream input = new FileInputStream(file.toFile())) {
+            properties.load(new InputStreamReader(input, "UTF8"));
+        }
+        return properties;
     }
 }

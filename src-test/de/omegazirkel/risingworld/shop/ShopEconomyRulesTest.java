@@ -284,7 +284,7 @@ public class ShopEconomyRulesTest {
             ShopEconomyStore.EconomyCheck check = store.canBuyFromPlayer("global", 7L, offer);
 
             assertFalse(check.allowed());
-            assertEquals("TC_SHOP_DYNAMIC_STOCK_FULL", check.messageKey());
+        assertEquals("tc.shop.dynamic.stock.full", check.messageKey());
         }
     }
 
@@ -298,7 +298,7 @@ public class ShopEconomyRulesTest {
             ShopEconomyStore.EconomyCheck check = store.canBuyFromPlayer("global", 7L, offer);
 
             assertFalse(check.allowed());
-            assertEquals("TC_SHOP_DAILY_SELL_LIMIT_PLAYER", check.messageKey());
+        assertEquals("tc.shop.daily.sell.limit.player", check.messageKey());
         }
     }
 

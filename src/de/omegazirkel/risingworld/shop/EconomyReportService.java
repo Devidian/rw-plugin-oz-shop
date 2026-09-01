@@ -48,7 +48,7 @@ public final class EconomyReportService {
         Map<String, Long> netByCurrency = new LinkedHashMap<>();
         StringBuilder changes = new StringBuilder();
         if (trader != null) {
-            changes.append(local(t, "TC_SHOP_ECONOMY_REPORT_TRADER", online, language)
+            changes.append(local(t, "tc.shop.economy.report.trader", online, language)
                     .replace("PH_TRADER", trader.name()).replace("PH_POSITION", traderPosition(trader)));
         }
         for (ShopEconomyStore.OfferTick change : result.changes()) {
@@ -66,7 +66,7 @@ public final class EconomyReportService {
                             offer.getDefaultStockLimit(), offer.getDefaultDrainRate(), offer.getDefaultRefillRate()), amount, dynamic);
             netByCurrency.merge(currency, restock ? -value : value, Long::sum);
             if (changes.length() > 0) changes.append('\n');
-            changes.append(local(t, restock ? "TC_SHOP_ECONOMY_REPORT_RESTOCK" : "TC_SHOP_ECONOMY_REPORT_DRAIN", online, language)
+            changes.append(local(t, restock ? "tc.shop.economy.report.restock" : "tc.shop.economy.report.drain", online, language)
                     .replace("PH_ITEM", offer.getTitle()).replace("PH_AMOUNT", String.valueOf(amount))
                     .replace("PH_VALUE", String.valueOf(value)).replace("PH_CURRENCY", currency));
         }
@@ -77,13 +77,13 @@ public final class EconomyReportService {
                     .filter(item -> item.currencyIdentifier().equalsIgnoreCase(entry.getKey()))
                     .mapToLong(WalletBridge.SystemBalanceInfo::balance).findFirst().orElse(0L);
             if (changes.length() > 0) changes.append('\n');
-            changes.append(local(t, "TC_SHOP_ECONOMY_REPORT_BALANCE", online, language)
+            changes.append(local(t, "tc.shop.economy.report.balance", online, language)
                     .replace("PH_BALANCE", String.valueOf(balance)).replace("PH_CURRENCY", entry.getKey())
-                    .replace("PH_RESULT", local(t, net >= 0 ? "TC_SHOP_ECONOMY_REPORT_PROFIT" : "TC_SHOP_ECONOMY_REPORT_LOSS", online, language))
+                    .replace("PH_RESULT", local(t, net >= 0 ? "tc.shop.economy.report.profit" : "tc.shop.economy.report.loss", online, language))
                     .replace("PH_DELTA", String.valueOf(Math.abs(net))));
         }
-        String subject = local(t, "TC_SHOP_ECONOMY_REPORT_SUBJECT", online, language).replace("PH_SCOPE", result.scope());
-        String body = local(t, "TC_SHOP_ECONOMY_REPORT_BODY", online, language).replace("PH_SCOPE", result.scope())
+        String subject = local(t, "tc.shop.economy.report.subject", online, language).replace("PH_SCOPE", result.scope());
+        String body = local(t, "tc.shop.economy.report.body", online, language).replace("PH_SCOPE", result.scope())
                 .replace("PH_CHANGES", changes);
         return new ReportText(subject, body);
     }

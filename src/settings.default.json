@@ -1,0 +1,19 @@
+{
+  "dynamicEconomyEnabled": "true",
+  "economyReportGlobal": "false",
+  "economyReportRecipients": "",
+  "economyReportTraders": "false",
+  "economyReportZones": "false",
+  "economyTickIntervalHours": "1",
+  "exposeShopZones": "true",
+  "generateDefinitionExports": "false",
+  "requireShopZone": "false",
+  "sendPluginWelcome": "false",
+  "shopCommand": "shop",
+  "shopEnabled": "true",
+  "shopZonesFile": "shop-zones.json",
+  "showShopZoneIndicator": "true",
+  "systemOffersFile": "system-offers.json",
+  "systemShopCurrency": "",
+  "systemShopEnabled": "true"
+}

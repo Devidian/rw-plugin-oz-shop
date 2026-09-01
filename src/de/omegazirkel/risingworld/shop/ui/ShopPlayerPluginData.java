@@ -31,7 +31,7 @@ public class ShopPlayerPluginData extends PlayerPluginData {
                 flexWrapper.removeAllChilds();
                 TableScrollView table = new TableScrollView(
                         Arrays.asList(
-                                t().get("TC_DATA_COL_DESCRIPTION", uiPlayer),
+                                t().get("tc.data.col.description", uiPlayer),
                                 "key",
                                 "value"),
                         Arrays.asList(38f, 42f, 20f));
@@ -39,7 +39,7 @@ public class ShopPlayerPluginData extends PlayerPluginData {
                 table.style.width.set(100, Unit.Percent);
                 table.setScrollBodyHeight(260);
                 table.addRow(new TableRow(new ArrayList<>(Arrays.asList(
-                        cell(t().get("TC_DATA_SHOP_LAYOUT", uiPlayer), 38f),
+                        cell(t().get("tc.data.shop.layout", uiPlayer), 38f),
                         cell(ShopPlayerPreferences.LAYOUT_KEY, 42f),
                         cell(ShopPlayerPreferences.layout(uiPlayer), 20f)))));
                 flexWrapper.addChild(table.getRoot());

@@ -32,20 +32,20 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
 
             protected OZUIElement layoutSetting(Player uiPlayer) {
                 OZUIElement element = defaultSettingsContainer();
-                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_LAYOUT", uiPlayer)));
+                element.addChild(defaultSettingsLabel(t().get("tc.label.shop.layout", uiPlayer)));
                 String currentValue = ShopPlayerPreferences.layout(uiPlayer);
                 boolean listLayout = ShopPlayerPreferences.LAYOUT_LIST.equals(currentValue);
                 element.addChild(switchButtons(uiPlayer, listLayout, event -> {
                     ShopPlayerPreferences.setLayout(uiPlayer,
                             listLayout ? ShopPlayerPreferences.LAYOUT_CARD : ShopPlayerPreferences.LAYOUT_LIST);
                     redrawContent();
-                }, t().get("TC_BTN_LAYOUT_CARD", uiPlayer), t().get("TC_BTN_LAYOUT_LIST", uiPlayer)));
+                }, t().get("tc.btn.layout.card", uiPlayer), t().get("tc.btn.layout.list", uiPlayer)));
                 return element;
             }
 
             protected OZUIElement shortcutSetting(Player uiPlayer) {
                 OZUIElement element = defaultSettingsContainer();
-                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_SHORTCUT", uiPlayer)));
+                element.addChild(defaultSettingsLabel(t().get("tc.label.shop.shortcut", uiPlayer)));
                 boolean visible = ShopPlayerPreferences.shortcutVisible(uiPlayer);
                 element.addChild(switchButtons(uiPlayer, visible, event -> {
                     ShopPlayerPreferences.setShortcutVisible(uiPlayer, !visible);
@@ -56,7 +56,7 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
 
             protected OZUIElement pluginPurchaseConfirmationSetting(Player uiPlayer) {
                 OZUIElement element = defaultSettingsContainer();
-                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_PLUGIN_PURCHASE_CONFIRMATION", uiPlayer)));
+                element.addChild(defaultSettingsLabel(t().get("tc.label.shop.plugin.purchase.confirmation", uiPlayer)));
                 boolean enabled = ShopPlayerPreferences.pluginPurchaseConfirmationEnabled(uiPlayer);
                 element.addChild(switchButtons(uiPlayer, enabled, event -> {
                     ShopPlayerPreferences.setPluginPurchaseConfirmationEnabled(uiPlayer, !enabled);
@@ -67,7 +67,7 @@ public class ShopPlayerPluginSettings extends PlayerPluginSettings {
 
             protected OZUIElement pluginPurchaseSuccessMessageSetting(Player uiPlayer) {
                 OZUIElement element = defaultSettingsContainer();
-                element.addChild(defaultSettingsLabel(t().get("TC_LABEL_SHOP_PLUGIN_PURCHASE_SUCCESS_MESSAGE", uiPlayer)));
+                element.addChild(defaultSettingsLabel(t().get("tc.label.shop.plugin.purchase.success.message", uiPlayer)));
                 boolean enabled = ShopPlayerPreferences.pluginPurchaseSuccessMessageEnabled(uiPlayer);
                 element.addChild(switchButtons(uiPlayer, enabled, event -> {
                     ShopPlayerPreferences.setPluginPurchaseSuccessMessageEnabled(uiPlayer, !enabled);

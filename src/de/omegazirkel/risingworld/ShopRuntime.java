@@ -44,7 +44,6 @@ import de.omegazirkel.risingworld.tools.OZLogger;
 import de.omegazirkel.risingworld.tools.PlayerSettings;
 import de.omegazirkel.risingworld.tools.db.SQLiteConnectionFactory;
 import de.omegazirkel.risingworld.tools.settings.PlayerPluginAdminSettings;
-import de.omegazirkel.risingworld.tools.ui.CursorManager;
 import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettingsOverlay;
 import de.omegazirkel.risingworld.tools.ui.PluginInfoStatusProviders;
 import de.omegazirkel.risingworld.tools.ui.PluginShortcutVisibility;
@@ -62,7 +61,9 @@ import net.risingworld.api.objects.Npc;
 import net.risingworld.api.objects.Skin;
 import net.risingworld.api.World;
 import net.risingworld.api.definitions.Definitions;
+import net.risingworld.api.definitions.Npcs;
 import net.risingworld.api.definitions.Clothing.ClothingDefinition;
+import net.risingworld.api.ui.UITarget;
 
 class ShopRuntime extends Plugin {
     static final Colors c = Colors.getInstance();
@@ -156,7 +157,6 @@ class ShopRuntime extends Plugin {
 
     public void onSettingsChanged(Path settingsPath) {
         s.initSettings(settingsPath.toString());
-        logger().setLevel(s.logLevel);
         zoneService = new ShopZoneService((Shop) this, sqliteCon, s.shopZonesFile);
         reloadSystemOffers();
         initializeEconomyScopes();
@@ -167,13 +167,13 @@ class ShopRuntime extends Plugin {
         Player player = event.getPlayer();
         ShopPlayerPreferences.load(player);
         if (s.enableWelcomeMessage) {
-            player.sendTextMessage(t.get("TC_MSG_PLUGIN_WELCOME", player)
+            player.sendTextMessage(t.get("tc.msg.plugin.welcome", player)
                     .replace("PH_PLUGIN_NAME", getDescription("name"))
                     .replace("PH_PLUGIN_CMD", s.shopCommand)
                     .replace("PH_PLUGIN_VERSION", getDescription("version")));
         }
         if (player.isAdmin() && !service.walletAvailable()) {
-            player.sendTextMessage(c.warning + t.get("TC_SHOP_WARN_WALLET_MISSING", player));
+            player.sendTextMessage(c.warning + t.get("tc.shop.warn.wallet.missing", player));
         }
     }
 
@@ -199,7 +199,7 @@ class ShopRuntime extends Plugin {
         if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("reload") && player.isAdmin()) {
             int count = reloadSystemOffers();
             reloadShopZones();
-            player.sendTextMessage(c.okay + t.get("TC_SHOP_RELOADED", player).replace("PH_COUNT", String.valueOf(count)));
+            player.sendTextMessage(c.okay + t.get("tc.shop.reloaded", player).replace("PH_COUNT", String.valueOf(count)));
             return;
         }
         if (cmdParts.length > 1 && (cmdParts[1].equalsIgnoreCase("maketrader") || cmdParts[1].equalsIgnoreCase("mt"))
@@ -244,16 +244,19 @@ class ShopRuntime extends Plugin {
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
             return;
         }
-        player.sendTextMessage(c.warning + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
+        player.sendTextMessage(c.warning + t.get("tc.shop.usage", player).replace("PH_PLUGIN_CMD", s.shopCommand));
     }
 
     public void onPlayerNpcInteractionEvent(PlayerNpcInteractionEvent event) {
+        if (event.getInteractionType() != Npcs.InteractionType.Default) return;
         Npc npc = event.getNpc();
         if (npc == null || traderService == null) return;
         Trader trader = traderService.find(npc.getGlobalID()).orElse(null);
         if (trader == null) return;
+        Player player = event.getPlayer();
+        player.closeAllActiveUIWindows();
+        openTraderUI(player, trader);
         event.setCancelled(true);
-        openTraderUI(event.getPlayer(), trader);
     }
 
     public ShopOfferRegistrationResult registerOffer(
@@ -346,7 +349,7 @@ class ShopRuntime extends Plugin {
     public ShopPurchaseResult purchase(Player player, String offerId, int quantity) {
         ShopOffer offer = findSystemOfferFor(player, offerId).orElseGet(() -> findOffer(offerId));
         if (offer != null && offer.isSystemOffer() && !isSystemShopAvailableFor(player)) {
-            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("TC_SHOP_SYSTEM_DISABLED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.system.disabled", player));
         }
         int effectiveQuantity = Math.max(1, quantity);
         String economyScope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
@@ -354,7 +357,7 @@ class ShopRuntime extends Plugin {
         if (offer != null && offer.isSystemOffer() && economyStore != null
                 && !economyStore.canSellToPlayer(economyScope, effectiveOffer)) {
             return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
-                    t.get("TC_SHOP_DYNAMIC_STOCK_EMPTY", player));
+                    t.get("tc.shop.dynamic.stock.empty", player));
         }
         ShopPurchaseResult result = offer == null
                 ? service.purchase(player, offerId)
@@ -370,13 +373,13 @@ class ShopRuntime extends Plugin {
             }
             economyStore.recordSystemSale(economyScope, result.offer, price);
         }
-        return localizedSystemTransactionResult(player, result, "TC_SHOP_PURCHASE_COMPLETED");
+        return localizedSystemTransactionResult(player, result, "tc.shop.purchase.completed");
     }
 
     public ShopPurchaseResult sell(Player player, String offerId, int quantity) {
         ShopOffer offer = findSystemOfferFor(player, offerId).orElse(null);
         if (offer != null && !isSystemShopAvailableFor(player)) {
-            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("TC_SHOP_SYSTEM_DISABLED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.system.disabled", player));
         }
         int effectiveQuantity = Math.max(1, quantity);
         ShopOffer effectiveOffer = dynamicEconomyOffer(player, offer, effectiveQuantity);
@@ -384,7 +387,7 @@ class ShopRuntime extends Plugin {
             ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(
                     ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)), player.getDbID(), effectiveOffer);
             if (!check.allowed()) {
-                String key = check.messageKey().isBlank() ? "TC_SHOP_STOCK_UPDATE_FAILED" : check.messageKey();
+                String key = check.messageKey().isBlank() ? "tc.shop.stock.update.failed" : check.messageKey();
                 return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get(key, player));
             }
         }
@@ -394,7 +397,7 @@ class ShopRuntime extends Plugin {
                     player.getDbID(),
                     result.offer, result.offer.getBuyPrice());
         }
-        return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
+        return localizedSystemTransactionResult(player, result, "tc.shop.sale.completed");
     }
 
     public List<Trader> listTraders() {
@@ -412,12 +415,12 @@ class ShopRuntime extends Plugin {
         if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         if (economyStore != null && !economyStore.canSellToPlayer(trader.economyScope(), effective)) {
-            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("TC_SHOP_TRADER_DYNAMIC_STOCK_EMPTY", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.trader.dynamic.stock.empty", player));
         }
         ShopPurchaseResult result = service.purchaseFromSystemAccount(player, effective, 1, trader.accountId());
         if (result.success && economyStore != null) economyStore.recordSystemSale(trader.economyScope(), effective,
                 effective.getPrice(player));
-        return localizedSystemTransactionResult(player, result, "TC_SHOP_PURCHASE_COMPLETED");
+        return localizedSystemTransactionResult(player, result, "tc.shop.purchase.completed");
     }
 
     public ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity) {
@@ -439,7 +442,7 @@ class ShopRuntime extends Plugin {
         long traderBalance = traderBalance(wallet, trader, currency);
         if (!TraderService.hasSufficientBasePayoutBalance(traderBalance, quote.traderPayoutCap())) {
             return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED,
-                    t.get("TC_SHOP_TRADER_INSUFFICIENT_BALANCE", player));
+                    t.get("tc.shop.trader.insufficient.balance", player));
         }
         if (premium > 0L) {
             WalletBridge.WalletTransferCallResult funding = wallet.transferWorldToSystemIdempotent(trader.accountId(), premium,
@@ -453,7 +456,7 @@ class ShopRuntime extends Plugin {
         }
         if (result.success && economyStore != null) economyStore.recordSystemBuy(trader.economyScope(), player.getDbID(),
                 effective, effective.getBuyPrice());
-        return localizedSystemTransactionResult(player, result, "TC_SHOP_SALE_COMPLETED");
+        return localizedSystemTransactionResult(player, result, "tc.shop.sale.completed");
     }
 
     public long traderBalance(Trader trader) {
@@ -473,27 +476,27 @@ class ShopRuntime extends Plugin {
     /** Restores one trader's start capital from the Wallet world account. */
     public ShopPurchaseResult replenishTraderStartCapital(Player player, Trader trader) {
         if (player == null || !player.isAdmin() || trader == null) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.trader.replenish.failed", player));
         }
         WalletBridge wallet = new WalletBridge((Shop) this);
         String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
         if (currency.isBlank() || wallet.worldSystemAccountId().isBlank()) {
-            return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("tc.shop.trader.replenish.failed", player));
         }
         WalletBridge.WalletTransferCallResult transfer = wallet.transferWorldToSystemIdempotent(trader.accountId(),
                 1000L, "Trader replenishment", currency,
                 "OZ - Shop", "trader:" + trader.npcId() + ":replenish:" + UUID.randomUUID());
         return transfer.success()
-                ? ShopPurchaseResult.success(t.get("TC_SHOP_TRADER_REPLENISHED", player)
+                ? ShopPurchaseResult.success(t.get("tc.shop.trader.replenished", player)
                         .replace("PH_TRADER", trader.name()).replace("PH_AMOUNT", "1000"), null)
-                : ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("TC_SHOP_TRADER_REPLENISH_FAILED", player));
+                : ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, t.get("tc.shop.trader.replenish.failed", player));
     }
 
     public String traderBuyDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
         if (trader == null || offer == null || !offer.isSystemOffer() || !offer.canPlayerBuyFromSystem() || economyStore == null) return "";
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         return economyStore.canSellToPlayer(trader.economyScope(), effective) ? ""
-                : t.get("TC_SHOP_TRADER_DYNAMIC_STOCK_EMPTY", player);
+                : t.get("tc.shop.trader.dynamic.stock.empty", player);
     }
 
     public String traderSellDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
@@ -501,8 +504,8 @@ class ShopRuntime extends Plugin {
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(trader.economyScope(), player.getDbID(), effective);
         if (!check.allowed()) {
-            String key = "TC_SHOP_DYNAMIC_STOCK_FULL".equals(check.messageKey())
-                    ? "TC_SHOP_TRADER_DYNAMIC_STOCK_FULL" : check.messageKey();
+            String key = "tc.shop.dynamic.stock.full".equals(check.messageKey())
+                    ? "tc.shop.trader.dynamic.stock.full" : check.messageKey();
             return t.get(key, player);
         }
         ShopService.SellQuote quote = service.quoteSell(player, effective);
@@ -511,7 +514,7 @@ class ShopRuntime extends Plugin {
         String currency = effective.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
                 : effective.getCurrencyIdentifier();
         return TraderService.hasSufficientBasePayoutBalance(traderBalance(wallet, trader, currency), quote.traderPayoutCap())
-                ? "" : t.get("TC_SHOP_TRADER_INSUFFICIENT_BALANCE", player);
+                ? "" : t.get("tc.shop.trader.insufficient.balance", player);
     }
 
     public Trader renameTrader(long npcId, String name) {
@@ -534,31 +537,31 @@ class ShopRuntime extends Plugin {
     public boolean canEditOfferFile(Player player, Trader trader) { return editorOfferFile(player, trader) != null; }
 
     public ShopPurchaseResult addOfferFromCatalog(Player player, Trader trader, String itemName, int itemVariant) {
-        if (player == null || !player.isAdmin()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        if (player == null || !player.isAdmin()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
-        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         SystemOfferEditor.AddResult result = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
-        if (result == SystemOfferEditor.AddResult.ADDED) return ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_ADDED", player), null);
+        if (result == SystemOfferEditor.AddResult.ADDED) return ShopPurchaseResult.success(t.get("tc.shop.editor.added", player), null);
         String key = result == SystemOfferEditor.AddResult.TARGET_READ_ONLY
-                ? "TC_SHOP_EDITOR_FILE_READ_ONLY" : "TC_SHOP_EDITOR_ADD_FAILED";
+                ? "tc.shop.editor.file.read.only" : "tc.shop.editor.add.failed";
         return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get(key, player));
     }
 
     public ShopPurchaseResult removeOffer(Player player, Trader trader, ShopOffer offer) {
-        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
-        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
-        if (trader != null && !settleTraderOfferStock(trader, offer)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("TC_SHOP_EDITOR_REMOVE_FAILED", player));
+        if (trader != null && !settleTraderOfferStock(trader, offer)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.editor.remove.failed", player));
         if (!new SystemOfferEditor((Shop) this).remove(file, offer.getId()) || economyStore == null || !economyStore.deleteOffer(scope, offer.getId()))
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_REMOVE_FAILED", player));
-        return ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_REMOVED", player), null);
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        return ShopPurchaseResult.success(t.get("tc.shop.editor.removed", player), null);
     }
 
     public ShopPurchaseResult updateOffer(Player player, Trader trader, ShopOffer offer, java.util.Map<String, Object> values) {
-        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_NOT_ALLOWED", player));
+        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
-        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_DEFAULT_FILE", player));
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         boolean updated = new SystemOfferEditor((Shop) this).update(file, offer.getId(), values);
         if (updated && values != null && values.get("stock") instanceof Number stock && economyStore != null) {
             String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
@@ -570,8 +573,8 @@ class ShopRuntime extends Plugin {
             // rebuilds so stock targets and dynamic card prices use the saved data.
             reloadSystemOffers();
         }
-        return updated ? ShopPurchaseResult.success(t.get("TC_SHOP_EDITOR_SAVED", player), null)
-                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_EDITOR_SAVE_FAILED", player));
+        return updated ? ShopPurchaseResult.success(t.get("tc.shop.editor.saved", player), null)
+                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.save.failed", player));
     }
 
     private String editorOfferFile(Player player, Trader trader) {
@@ -596,13 +599,20 @@ class ShopRuntime extends Plugin {
     }
 
     /** Settles stock and balances before removing Shop ownership of a trader NPC. */
-    public ShopPurchaseResult dissolveTrader(Player player, Trader trader) {
+    public ShopPurchaseResult dissolveTrader(Player player, Trader trader, boolean deleteNpc) {
         if (player == null || !player.isAdmin() || trader == null || traderService == null || economyStore == null) {
-            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("TC_SHOP_TRADER_DISSOLVE_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.trader.dissolve.failed", player));
         }
         String failure = dissolveTraderData(trader);
-        if (failure != null) return traderDissolveFailure(player, failure);
-        return ShopPurchaseResult.success(t.get("TC_SHOP_TRADER_DISSOLVED", player)
+        if (failure != null) {
+            logger().error("Could not dissolve trader '" + trader.name() + "' (NPC " + trader.npcId() + "): " + failure);
+            return traderDissolveFailure(player, failure);
+        }
+        if (deleteNpc) {
+            Npc npc = World.getNpc(trader.npcId());
+            if (npc != null && !npc.isDead()) npc.delete();
+        }
+        return ShopPurchaseResult.success(t.get("tc.shop.trader.dissolved", player)
                 .replace("PH_TRADER", trader.name()), null);
     }
 
@@ -635,16 +645,20 @@ class ShopRuntime extends Plugin {
             ShopEconomyStore.EconomyState state = economyStore.stateForWithoutTick(trader.economyScope(), offer);
             long value = DynamicEconomyPricing.outboundValue(offer, state, state.stock(), s.dynamicEconomyEnabled);
             if (value <= 0L) continue;
+            String currency = offer.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                    : offer.getCurrencyIdentifier();
             WalletBridge.WalletCallResult sale = wallet.creditSystemAccountIdempotent(trader.accountId(), value,
-                    "Trader dissolution stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
-                    prefix + ":stock:" + offer.getId());
+                    "Trader dissolution stock sale: " + offer.getId(), currency, "OZ - Shop",
+                    prefix + ":stock:" + currency + ":" + offer.getId());
             if (!sale.success()) return failureDetail(sale.message(), "Trader stock settlement failed.");
         }
         for (WalletBridge.SystemBalanceInfo balance : wallet.systemAccountBalances(trader.accountId())) {
             if (balance.balance() <= 0L) continue;
+            String currency = balance.currencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                    : balance.currencyIdentifier();
             WalletBridge.WalletTransferCallResult transfer = wallet.transferSystemToSystemIdempotent(trader.accountId(),
-                    worldAccount, balance.balance(), "Trader dissolution: " + trader.name(), balance.currencyIdentifier(),
-                    "OZ - Shop", prefix + ":balance:" + balance.currencyIdentifier());
+                    worldAccount, balance.balance(), "Trader dissolution: " + trader.name(), currency,
+                    "OZ - Shop", prefix + ":balance:" + currency);
             if (!transfer.success()) return failureDetail(transfer.message(), "Trader balance transfer failed.");
         }
         WalletBridge.SystemAccountCallResult archive = wallet.archiveSystemAccount(trader.accountId(), "OZ - Shop");
@@ -660,7 +674,7 @@ class ShopRuntime extends Plugin {
     }
 
     private ShopPurchaseResult traderDissolveFailure(Player player, String detail) {
-        String message = t.get("TC_SHOP_TRADER_DISSOLVE_FAILED", player);
+        String message = t.get("tc.shop.trader.dissolve.failed", player);
         return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED,
                 detail == null || detail.isBlank() ? message : message + " " + detail);
     }
@@ -790,10 +804,10 @@ class ShopRuntime extends Plugin {
 
     public ShopPurchaseResult resetSystemOfferStockToTarget(Player player, ShopOffer offer) {
         if (player == null || !player.isAdmin()) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_STOCK_UPDATE_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.stock.update.failed", player));
         }
         if (offer == null || !offer.isSystemOffer() || economyStore == null) {
-            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, t.get("TC_SHOP_STOCK_OFFER_NOT_FOUND", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, t.get("tc.shop.stock.offer.not.found", player));
         }
         String scope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
         ShopEconomyStore.EconomyState state = economyStore.stateFor(scope, offer);
@@ -801,9 +815,9 @@ class ShopRuntime extends Plugin {
         boolean updated = economyStore.configure(scope, offer.getId(), Math.max(0L, targetStock),
                 state.drainRate(), state.refillRate());
         if (!updated) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_STOCK_UPDATE_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.stock.update.failed", player));
         }
-        return ShopPurchaseResult.success(t.get("TC_SHOP_UI_ADMIN_STOCK_RESET_DONE", player)
+        return ShopPurchaseResult.success(t.get("tc.shop.ui.admin.stock.reset.done", player)
                 .replace("PH_OFFER", offer.getId())
                 .replace("PH_STOCK", String.valueOf(Math.max(0L, targetStock))), offer);
     }
@@ -813,7 +827,7 @@ class ShopRuntime extends Plugin {
             return "";
         }
         if (!isSystemShopAvailableFor(player)) {
-            return t.get("TC_SHOP_SYSTEM_DISABLED", player);
+            return t.get("tc.shop.system.disabled", player);
         }
         if (economyStore == null) {
             return "";
@@ -821,7 +835,7 @@ class ShopRuntime extends Plugin {
         ShopOffer effectiveOffer = dynamicEconomyOffer(player, offer, Math.max(1, quantity));
         boolean available = economyStore.canSellToPlayer(
                 ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)), effectiveOffer);
-        return available ? "" : t.get("TC_SHOP_DYNAMIC_STOCK_EMPTY", player);
+        return available ? "" : t.get("tc.shop.dynamic.stock.empty", player);
     }
 
     public String systemSellDisabledReason(Player player, ShopOffer offer, int quantity) {
@@ -829,7 +843,7 @@ class ShopRuntime extends Plugin {
             return "";
         }
         if (!isSystemShopAvailableFor(player)) {
-            return t.get("TC_SHOP_SYSTEM_DISABLED", player);
+            return t.get("tc.shop.system.disabled", player);
         }
         if (economyStore == null) {
             return "";
@@ -840,7 +854,7 @@ class ShopRuntime extends Plugin {
         if (check.allowed()) {
             return "";
         }
-        String key = check.messageKey().isBlank() ? "TC_SHOP_STOCK_UPDATE_FAILED" : check.messageKey();
+        String key = check.messageKey().isBlank() ? "tc.shop.stock.update.failed" : check.messageKey();
         return t.get(key, player);
     }
 
@@ -896,12 +910,12 @@ class ShopRuntime extends Plugin {
 
     public String shopUnavailableMessage(Player player) {
         if (!s.shopEnabled) {
-            return t.get("TC_SHOP_DISABLED", player);
+            return t.get("tc.shop.disabled", player);
         }
         if (s.requireShopZone) {
-            return t.get("TC_SHOP_ZONE_REQUIRED", player);
+            return t.get("tc.shop.zone.required", player);
         }
-        return t.get("TC_SHOP_NO_OFFERS", player);
+        return t.get("tc.shop.no.offers", player);
     }
 
     public ShopZoneService shopZoneService() {
@@ -955,24 +969,24 @@ class ShopRuntime extends Plugin {
     public ShopPurchaseResult resetCurrentZoneStocksToTarget(Player player) {
         Optional<ShopZone> current = currentShopZone(player);
         if (player == null || !player.isAdmin() || current.isEmpty()) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_ZONE_NO_AREA", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.zone.no.area", player));
         }
         if (economyStore == null) {
-            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("TC_SHOP_STOCK_UPDATE_FAILED", player));
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.stock.update.failed", player));
         }
         List<ShopOffer> offers = listSystemOffers(player).stream()
                 .filter(ShopOffer::isSystemOffer)
                 .toList();
         int updated = economyStore.resetStocksToTarget(ShopEconomyStore.scopeFor(current.get()), offers);
         reconcileEconomyState();
-        return ShopPurchaseResult.success(t.get("TC_SHOP_UI_ZONE_STOCKS_RESET_DONE", player)
+        return ShopPurchaseResult.success(t.get("tc.shop.ui.zone.stocks.reset.done", player)
                 .replace("PH_COUNT", String.valueOf(updated)), null);
     }
 
     public void setCurrentZoneOfferFile(Player player, String configuredFile) {
         Optional<ShopZone> current = currentShopZone(player);
         if (current.isEmpty()) {
-            player.sendTextMessage(c.warning + t.get("TC_SHOP_ZONE_NO_AREA", player));
+            player.sendTextMessage(c.warning + t.get("tc.shop.zone.no.area", player));
             return;
         }
         String value = configuredFile == null ? "" : configuredFile.trim();
@@ -981,64 +995,64 @@ class ShopRuntime extends Plugin {
         }
         ShopZone updated = setZoneSystemOffersFile(current.get().getAreaId(), value);
         if (updated == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_UI_ZONE_OFFERS_UPDATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.ui.zone.offers.update.failed", player));
             return;
         }
         reconcileEconomyState();
-        player.sendTextMessage(c.okay + t.get("TC_SHOP_UI_ZONE_OFFERS_UPDATED", player)
+        player.sendTextMessage(c.okay + t.get("tc.shop.ui.zone.offers.updated", player)
                 .replace("PH_AREA", updated.getAreaName())
                 .replace("PH_FILE", updated.getSystemOffersFile().isBlank()
-                        ? t.get("TC_SHOP_UI_ZONE_OFFERS_DEFAULT", player)
+                        ? t.get("tc.shop.ui.zone.offers.default", player)
                         : updated.getSystemOffersFile()));
     }
 
     public void configureStock(Player player, String offerId, String arguments) {
         if (economyStore == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_STOCK_UPDATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.stock.update.failed", player));
             return;
         }
         String[] parts = arguments == null ? new String[0] : arguments.trim().split("\\s+");
         if (offerId == null || offerId.isBlank() || parts.length < 1) {
-            player.sendTextMessage(c.warning + t.get("TC_SHOP_STOCK_USAGE", player)
+            player.sendTextMessage(c.warning + t.get("tc.shop.stock.usage", player)
                     .replace("PH_PLUGIN_CMD", s.shopCommand));
             return;
         }
         ShopOffer offer = findSystemOfferFor(player, offerId).orElse(null);
         if (offer == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_STOCK_OFFER_NOT_FOUND", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.stock.offer.not.found", player));
             return;
         }
         long stock = parseNonNegativeLong(parts[0], -1L);
         if (stock < 0L) {
-            player.sendTextMessage(c.warning + t.get("TC_SHOP_STOCK_USAGE", player)
+            player.sendTextMessage(c.warning + t.get("tc.shop.stock.usage", player)
                     .replace("PH_PLUGIN_CMD", s.shopCommand));
             return;
         }
         String scope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
         boolean updated = economyStore.configure(scope, offer.getId(), stock, 0.0d, 0.0d);
         player.sendTextMessage((updated ? c.okay : c.error) + (updated
-                ? t.get("TC_SHOP_STOCK_UPDATED", player)
+                ? t.get("tc.shop.stock.updated", player)
                         .replace("PH_OFFER", offer.getId())
                         .replace("PH_STOCK", String.valueOf(stock))
-                : t.get("TC_SHOP_STOCK_UPDATE_FAILED", player)));
+                : t.get("tc.shop.stock.update.failed", player)));
     }
 
     public void configureEconomy(Player player, String offerId, String arguments) {
         if (economyStore == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_ECONOMY_UPDATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.economy.update.failed", player));
             return;
         }
         if (offerId == null || offerId.isBlank() || arguments == null || arguments.trim().isBlank()) {
-            player.sendTextMessage(c.warning + t.get("TC_SHOP_ECONOMY_USAGE", player)
+            player.sendTextMessage(c.warning + t.get("tc.shop.economy.usage", player)
                     .replace("PH_PLUGIN_CMD", s.shopCommand));
             return;
         }
         ShopOffer offer = findSystemOfferFor(player, offerId).orElse(null);
         if (offer == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_STOCK_OFFER_NOT_FOUND", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.stock.offer.not.found", player));
             return;
         }
-        player.sendTextMessage(c.warning + t.get("TC_SHOP_ECONOMY_JSON_ONLY", player)
+        player.sendTextMessage(c.warning + t.get("tc.shop.economy.json.only", player)
                 .replace("PH_OFFER", offer.getId())
                 .replace("PH_PLUGIN_CMD", s.shopCommand));
     }
@@ -1048,23 +1062,20 @@ class ShopRuntime extends Plugin {
     }
 
     public void openShopUI(Player player) {
-        ShopOverlay existing = (ShopOverlay) player.getAttribute("oz.shop.ui.overlay");
-        if (existing != null) {
-            existing.close();
-        }
-        ShopOverlay overlay = new ShopOverlay((Shop) this, player);
-        CursorManager.show(player);
-        player.addUIElement(overlay);
-        player.setAttribute("oz.shop.ui.overlay", overlay);
+        openShopOverlay(player, null);
     }
 
     /** Opens the trader-specific overlay; this does not depend on a shop zone. */
     public void openTraderUI(Player player, Trader trader) {
+        openShopOverlay(player, trader);
+    }
+
+    private void openShopOverlay(Player player, Trader trader) {
         ShopOverlay existing = (ShopOverlay) player.getAttribute("oz.shop.ui.overlay");
-        if (existing != null) existing.close();
-        ShopOverlay overlay = new ShopOverlay((Shop) this, player, trader);
-        CursorManager.show(player);
-        player.addUIElement(overlay);
+        if (existing != null) player.deleteAttribute("oz.shop.ui.overlay");
+        ShopOverlay overlay = trader == null ? new ShopOverlay((Shop) this, player)
+                : new ShopOverlay((Shop) this, player, trader);
+        player.addUIElement(overlay, UITarget.Modal);
         player.setAttribute("oz.shop.ui.overlay", overlay);
     }
 
@@ -1074,13 +1085,13 @@ class ShopRuntime extends Plugin {
                 .filter(offer -> !offer.isSystemOffer() || isSystemShopAvailableFor(player))
                 .toList();
         if (offers.isEmpty()) {
-            player.sendTextMessage(c.info + t.get("TC_SHOP_NO_OFFERS", player));
+            player.sendTextMessage(c.info + t.get("tc.shop.no.offers", player));
             return;
         }
-        player.sendTextMessage(c.okay + t.get("TC_SHOP_TITLE", player));
+        player.sendTextMessage(c.okay + t.get("tc.shop.title", player));
         for (ShopOffer offer : offers) {
             String currency = offer.getCurrencyIdentifier().isBlank()
-                    ? t.get("TC_SHOP_DEFAULT_CURRENCY", player)
+                    ? t.get("tc.shop.default.currency", player)
                     : offer.getCurrencyIdentifier();
             String label = offer.getItemName().isBlank() ? offer.getTitle(player)
                     : offer.getAmount() + "x "
@@ -1088,7 +1099,7 @@ class ShopRuntime extends Plugin {
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice(player) + " " + currency + ")");
         }
-        player.sendTextMessage(c.text + t.get("TC_SHOP_USAGE", player).replace("PH_PLUGIN_CMD", s.shopCommand));
+        player.sendTextMessage(c.text + t.get("tc.shop.usage", player).replace("PH_PLUGIN_CMD", s.shopCommand));
     }
 
     private static int parsePositiveInt(String value, int fallback) {
@@ -1292,7 +1303,7 @@ class ShopRuntime extends Plugin {
     private void makeTrader(Player player) {
         player.getNpcInLineOfSight(10f, npc -> {
             if (npc == null) {
-                player.sendTextMessage(c.warning + t.get("TC_SHOP_TRADER_NO_NPC", player));
+                player.sendTextMessage(c.warning + t.get("tc.shop.trader.no.npc", player));
                 return;
             }
             registerTrader(player, npc);
@@ -1308,15 +1319,15 @@ class ShopRuntime extends Plugin {
         net.risingworld.api.definitions.Npcs.NpcDefinition dummy = Definitions.getNpcDefinition("dummy");
         if (dummy == null) {
             logger().error("Could not create trader: NPC definition 'dummy' was not found");
-            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
             return;
         }
         Npc npc = World.spawnNpc(dummy.id, male ? 0 : 1, player.getPosition(), player.getRotation());
         if (npc == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
             return;
         }
-        String name = t.get(male ? "TC_SHOP_TRADER_PREFIX_MALE" : "TC_SHOP_TRADER_PREFIX_FEMALE", player)
+        String name = t.get(male ? "tc.shop.trader.prefix.male" : "tc.shop.trader.prefix.female", player)
                 + " " + config.randomName(male, random);
         List<String> outfit = config.randomOutfit(random);
         GeneratedTraderAppearance appearance = new GeneratedTraderAppearance(name, male, List.copyOf(outfit),
@@ -1412,7 +1423,7 @@ class ShopRuntime extends Plugin {
     private void registerTrader(Player player, Npc npc) {
         Trader trader = traderService == null ? null : traderService.register(npc, player).orElse(null);
         if (trader == null) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_CREATE_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
             return;
         }
         WalletBridge wallet = new WalletBridge((Shop) this);
@@ -1422,10 +1433,10 @@ class ShopRuntime extends Plugin {
                 trader.accountId(), 1000L, "Trader initial capital", currency,
                 "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
         if (!funded) {
-            player.sendTextMessage(c.error + t.get("TC_SHOP_TRADER_WALLET_FAILED", player));
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.wallet.failed", player));
             return;
         }
-        player.sendTextMessage(c.okay + t.get("TC_SHOP_TRADER_CREATED", player)
+        player.sendTextMessage(c.okay + t.get("tc.shop.trader.created", player)
                 .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
     }
 
