@@ -5,6 +5,7 @@
 ## [0.6.0] - 2026-09-05 | Native Shop route
 
 - feat: expose Shop zones through the native PluginAPI webserver route.
+- change: migrate Shop settings and translations to JSON and align trader overlays with the current PluginAPI runtime.
 
 ## [0.5.6] - 2026-08-12 | Trader buyback funding
 
