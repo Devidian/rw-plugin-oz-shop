@@ -24,6 +24,6 @@ explicit player confirmation for condition-adjusted sales.
 ## Validation
 
 - [x] `mvn -B test` in a writable temporary checkout: 15 tests passed.
-- [ ] Development-runtime check: mixed durability/modifier stack,
+- [x] Development-runtime check: mixed durability/modifier stack,
   confirmation cancel/confirm behavior, zero-durability item, and forced
-  Wallet failure rollback.
+  Wallet failure rollback; accepted in-game on 2026-09-04.

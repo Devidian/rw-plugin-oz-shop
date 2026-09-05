@@ -47,6 +47,12 @@ public final class ShopItemNames {
         return labelVariant == 0 ? derivedBaseName(baseName) : derivedBaseName(baseName) + "-" + labelVariant;
     }
 
+    /** Resolves a persisted definition ID for display without fabricating an Item. */
+    public static String label(String itemName, int itemVariant, String fallbackTitle, String language) {
+        String localized = localizedDefinitionName(itemName, itemVariant, language);
+        return localized.isBlank() ? label(itemName, itemVariant, fallbackTitle) : localized;
+    }
+
     public static ObjectDefinition objectDefinition(String itemName, int itemVariant) {
         ObjectDefinition direct = Definitions.getObjectDefinition(itemName);
         if (direct != null) {
@@ -153,6 +159,23 @@ public final class ShopItemNames {
             return plantDefinition.name;
         }
         return "";
+    }
+
+    private static String localizedDefinitionName(String itemName, int itemVariant, String language) {
+        ObjectDefinition object = objectDefinition(itemName, itemVariant);
+        if (object != null && usable(object.getLocalizedName(language))) return object.getLocalizedName(language).trim();
+        ItemDefinition item = Definitions.getItemDefinition(itemName);
+        if (item != null && usable(item.getLocalizedName(language))) return item.getLocalizedName(language).trim();
+        ConstructionDefinition construction = Definitions.getConstructionDefinition(itemName);
+        if (construction != null && usable(construction.getLocalizedName(language))) return construction.getLocalizedName(language).trim();
+        ClothingDefinition clothing = Definitions.getClothingDefinition(itemName);
+        if (clothing != null && usable(clothing.getLocalizedName(language))) return clothing.getLocalizedName(language).trim();
+        PlantDefinition plant = Definitions.getPlantDefinition(itemName);
+        return plant != null && usable(plant.getLocalizedName(language)) ? plant.getLocalizedName(language).trim() : "";
+    }
+
+    private static boolean usable(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static boolean isObjectKit(String itemName) {

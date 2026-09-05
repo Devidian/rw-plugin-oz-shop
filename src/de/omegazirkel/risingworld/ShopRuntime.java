@@ -33,6 +33,8 @@ import de.omegazirkel.risingworld.shop.SystemOfferFile;
 import de.omegazirkel.risingworld.shop.SystemOfferEditor;
 import de.omegazirkel.risingworld.shop.PluginGUI;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
+import de.omegazirkel.risingworld.shop.exports.ShopZoneExportService;
+import de.omegazirkel.risingworld.shop.web.ShopZoneRoute;
 import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.shop.ui.ShopOverlay;
 import de.omegazirkel.risingworld.shop.ui.ShopPlayerPluginData;
@@ -93,6 +95,8 @@ class ShopRuntime extends Plugin {
     public static String name;
     public static PlayerSettings ps;
     private Timer economyTimer;
+    private static final String WEBSERVER_ZONES_ROUTE = "zones";
+    private ShopZoneRoute webserverZonesRoute;
 
     public static OZLogger logger() {
         return OZLogger.getInstance("OZ.Shop");
@@ -110,6 +114,7 @@ class ShopRuntime extends Plugin {
         zoneService = new ShopZoneService((Shop) this, sqliteCon, s.shopZonesFile);
         economyStore = new ShopEconomyStore(sqliteCon);
         traderService = new TraderService(sqliteCon);
+        registerWebserverZoneRoute();
         copyDefaultTraderOffers();
         traderGeneratorConfig = loadTraderGeneratorConfig();
         reloadSystemOffers();
@@ -137,6 +142,7 @@ class ShopRuntime extends Plugin {
 
     @Override
     public void onDisable() {
+        if (webserverZonesRoute != null) { unregisterWebserverHandler(WEBSERVER_ZONES_ROUTE); webserverZonesRoute = null; }
         stopEconomyTimer();
         if (service != null) {
             service.clear();
@@ -153,6 +159,12 @@ class ShopRuntime extends Plugin {
                 logger().error("Failed to close shop database connection: " + ex.getMessage());
             }
         }
+    }
+
+    private void registerWebserverZoneRoute() {
+        webserverZonesRoute = new ShopZoneRoute(() -> s.exposeShopZones, new ShopZoneExportService(sqliteCon));
+        registerWebserverHandler(WEBSERVER_ZONES_ROUTE, webserverZonesRoute);
+        logger().info("Native Shop-zone route registered at /" + WEBSERVER_ZONES_ROUTE);
     }
 
     public void onSettingsChanged(Path settingsPath) {
@@ -687,7 +699,7 @@ class ShopRuntime extends Plugin {
         return ShopPurchaseResult.success(t.get(key, player)
                 .replace("PH_AMOUNT", String.valueOf(offer.getAmount()))
                 .replace("PH_OFFER", ShopItemNames.label(offer.getItemName(), offer.getItemVariant(),
-                        offer.getTitle(player))), offer);
+                        offer.getTitle(player), player.getLanguage())), offer);
     }
 
     public ShopService.SellQuote sellQuote(Player player, ShopOffer offer, int quantity) {
@@ -1095,7 +1107,8 @@ class ShopRuntime extends Plugin {
                     : offer.getCurrencyIdentifier();
             String label = offer.getItemName().isBlank() ? offer.getTitle(player)
                     : offer.getAmount() + "x "
-                            + ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player));
+                            + ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player),
+                                    player.getLanguage());
             player.sendTextMessage(c.info + offer.getId() + c.text + " - " + label + " ("
                     + offer.getPrice(player) + " " + currency + ")");
         }

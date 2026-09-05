@@ -1211,7 +1211,8 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         if (offer.getItemName().isBlank()) {
             return offer.getTitle(player);
         }
-        return ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player));
+        return ShopItemNames.label(offer.getItemName(), offer.getItemVariant(), offer.getTitle(player),
+                player.getLanguage());
     }
 
     private String offerPrice(ShopOffer offer, OfferAction action) {

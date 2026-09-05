@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.6.0] - 2026-09-05 | Native Shop route
+
+- feat: expose Shop zones through the native PluginAPI webserver route.
+
 ## [0.5.6] - 2026-08-12 | Trader buyback funding
 
 - fix: fund only the modifier premium of NPC-trader buybacks from the world account, calculate that normal-modifier threshold with aggregate payout rounding, and block sales when the trader cannot cover it.

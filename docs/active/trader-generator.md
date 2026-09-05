@@ -35,7 +35,7 @@ Allow administrators to create a configured, stationary NPC trader at their curr
 - [x] Add configuration loader/default, generator service, command/radial wiring, i18n, documentation, and icon assets.
 - [x] Add focused configuration tests and run Maven tests, package, API verification, and entrypoint verification.
 - [x] Upload only `OZShop` to the development server, reload plugins, and inspect the post-reload Shop log for errors.
-- [ ] Leave in-game command/radial and NPC visual/interaction acceptance for the administrator's Dev test.
+- [x] In-game command/radial and NPC visual/interaction acceptance was confirmed on Development on 2026-09-04.
 
 ## 2026-08-07 follow-up
 

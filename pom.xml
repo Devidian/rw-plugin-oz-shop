@@ -8,7 +8,7 @@
 
     <groupId>com.github.devidian</groupId>
     <artifactId>rw-plugin-oz-shop</artifactId>
-	<version>0.5.6</version>
+	<version>0.6.0</version>
 
     <name>OZShop</name>
     <description>Shared shop and purchase API for Rising World plugins</description>
@@ -63,7 +63,7 @@
         <dependency>
             <groupId>com.github.devidian</groupId>
             <artifactId>rw-plugin-oz-tools</artifactId>
-            <version> 0.23.14</version>
+            <version> 0.24.0</version>
         </dependency>
 
         <!-- Rising World PluginAPI -->

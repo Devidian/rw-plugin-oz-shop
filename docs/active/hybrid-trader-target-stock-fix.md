@@ -16,7 +16,7 @@ Prevent automatic economy reconciliation from draining a hybrid NPC trader when 
 - [x] Restrict HYBRID drain to the positive stock surplus above target.
 - [x] Add focused coverage for at-target, surplus, and non-hybrid behavior.
 - [x] Run Shop tests, API verification, and package build.
-- [ ] Perform a development-server trader economy smoke test.
+- [x] Perform a development-server trader economy smoke test; accepted in-game on 2026-09-04.
 
 ## Risk and rollback
 

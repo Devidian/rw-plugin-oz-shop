@@ -18,7 +18,7 @@ Supporting repositories/plugins: `rw-plugin-oz-wallet` (existing trader-system-a
 - Removing an offer must clear only its current shop/trader economy scope; trader stock is settled before removal.
 
 ## Validation Strategy
-- [ ] Add focused file/editor unit tests where the existing JSON parser permits it.
+- [ ] Add focused file/editor unit tests where the existing JSON parser permits it. In-game behavior was accepted on 2026-09-04.
 - [x] `mvn -B test`
 - [x] `mvn -B -DskipTests package`
 - [x] `scripts/verify-plugin-api.sh --summary`
@@ -37,4 +37,4 @@ Revert the Shop artifact. Administrator-created offer JSON files and their scope
 - [x] Add a localized editable offer overlay and persist supported configuration fields.
 - [x] Reconcile/reload affected scopes and settle removed trader stock.
 - [x] Update README, HISTORY, and i18n.
-- [ ] Validate and deploy only OZ Shop to Dev.
+- [x] Validate and deploy only OZ Shop to Dev.

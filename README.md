@@ -71,7 +71,7 @@ System-shop stock state is always maintained for configured offers. Positive sco
 
 `showShopZoneIndicator=true` shows the Shop icon in the shared Tools indicator panel while players are inside a shop area.
 
-`exposeShopZones=true` allows bridge or future native route layers to expose read-only SQLite shop-zone metadata for manager views. The export uses `created_at` as the `lastChange` cursor and reads the world-scoped `shop_zones` table.
+`exposeShopZones=true` exposes read-only SQLite shop-zone metadata at `/plugins/oz---shop/zones` for manager views. The export uses `created_at` as the `lastChange` cursor and reads the world-scoped `shop_zones` table.
 
 ## System Offers
 
