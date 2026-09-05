@@ -1003,11 +1003,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         String[] keys = { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockPercent", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
         for (int index = 0; index < keys.length; index++) {
             String key = keys[index]; int column = index / 7; int row = index % 7; int x = 18 + column * 334; int y = 56 + row * 62;
-            UILabel caption = label(t.get("TC_SHOP_EDITOR_FIELD_" + key, player), 12, Font.Default); caption.setPivot(Pivot.UpperLeft); caption.setPosition(x, y, false); caption.setSize(300, 18, false); dialog.addChild(caption);
+            UILabel caption = label(t.get("tc.shop.editor.field." + key.toLowerCase(Locale.ROOT), player), 12, Font.Default); caption.setPivot(Pivot.UpperLeft); caption.setPosition(x, y, false); caption.setSize(300, 18, false); dialog.addChild(caption);
             if ("stockMode".equals(key)) continue;
             UITextField field = textField(editorValue(offer, key)); field.setPivot(Pivot.UpperLeft); field.setPosition(x, y + 20, false); field.setSize(300, 28, false); field.setMaxCharacters(40); dialog.addChild(field); fields.put(key, field);
         }
-        UILabel modeCaption = label(t.get("TC_SHOP_EDITOR_FIELD_stockMode", player), 12, Font.Default); modeCaption.setPivot(Pivot.UpperLeft); modeCaption.setPosition(18, 242, false); modeCaption.setSize(300, 18, false); dialog.addChild(modeCaption);
+        UILabel modeCaption = label(t.get("tc.shop.editor.field.stockmode", player), 12, Font.Default); modeCaption.setPivot(Pivot.UpperLeft); modeCaption.setPosition(18, 242, false); modeCaption.setSize(300, 18, false); dialog.addChild(modeCaption);
         Dropdown modeDropdown = new Dropdown(Arrays.stream(ShopStockMode.values()).map(mode -> new DropdownOption(mode.name(), stockModeLabel(mode))).toList(), offer.getStockMode().name(), null);
         modeDropdown.setPivot(Pivot.UpperLeft); modeDropdown.setPosition(18, 262, false); modeDropdown.setSize(300, 28, false); dialog.addChild(modeDropdown);
         UILabel readonly = label(t.get("tc.shop.editor.readonly", player).replace("PH_ID", offer.getId()).replace("PH_ITEM", offer.getItemName()).replace("PH_VARIANT", String.valueOf(offer.getItemVariant())), 11, Font.Default);

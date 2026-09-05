@@ -188,7 +188,7 @@
       "editor": {
         "add": {
           "$value": "Add item",
-          "failed": "The item is already present or is not available in the complete system catalog."
+          "failed": "The item is already present, invalid, or the offer file could not be saved."
         },
         "added": "Item added to the offer file.",
         "context": {
@@ -602,18 +602,18 @@
       }
     }
   },
-  "TC_SHOP_EDITOR_FIELD_basePrice": "Base price",
-  "TC_SHOP_EDITOR_FIELD_drainMax": "Drain maximum",
-  "TC_SHOP_EDITOR_FIELD_drainPercent": "Drain percent",
-  "TC_SHOP_EDITOR_FIELD_globalDailySellLimit": "Global daily sell limit",
-  "TC_SHOP_EDITOR_FIELD_maxPriceMultiplier": "Maximum price modifier",
-  "TC_SHOP_EDITOR_FIELD_minPriceMultiplier": "Minimum price modifier",
-  "TC_SHOP_EDITOR_FIELD_perPlayerDailySellLimit": "Player daily sell limit",
-  "TC_SHOP_EDITOR_FIELD_restockMax": "Restock maximum",
-  "TC_SHOP_EDITOR_FIELD_restockPercent": "Restock percent",
-  "TC_SHOP_EDITOR_FIELD_spreadPercent": "Spread percent",
-  "TC_SHOP_EDITOR_FIELD_stock": "Stock",
-  "TC_SHOP_EDITOR_FIELD_stockLimit": "Stock limit",
-  "TC_SHOP_EDITOR_FIELD_stockMode": "Mode",
-  "TC_SHOP_EDITOR_FIELD_targetStock": "Target stock"
+  "tc.shop.editor.field.baseprice": "Base price",
+  "tc.shop.editor.field.drainmax": "Drain maximum",
+  "tc.shop.editor.field.drainpercent": "Drain percent",
+  "tc.shop.editor.field.globaldailyselllimit": "Global daily sell limit",
+  "tc.shop.editor.field.maxpricemultiplier": "Maximum price modifier",
+  "tc.shop.editor.field.minpricemultiplier": "Minimum price modifier",
+  "tc.shop.editor.field.perplayerdailyselllimit": "Player daily sell limit",
+  "tc.shop.editor.field.restockmax": "Restock maximum",
+  "tc.shop.editor.field.restockpercent": "Restock percent",
+  "tc.shop.editor.field.spreadpercent": "Spread percent",
+  "tc.shop.editor.field.stock": "Stock",
+  "tc.shop.editor.field.stocklimit": "Stock limit",
+  "tc.shop.editor.field.stockmode": "Mode",
+  "tc.shop.editor.field.targetstock": "Target stock"
 }

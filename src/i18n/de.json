@@ -188,7 +188,7 @@
       "editor": {
         "add": {
           "$value": "Artikel hinzufügen",
-          "failed": "Der Artikel ist bereits vorhanden oder im vollständigen Systemkatalog nicht verfügbar."
+          "failed": "Der Artikel ist bereits vorhanden, ungültig oder die Angebotsdatei konnte nicht gespeichert werden."
         },
         "added": "Artikel zur Angebotsdatei hinzugefügt.",
         "context": {
@@ -602,18 +602,18 @@
       }
     }
   },
-  "TC_SHOP_EDITOR_FIELD_basePrice": "Basispreis",
-  "TC_SHOP_EDITOR_FIELD_drainMax": "Abfluss Maximum",
-  "TC_SHOP_EDITOR_FIELD_drainPercent": "Abfluss Prozent",
-  "TC_SHOP_EDITOR_FIELD_globalDailySellLimit": "Globales Tages-Ankaufslimit",
-  "TC_SHOP_EDITOR_FIELD_maxPriceMultiplier": "Maximaler Preismodifier",
-  "TC_SHOP_EDITOR_FIELD_minPriceMultiplier": "Minimaler Preismodifier",
-  "TC_SHOP_EDITOR_FIELD_perPlayerDailySellLimit": "Spieler Tages-Ankaufslimit",
-  "TC_SHOP_EDITOR_FIELD_restockMax": "Auffüllen Maximum",
-  "TC_SHOP_EDITOR_FIELD_restockPercent": "Auffüllen Prozent",
-  "TC_SHOP_EDITOR_FIELD_spreadPercent": "Spread Prozent",
-  "TC_SHOP_EDITOR_FIELD_stock": "Bestand",
-  "TC_SHOP_EDITOR_FIELD_stockLimit": "Bestandslimit",
-  "TC_SHOP_EDITOR_FIELD_stockMode": "Modus",
-  "TC_SHOP_EDITOR_FIELD_targetStock": "Zielbestand"
+  "tc.shop.editor.field.baseprice": "Basispreis",
+  "tc.shop.editor.field.drainmax": "Abfluss Maximum",
+  "tc.shop.editor.field.drainpercent": "Abfluss Prozent",
+  "tc.shop.editor.field.globaldailyselllimit": "Globales Tages-Ankaufslimit",
+  "tc.shop.editor.field.maxpricemultiplier": "Maximaler Preismodifier",
+  "tc.shop.editor.field.minpricemultiplier": "Minimaler Preismodifier",
+  "tc.shop.editor.field.perplayerdailyselllimit": "Spieler Tages-Ankaufslimit",
+  "tc.shop.editor.field.restockmax": "Auffüllen Maximum",
+  "tc.shop.editor.field.restockpercent": "Auffüllen Prozent",
+  "tc.shop.editor.field.spreadpercent": "Spread Prozent",
+  "tc.shop.editor.field.stock": "Bestand",
+  "tc.shop.editor.field.stocklimit": "Bestandslimit",
+  "tc.shop.editor.field.stockmode": "Modus",
+  "tc.shop.editor.field.targetstock": "Zielbestand"
 }

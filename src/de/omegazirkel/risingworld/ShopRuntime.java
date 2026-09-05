@@ -553,7 +553,10 @@ class ShopRuntime extends Plugin {
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         SystemOfferEditor.AddResult result = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
-        if (result == SystemOfferEditor.AddResult.ADDED) return ShopPurchaseResult.success(t.get("tc.shop.editor.added", player), null);
+        if (result == SystemOfferEditor.AddResult.ADDED) {
+            if (trader == null) reloadSystemOffers();
+            return ShopPurchaseResult.success(t.get("tc.shop.editor.added", player), null);
+        }
         String key = result == SystemOfferEditor.AddResult.TARGET_READ_ONLY
                 ? "tc.shop.editor.file.read.only" : "tc.shop.editor.add.failed";
         return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get(key, player));
@@ -564,9 +567,13 @@ class ShopRuntime extends Plugin {
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
-        if (trader != null && !settleTraderOfferStock(trader, offer)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.editor.remove.failed", player));
+        if (economyStore == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        String removalId = new SystemOfferEditor((Shop) this).prepareRemoval(file, offer.getId());
+        if (removalId == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        if (trader != null && !settleTraderOfferStock(trader, offer, removalId)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.editor.remove.failed", player));
         if (!new SystemOfferEditor((Shop) this).remove(file, offer.getId()) || economyStore == null || !economyStore.deleteOffer(scope, offer.getId()))
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        if (trader == null) reloadSystemOffers();
         return ShopPurchaseResult.success(t.get("tc.shop.editor.removed", player), null);
     }
 
@@ -595,15 +602,19 @@ class ShopRuntime extends Plugin {
                 || file.equalsIgnoreCase("default-trader.json") || file.equalsIgnoreCase(s.systemOffersFile) ? null : file;
     }
 
-    private boolean settleTraderOfferStock(Trader trader, ShopOffer offer) {
+    private boolean settleTraderOfferStock(Trader trader, ShopOffer offer, String removalId) {
         if (economyStore == null) return false;
         ShopEconomyStore.EconomyState state = economyStore.stateForWithoutTick(trader.economyScope(), offer);
         long value = DynamicEconomyPricing.outboundValue(offer, state, state.stock(), s.dynamicEconomyEnabled);
         if (value <= 0L) return true;
         WalletBridge wallet = new WalletBridge((Shop) this);
-        return wallet.transferWorldToSystemIdempotent(trader.accountId(), value,
-                "Trader offer removal stock sale: " + offer.getId(), offer.getCurrencyIdentifier(), "OZ - Shop",
-                "trader:" + trader.npcId() + ":offer-remove:" + offer.getId()).success();
+        String currency = offer.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                : offer.getCurrencyIdentifier();
+        WalletBridge.WalletTransferCallResult result = wallet.transferWorldToSystemIdempotent(trader.accountId(), value,
+                "Trader offer removal stock sale: " + offer.getId(), currency, "OZ - Shop",
+                "trader:" + trader.npcId() + ":offer-remove:" + removalId);
+        if (!result.success()) logger().error("Trader offer removal settlement failed: " + result.message());
+        return result.success();
     }
 
     public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {
