@@ -2,6 +2,13 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.6.1] - 2026-09-06 | Item editor and localization fixes
+
+- Fix adding items outside the enabled catalog with the requested HYBRID stock and pricing defaults.
+- Restore German and English offer-editor field labels.
+- Fix NPC offer removal with Wallet default currency and retry-safe remaining-stock settlement.
+- build: ship JSON settings and translations only; retain existing-server migration and backups.
+
 ## [0.6.0] - 2026-09-05 | Native Shop route
 
 - feat: expose Shop zones through the native PluginAPI webserver route.
