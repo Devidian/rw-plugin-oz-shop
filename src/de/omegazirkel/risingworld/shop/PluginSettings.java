@@ -37,6 +37,7 @@ public class PluginSettings {
     public boolean economyReportTraders = false;
     public String economyReportRecipients = "";
     public boolean exposeShopZones = true;
+    public boolean exposeShopTraders = true;
     private Path settingsFile;
 
     private static OZLogger logger() {
@@ -108,6 +109,8 @@ public class PluginSettings {
                     defaults.getProperty("economyReportRecipients", "")).trim();
             exposeShopZones = settings.getProperty("exposeShopZones",
                     defaults.getProperty("exposeShopZones", "true")).contentEquals("true");
+            exposeShopTraders = settings.getProperty("exposeShopTraders",
+                    defaults.getProperty("exposeShopTraders", "true")).contentEquals("true");
 
             logger().info((plugin == null ? "OZShop" : plugin.getName()) + " Plugin settings loaded");
             logger().info("Shop command is /" + shopCommand);
@@ -172,7 +175,10 @@ public class PluginSettings {
                 AdminSettingsEntry.group("exportRoutes", "Export routes", "Route-ready read exposure for manager bridges."),
                 entry("exposeShopZones", "Expose shop zones",
                         "Allows bridge/native route layers to expose SQLite shop-zone metadata.",
-                        exposeShopZones, "true", AdminSettingsType.BOOLEAN));
+                        exposeShopZones, "true", AdminSettingsType.BOOLEAN),
+                entry("exposeShopTraders", "Expose shop traders",
+                        "Allows authenticated Manager bridges to read trader locations, balances and offers.",
+                        exposeShopTraders, "true", AdminSettingsType.BOOLEAN));
     }
 
     private AdminSettingsEntry entry(String key, String label, String description, Object value, String defaultValue,

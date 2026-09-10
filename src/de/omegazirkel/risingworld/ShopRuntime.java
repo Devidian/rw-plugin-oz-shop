@@ -34,7 +34,9 @@ import de.omegazirkel.risingworld.shop.SystemOfferEditor;
 import de.omegazirkel.risingworld.shop.PluginGUI;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
 import de.omegazirkel.risingworld.shop.exports.ShopZoneExportService;
+import de.omegazirkel.risingworld.shop.exports.ShopTraderExportService;
 import de.omegazirkel.risingworld.shop.web.ShopZoneRoute;
+import de.omegazirkel.risingworld.shop.web.ShopTraderRoute;
 import de.omegazirkel.risingworld.shop.WalletBridge;
 import de.omegazirkel.risingworld.shop.ui.ShopOverlay;
 import de.omegazirkel.risingworld.shop.ui.ShopPlayerPluginData;
@@ -96,7 +98,9 @@ class ShopRuntime extends Plugin {
     public static PlayerSettings ps;
     private Timer economyTimer;
     private static final String WEBSERVER_ZONES_ROUTE = "zones";
+    private static final String WEBSERVER_TRADERS_ROUTE = "traders";
     private ShopZoneRoute webserverZonesRoute;
+    private ShopTraderRoute webserverTradersRoute;
 
     public static OZLogger logger() {
         return OZLogger.getInstance("OZ.Shop");
@@ -143,6 +147,7 @@ class ShopRuntime extends Plugin {
     @Override
     public void onDisable() {
         if (webserverZonesRoute != null) { unregisterWebserverHandler(WEBSERVER_ZONES_ROUTE); webserverZonesRoute = null; }
+        if (webserverTradersRoute != null) { unregisterWebserverHandler(WEBSERVER_TRADERS_ROUTE); webserverTradersRoute = null; }
         stopEconomyTimer();
         if (service != null) {
             service.clear();
@@ -163,8 +168,14 @@ class ShopRuntime extends Plugin {
 
     private void registerWebserverZoneRoute() {
         webserverZonesRoute = new ShopZoneRoute(() -> s.exposeShopZones, new ShopZoneExportService(sqliteCon));
+        webserverTradersRoute = new ShopTraderRoute(() -> s.exposeShopTraders,
+                new ShopTraderExportService(this::listTraders, this::listTraderSystemOffers,
+                        (trader, offer) -> dynamicTraderOffer(trader, offer, 1),
+                        this::traderEconomyStateFor,
+                        accountId -> new WalletBridge(this).systemAccountBalances(accountId)));
         registerWebserverHandler(WEBSERVER_ZONES_ROUTE, webserverZonesRoute);
-        logger().info("Native Shop-zone route registered at /" + WEBSERVER_ZONES_ROUTE);
+        registerWebserverHandler(WEBSERVER_TRADERS_ROUTE, webserverTradersRoute);
+        logger().info("Native Shop routes registered at /" + WEBSERVER_ZONES_ROUTE + " and /" + WEBSERVER_TRADERS_ROUTE);
     }
 
     public void onSettingsChanged(Path settingsPath) {
