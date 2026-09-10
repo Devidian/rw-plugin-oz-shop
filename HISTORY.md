@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.6.2] - 2026-09-10 | Trader map export
+
+- feat: export opt-in trader data with position, Wallet balance, current prices, and stock for compatible map views.
+
 ## [0.6.1] - 2026-09-06 | Item editor and localization fixes
 
 - Fix adding items outside the enabled catalog with the requested HYBRID stock and pricing defaults.
