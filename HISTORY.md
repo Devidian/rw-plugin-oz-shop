@@ -2,6 +2,11 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.7.0] - 2026-09-11 | Safe special-item sales and enriched trader maps
+
+- fix: let players select the exact modified, damaged, or non-stackable items they sell and retain the correct payout.
+- feat: export separate buy and sell prices, stock limits, and German and English item labels for compatible Manager maps.
+
 ## [0.6.2] - 2026-09-10 | Trader map export
 
 - feat: export opt-in trader data with position, Wallet balance, current prices, and stock for compatible map views.
