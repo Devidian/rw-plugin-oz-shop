@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.7.1] - 2026-09-12 | System economy limits and fixed restock
+
+- fix: limit condition-confirmation sales to the requested amount and revalidate that amount before inventory or Wallet mutation.
+- fix: calculate automatic drain from current scoped stock while retaining `drainMax` as its cap.
+- change: use `restockMax` as the fixed amount added per economy tick; retired restock-rate JSON input remains tolerated and ignored.
+
 ## [0.7.0] - 2026-09-11 | Safe special-item sales and enriched trader maps
 
 - fix: let players select the exact modified, damaged, or non-stackable items they sell and retain the correct payout.

@@ -87,7 +87,7 @@ Supporting repositories/plugins:
 - Quantity buy stock checks now use the full requested package amount.
 - Player sales are rejected before inventory removal and Wallet payout when adding the sold amount would exceed positive `stockLimit`.
 - Shop UI price labels now use the dynamic price calculation for system offers.
-- Added optional `drainPercent`, `drainMax`, `restockPercent`, `restockMax`, `perPlayerDailySellLimit`, and `globalDailySellLimit` system-offer fields.
+- Added optional drain/rate-limit, restock-limit, and daily sell-limit system-offer fields.
 - Added `shop_offer_daily_sell_counters` as an additive SQLite table and reject player sales before inventory removal/Wallet payout when per-player or global daily sell limits would be exceeded.
 - Validation passed after the sell-limit slice with `mvn -B test -f rw-plugin-oz-shop/pom.xml` and `mvn -B -DskipTests package -f rw-plugin-oz-shop/pom.xml`.
 - Added stock-mode tick semantics: `STATIC` and `PLAYER_SUPPLIED` do not run automatic ticks; `SYSTEM_SUPPLIED` and `HYBRID` run automatic drain/restock.

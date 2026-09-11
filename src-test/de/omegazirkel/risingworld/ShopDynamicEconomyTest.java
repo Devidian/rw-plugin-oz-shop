@@ -82,6 +82,6 @@ public class ShopDynamicEconomyTest {
     private static ShopOffer offer(double basePrice) {
         return new ShopOffer("test", "Test", "", "stone", (short) 0, 0, 1, basePrice, 0L, 0L,
                 "COINS", "", "", "system", "system", true, false, true, 1L, 10L, 20L, 0.0d, 0.0d,
-                ShopStockMode.HYBRID, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 10.0d, 5L, 10L, 20L, null, null);
+                ShopStockMode.HYBRID, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 5L, 10L, 20L, null, null);
     }
 }

@@ -934,7 +934,6 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 .replace("PH_PERCENT", String.valueOf(offer.getDrainPercent()))
                 .replace("PH_MAX", String.valueOf(offer.getDrainMax())));
         addAdminEconomyLine(options, x, 82, t.get("tc.shop.ui.admin.restock", player)
-                .replace("PH_PERCENT", String.valueOf(offer.getRestockPercent()))
                 .replace("PH_MAX", String.valueOf(offer.getRestockMax())));
         AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.admin.reset.target", player),
                 event -> showResetStockConfirmation(offer, state));
@@ -1000,7 +999,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         UILabel title = label(t.get("tc.shop.editor.edit", player) + ": " + offerTitle(offer), 18, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft); title.setPosition(18, 14, false); title.setSize(650, 26, false); dialog.addChild(title);
         Map<String, UITextField> fields = new LinkedHashMap<>();
-        String[] keys = { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockPercent", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
+        String[] keys = { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
         for (int index = 0; index < keys.length; index++) {
             String key = keys[index]; int column = index / 7; int row = index % 7; int x = 18 + column * 334; int y = 56 + row * 62;
             UILabel caption = label(t.get("tc.shop.editor.field." + key.toLowerCase(Locale.ROOT), player), 12, Font.Default); caption.setPivot(Pivot.UpperLeft); caption.setPosition(x, y, false); caption.setSize(300, 18, false); dialog.addChild(caption);
@@ -1052,7 +1051,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
             case "stock" -> String.valueOf(economyStateFor(offer).stock()); case "targetStock" -> String.valueOf(offer.getDefaultTargetStock());
             case "stockLimit" -> String.valueOf(offer.getDefaultStockLimit()); case "stockMode" -> offer.getStockMode().name();
             case "drainPercent" -> String.valueOf(offer.getDrainPercent()); case "drainMax" -> String.valueOf(offer.getDrainMax());
-            case "restockPercent" -> String.valueOf(offer.getRestockPercent()); case "restockMax" -> String.valueOf(offer.getRestockMax());
+            case "restockMax" -> String.valueOf(offer.getRestockMax());
             case "basePrice" -> String.valueOf(offer.getBasePrice()); case "minPriceMultiplier" -> String.valueOf(offer.getMinPriceMultiplier());
             case "maxPriceMultiplier" -> String.valueOf(offer.getMaxPriceMultiplier()); case "spreadPercent" -> String.valueOf(offer.getSpreadPercent());
             case "perPlayerDailySellLimit" -> String.valueOf(offer.getPerPlayerDailySellLimit()); default -> String.valueOf(offer.getGlobalDailySellLimit()); };

@@ -366,7 +366,7 @@
             },
             "target": "Zielbestand setzen"
           },
-          "restock": "Auffüllen: PH_PERCENT% max PH_MAX",
+          "restock": "Auffüllen: PH_MAX Einheiten pro Tick",
           "stocks": "Bestand PH_STOCK / Ziel PH_TARGET / Limit PH_LIMIT",
           "stock": {
             "reset": {
@@ -610,11 +610,11 @@
   "tc.shop.editor.field.maxpricemultiplier": "Maximaler Preismodifier",
   "tc.shop.editor.field.minpricemultiplier": "Minimaler Preismodifier",
   "tc.shop.editor.field.perplayerdailyselllimit": "Spieler Tages-Ankaufslimit",
-  "tc.shop.editor.field.restockmax": "Auffüllen Maximum",
-  "tc.shop.editor.field.restockpercent": "Auffüllen Prozent",
+  "tc.shop.editor.field.restockmax": "Auffüllmenge pro Tick",
   "tc.shop.editor.field.spreadpercent": "Spread Prozent",
   "tc.shop.editor.field.stock": "Bestand",
   "tc.shop.editor.field.stocklimit": "Bestandslimit",
   "tc.shop.editor.field.stockmode": "Modus",
+  "tc.shop.sale.selection.amount": "Wähle genau die angeforderte Artikelmenge aus.",
   "tc.shop.editor.field.targetstock": "Zielbestand"
 }

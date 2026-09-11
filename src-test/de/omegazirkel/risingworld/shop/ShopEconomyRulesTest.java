@@ -62,20 +62,21 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
-    public void targetTickAmountsRespectPercentCapsAndHourlyReconciliation() {
-        assertEquals(50L, ShopEconomyStore.targetDrainAmount(1_000L, 10.0d, 50L, 1.0d));
-        assertEquals(0L, ShopEconomyStore.targetDrainAmount(1_000L, 10.0d, 50L, 0.5d));
-        assertEquals(0L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 0L, 0.5d));
-        assertEquals(120L, ShopEconomyStore.targetRestockAmount(1_000L, 10.0d, 5L, 24.0d));
-        assertEquals(1L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 1.0d));
-        assertEquals(10L, ShopEconomyStore.targetRestockAmount(10L, 10.0d, 1_000L, 10.0d));
+    public void drainUsesCurrentStockAndRestockUsesFixedPerTickAmount() {
+        assertEquals(50L, ShopEconomyStore.stockDrainAmount(1_000L, 10.0d, 50L, 1.0d));
+        assertEquals(50L, ShopEconomyStore.stockDrainAmount(100L, 50.0d, 50L, 1.0d));
+        assertEquals(0L, ShopEconomyStore.stockDrainAmount(1_000L, 10.0d, 50L, 0.5d));
+        assertEquals(0L, ShopEconomyStore.fixedRestockAmount(5L, 0.5d));
+        assertEquals(120L, ShopEconomyStore.fixedRestockAmount(5L, 24.0d));
+        assertEquals(5L, ShopEconomyStore.fixedRestockAmount(5L, 1.0d));
+        assertEquals(50L, ShopEconomyStore.fixedRestockAmount(5L, 10.0d));
     }
 
     @Test
     public void drainUsesTheConfiguredEconomyIntervalLikeRestock() throws Exception {
         long[] now = { 1_000L };
         ShopOffer offer = offer(ShopStockMode.LOOT).economyConfigCopy(100L, 100L, 0.0d, 0.0d,
-                ShopStockMode.LOOT, 0.25d, 4.0d, 25.0d, 10.0d, 0L, 0.0d, 0L, 0L, 0L);
+                ShopStockMode.LOOT, 0.25d, 4.0d, 25.0d, 10.0d, 0L, 0L, 0L, 0L);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
             ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
             store.setTickIntervalHours(2);
@@ -110,19 +111,14 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
-    public void fractionalChangesAccumulateUntilTheConfiguredTickCanChangeStock() throws Exception {
+    public void fixedRestockAddsItsConfiguredAmountEachTick() throws Exception {
         long[] now = { 1_000L };
         ShopOffer offer = offer(ShopStockMode.SYSTEM_SUPPLIED).economyConfigCopy(10L, 10L, 0.0d, 0.0d,
-                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 5.0d, 0L, 0L, 0L);
+                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 1L, 0L, 0L);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
             ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
             store.configure("global", offer.getId(), 0L, 0.0d, 0.0d);
             setLastTick(connection, offer.getId(), now[0]);
-
-            now[0] += 3_600_000L;
-            store.applyTicks(java.util.List.of(offer), java.util.List.of());
-            assertEquals(0L, store.stateFor("global", offer).stock());
-            assertEquals(1_000L, lastTick(connection, offer.getId()));
 
             now[0] += 3_600_000L;
             store.applyTicks(java.util.List.of(offer), java.util.List.of());
@@ -135,7 +131,7 @@ public class ShopEconomyRulesTest {
     public void lootTicksDrainButNeverRestock() throws Exception {
         long[] now = { 1_000L };
         ShopOffer offer = offer(ShopStockMode.LOOT).economyConfigCopy(10L, 10L, 0.0d, 0.0d,
-                ShopStockMode.LOOT, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 10.0d, 5L, 0L, 0L);
+                ShopStockMode.LOOT, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 5L, 0L, 0L);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
             ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
             store.configure("global", offer.getId(), 0L, 0.0d, 0.0d);
@@ -180,7 +176,7 @@ public class ShopEconomyRulesTest {
         ShopOffer first = offer(ShopStockMode.SYSTEM_SUPPLIED);
         ShopOffer second = new ShopOffer("second", "Second", "", "stone", (short) 0, 0, 1, 10.0d, 0L, 0L,
                 "COINS", "", "", "system", "system", true, false, true, 1L, 10L, 20L, 0.0d, 0.0d,
-                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 10.0d, 5L, 10L, 20L, null, null);
+                ShopStockMode.SYSTEM_SUPPLIED, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 1L, 10L, 20L, null, null);
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
             ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
             store.configure("global", first.getId(), 5L, 0.0d, 0.0d);
@@ -307,9 +303,22 @@ public class ShopEconomyRulesTest {
         }
     }
 
+    @Test
+    public void dailySellLimitUsesTheRequestedAmountAtTheRemainingBoundary() throws Exception {
+        ShopOffer base = offer(ShopStockMode.HYBRID).economyConfigCopy(10L, 20L, 0.0d, 0.0d,
+                ShopStockMode.HYBRID, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 0L, 5L, 0L);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection);
+            store.recordSystemBuy("global", 7L, base.economyCopy(4, 10.0d, 40L, 40L), 40L);
+
+            assertTrue(store.canBuyFromPlayer("global", 7L, base).allowed());
+            assertFalse(store.canBuyFromPlayer("global", 7L, base.economyCopy(2, 10.0d, 20L, 20L)).allowed());
+        }
+    }
+
     private static ShopOffer offer(ShopStockMode mode) {
         return new ShopOffer("test-" + mode.name().toLowerCase(), "Test", "", "stone", (short) 0, 0, 1, 10.0d, 0L, 0L,
                 "COINS", "", "", "system", "system", true, false, true, 1L, 10L, 20L, 0.0d, 0.0d,
-                mode, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 10.0d, 5L, 10L, 20L, null, null);
+                mode, 0.25d, 4.0d, 25.0d, 10.0d, 5L, 1L, 10L, 20L, null, null);
     }
 }

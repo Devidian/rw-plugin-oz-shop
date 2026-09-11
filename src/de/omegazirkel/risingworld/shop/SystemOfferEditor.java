@@ -83,7 +83,6 @@ public final class SystemOfferEditor {
         offer.put("stockMode", "HYBRID");
         offer.put("drainPercent", 50);
         offer.put("drainMax", 5);
-        offer.put("restockPercent", 25);
         offer.put("restockMax", 2);
         offer.put("basePrice", 10);
         offer.put("minPriceMultiplier", 0.25d);

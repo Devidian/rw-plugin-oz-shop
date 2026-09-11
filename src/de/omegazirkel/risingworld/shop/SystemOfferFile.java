@@ -138,7 +138,6 @@ public final class SystemOfferFile {
             double spreadPercent = doubleValue(object, "spreadPercent");
             double drainPercent = doubleValue(object, "drainPercent");
             long drainMax = longValue(object, "drainMax");
-            double restockPercent = doubleValue(object, "restockPercent");
             long restockMax = longValue(object, "restockMax");
             long perPlayerDailySellLimit = longValue(object, "perPlayerDailySellLimit");
             long globalDailySellLimit = longValue(object, "globalDailySellLimit");
@@ -183,7 +182,6 @@ public final class SystemOfferFile {
                     spreadPercent >= 0.0d ? spreadPercent : 25.0d,
                     Math.max(0.0d, drainPercent),
                     Math.max(0L, drainMax),
-                    Math.max(0.0d, restockPercent),
                     Math.max(0L, restockMax),
                     Math.max(0L, perPlayerDailySellLimit),
                     Math.max(0L, globalDailySellLimit)));
@@ -247,7 +245,6 @@ public final class SystemOfferFile {
                 .append("    \"spreadPercent\": 25,\n")
                 .append("    \"drainPercent\": 0,\n")
                 .append("    \"drainMax\": 0,\n")
-                .append("    \"restockPercent\": 0,\n")
                 .append("    \"restockMax\": 0,\n")
                 .append("    \"perPlayerDailySellLimit\": 0,\n")
                 .append("    \"globalDailySellLimit\": 0,\n")

@@ -410,6 +410,10 @@ class ShopRuntime extends Plugin {
         }
         int effectiveQuantity = Math.max(1, quantity);
         ShopOffer effectiveOffer = dynamicEconomyOffer(player, offer, effectiveQuantity);
+        if (selectedQuote != null && selectedQuote.amount() != effectiveOffer.getAmount()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
+                    t.get("tc.shop.sale.selection.amount", player));
+        }
         if (offer != null && economyStore != null) {
             ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(
                     ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)), player.getDbID(), effectiveOffer);
@@ -460,6 +464,10 @@ class ShopRuntime extends Plugin {
         ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
         if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
+        if (selectedQuote != null && selectedQuote.amount() != effective.getAmount()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
+                    t.get("tc.shop.sale.selection.amount", player));
+        }
         if (economyStore != null) {
             ShopEconomyStore.EconomyCheck check = economyStore.canBuyFromPlayer(trader.economyScope(), player.getDbID(), effective);
             if (!check.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
@@ -1184,7 +1192,6 @@ class ShopRuntime extends Plugin {
         Double spreadPercent = null;
         Double drainPercent = null;
         Long drainMax = null;
-        Double restockPercent = null;
         Long restockMax = null;
         Long perPlayerDailySellLimit = null;
         Long globalDailySellLimit = null;
@@ -1239,11 +1246,6 @@ class ShopRuntime extends Plugin {
                     if (drainMax == null) return null;
                     parsedAny = true;
                 }
-                case "restockpercent", "refillpercent" -> {
-                    restockPercent = parseNullableNonNegativeDouble(value);
-                    if (restockPercent == null) return null;
-                    parsedAny = true;
-                }
                 case "restockmax", "refillmax" -> {
                     restockMax = parseNullableNonNegativeLong(value);
                     if (restockMax == null) return null;
@@ -1268,7 +1270,7 @@ class ShopRuntime extends Plugin {
             return null;
         }
         return new ShopEconomyStore.EconomyUpdate(targetStock, stockLimit, stockMode, minPriceMultiplier,
-                maxPriceMultiplier, spreadPercent, drainPercent, drainMax, restockPercent, restockMax,
+                maxPriceMultiplier, spreadPercent, drainPercent, drainMax, restockMax,
                 perPlayerDailySellLimit, globalDailySellLimit);
     }
 

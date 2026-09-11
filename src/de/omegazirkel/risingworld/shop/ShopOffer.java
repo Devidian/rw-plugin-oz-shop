@@ -31,7 +31,6 @@ public class ShopOffer {
     private final double spreadPercent;
     private final double drainPercent;
     private final long drainMax;
-    private final double restockPercent;
     private final long restockMax;
     private final long perPlayerDailySellLimit;
     private final long globalDailySellLimit;
@@ -117,7 +116,7 @@ public class ShopOffer {
         this(id, title, description, itemName, itemTypeId, itemVariant, amount, basePrice, buyPrice, sellPrice,
                 currencyIdentifier, icon, category, source, pluginIdentifier, buyEnabled, sellEnabled, systemOffer,
                 defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate, defaultRefillRate,
-                ShopStockMode.STATIC, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 0.0d, 0L, 0L, 0L, callback, priceResolver);
+                ShopStockMode.STATIC, 0.25d, 4.0d, 25.0d, 0.0d, 0L, 0L, 0L, 0L, callback, priceResolver);
     }
 
     public ShopOffer(String id, String title, String description, String itemName, short itemTypeId, int itemVariant,
@@ -130,7 +129,7 @@ public class ShopOffer {
         this(id, title, description, itemName, itemTypeId, itemVariant, amount, basePrice, buyPrice, sellPrice,
                 currencyIdentifier, icon, category, source, pluginIdentifier, buyEnabled, sellEnabled, systemOffer,
                 defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate, defaultRefillRate, stockMode,
-                minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0.0d, 0L, 0L, 0L, callback,
+                minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0L, 0L, 0L, callback,
                 priceResolver);
     }
 
@@ -140,7 +139,7 @@ public class ShopOffer {
             boolean systemOffer, long defaultStock, long defaultTargetStock, long defaultStockLimit,
             double defaultDrainRate, double defaultRefillRate, ShopStockMode stockMode, double minPriceMultiplier,
             double maxPriceMultiplier, double spreadPercent, double drainPercent, long drainMax,
-            double restockPercent, long restockMax, long perPlayerDailySellLimit, long globalDailySellLimit,
+            long restockMax, long perPlayerDailySellLimit, long globalDailySellLimit,
             ShopPurchaseCallback callback, ShopPriceResolver priceResolver) {
         this.id = id;
         this.title = title;
@@ -170,7 +169,6 @@ public class ShopOffer {
         this.spreadPercent = Math.max(0.0d, spreadPercent);
         this.drainPercent = Math.max(0.0d, drainPercent);
         this.drainMax = Math.max(0L, drainMax);
-        this.restockPercent = Math.max(0.0d, restockPercent);
         this.restockMax = Math.max(0L, restockMax);
         this.perPlayerDailySellLimit = Math.max(0L, perPlayerDailySellLimit);
         this.globalDailySellLimit = Math.max(0L, globalDailySellLimit);
@@ -233,7 +231,6 @@ public class ShopOffer {
     public double getSpreadPercent() { return spreadPercent; }
     public double getDrainPercent() { return drainPercent; }
     public long getDrainMax() { return drainMax; }
-    public double getRestockPercent() { return restockPercent; }
     public long getRestockMax() { return restockMax; }
     public long getPerPlayerDailySellLimit() { return perPlayerDailySellLimit; }
     public long getGlobalDailySellLimit() { return globalDailySellLimit; }
@@ -249,19 +246,19 @@ public class ShopOffer {
                 Math.max(0.0d, basePrice), Math.max(0L, buyPrice), Math.max(0L, sellPrice), currencyIdentifier, icon,
                 category, source, pluginIdentifier, enabled, false, systemOffer, defaultStock,
                 defaultTargetStock, defaultStockLimit, defaultDrainRate, defaultRefillRate, stockMode,
-                minPriceMultiplier, maxPriceMultiplier, spreadPercent, drainPercent, drainMax, restockPercent,
-                restockMax, perPlayerDailySellLimit, globalDailySellLimit, callback, priceResolver);
+                minPriceMultiplier, maxPriceMultiplier, spreadPercent, drainPercent, drainMax, restockMax,
+                perPlayerDailySellLimit, globalDailySellLimit, callback, priceResolver);
     }
 
     public ShopOffer economyConfigCopy(long defaultTargetStock, long defaultStockLimit, double defaultDrainRate,
             double defaultRefillRate, ShopStockMode stockMode, double minPriceMultiplier, double maxPriceMultiplier,
-            double spreadPercent, double drainPercent, long drainMax, double restockPercent, long restockMax,
+            double spreadPercent, double drainPercent, long drainMax, long restockMax,
             long perPlayerDailySellLimit, long globalDailySellLimit) {
         return new ShopOffer(id, title, description, itemName, itemTypeId, itemVariant, amount, basePrice,
                 buyPrice, sellPrice, currencyIdentifier, icon, category, source, pluginIdentifier, enabled,
                 false, systemOffer, defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate,
                 defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, drainPercent,
-                drainMax, restockPercent, restockMax, perPlayerDailySellLimit, globalDailySellLimit, callback,
+                drainMax, restockMax, perPlayerDailySellLimit, globalDailySellLimit, callback,
                 priceResolver);
     }
 }

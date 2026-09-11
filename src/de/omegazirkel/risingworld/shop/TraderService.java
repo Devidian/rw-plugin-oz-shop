@@ -131,12 +131,11 @@ public final class TraderService {
             long stock = state.stock();
             long drain = ShopEconomyStore.automaticDrainEnabled(offer)
                     ? Math.min(automaticDrainBase(offer, stock, state.targetStock()),
-                            ShopEconomyStore.targetDrainAmount(state.targetStock(), offer.getDrainPercent(),
+                            ShopEconomyStore.stockDrainAmount(stock, offer.getDrainPercent(),
                                     offer.getDrainMax(), 1.0d)) : 0L;
             long restock = ShopEconomyStore.automaticRestockEnabled(offer)
                     ? Math.min(Math.max(0L, state.targetStock() - stock),
-                            ShopEconomyStore.targetRestockAmount(state.targetStock(), offer.getRestockPercent(),
-                                    offer.getRestockMax(), 1.0d)) : 0L;
+                            ShopEconomyStore.fixedRestockAmount(offer.getRestockMax(), 1.0d)) : 0L;
             if (restock <= 0L && ShopEconomyStore.minimumSystemRestockEnabled(offer, state.refillRate())) {
                 restock = Math.min(Math.max(0L, state.targetStock() - stock), 1L);
             }

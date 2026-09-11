@@ -138,8 +138,8 @@ public class ShopService {
                     false, true, offer.getDefaultStock(), offer.getDefaultTargetStock(),
                     offer.getDefaultStockLimit(), offer.getDefaultDrainRate(), offer.getDefaultRefillRate(),
                     offer.getStockMode(), offer.getMinPriceMultiplier(), offer.getMaxPriceMultiplier(),
-                    offer.getSpreadPercent(), offer.getDrainPercent(), offer.getDrainMax(), offer.getRestockPercent(),
-                    offer.getRestockMax(), offer.getPerPlayerDailySellLimit(), offer.getGlobalDailySellLimit(),
+                    offer.getSpreadPercent(), offer.getDrainPercent(), offer.getDrainMax(), offer.getRestockMax(),
+                    offer.getPerPlayerDailySellLimit(), offer.getGlobalDailySellLimit(),
                     offer.getCallback(), offer.getPriceResolver()));
         }
     }
@@ -305,6 +305,10 @@ public class ShopService {
         SellQuote quote = suppliedQuote == null ? quoteSell(player, effectiveOffer) : suppliedQuote;
         if (!quote.sellable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
+        }
+        if (quote.amount() != effectiveOffer.getAmount()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
+                    "Selected item amount does not match the requested amount.");
         }
         long payout = quote.payout();
         if (payout < 0L) {
@@ -534,8 +538,8 @@ public class ShopService {
             double spreadPercent) {
         return systemItemOffer(id, itemName, itemVariant, amount, basePrice, buyPrice, sellPrice, currencyIdentifier,
                 buyEnabled || sellEnabled, defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate,
-                defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0.0d,
-                0L, 0L, 0L);
+                defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0L,
+                0L, 0L);
     }
 
     static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, double basePrice,
@@ -545,27 +549,27 @@ public class ShopService {
             double spreadPercent) {
         return systemItemOffer(id, itemName, itemVariant, amount, basePrice, buyPrice, sellPrice, currencyIdentifier,
                 enabled, defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate,
-                defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0.0d,
-                0L, 0L, 0L);
+                defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, 0.0d, 0L, 0L,
+                0L, 0L);
     }
 
     static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, double basePrice,
             long buyPrice, long sellPrice, String currencyIdentifier, boolean buyEnabled, boolean sellEnabled,
             long defaultStock, long defaultTargetStock, long defaultStockLimit, double defaultDrainRate,
             double defaultRefillRate, ShopStockMode stockMode, double minPriceMultiplier, double maxPriceMultiplier,
-            double spreadPercent, double drainPercent, long drainMax, double restockPercent, long restockMax,
+            double spreadPercent, double drainPercent, long drainMax, long restockMax,
             long perPlayerDailySellLimit, long globalDailySellLimit) {
         return systemItemOffer(id, itemName, itemVariant, amount, basePrice, buyPrice, sellPrice, currencyIdentifier,
                 buyEnabled || sellEnabled, defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate,
                 defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, drainPercent,
-                drainMax, restockPercent, restockMax, perPlayerDailySellLimit, globalDailySellLimit);
+                drainMax, restockMax, perPlayerDailySellLimit, globalDailySellLimit);
     }
 
     static ShopOffer systemItemOffer(String id, String itemName, int itemVariant, int amount, double basePrice,
             long buyPrice, long sellPrice, String currencyIdentifier, boolean enabled,
             long defaultStock, long defaultTargetStock, long defaultStockLimit, double defaultDrainRate,
             double defaultRefillRate, ShopStockMode stockMode, double minPriceMultiplier, double maxPriceMultiplier,
-            double spreadPercent, double drainPercent, long drainMax, double restockPercent, long restockMax,
+            double spreadPercent, double drainPercent, long drainMax, long restockMax,
             long perPlayerDailySellLimit, long globalDailySellLimit) {
         ItemDefinition definition = Definitions.getItemDefinition(itemName);
         ObjectDefinition objectDefinition = ShopItemNames.objectDefinition(itemName, itemVariant);
@@ -585,7 +589,7 @@ public class ShopService {
                 buyPrice, sellPrice, currencyIdentifier, "", "system", "OZ - Shop", SYSTEM_PLUGIN, enabled,
                 false, true, defaultStock, defaultTargetStock, defaultStockLimit, defaultDrainRate,
                 defaultRefillRate, stockMode, minPriceMultiplier, maxPriceMultiplier, spreadPercent, drainPercent,
-                drainMax, restockPercent, restockMax, perPlayerDailySellLimit, globalDailySellLimit, (player, offer) -> {
+                drainMax, restockMax, perPlayerDailySellLimit, globalDailySellLimit, (player, offer) -> {
                     return addSystemOfferItem(player, offer);
                 }, null);
     }
@@ -839,7 +843,7 @@ public class ShopService {
                 offer.getDefaultStock(), offer.getDefaultTargetStock(), offer.getDefaultStockLimit(),
                 offer.getDefaultDrainRate(), offer.getDefaultRefillRate(), offer.getStockMode(),
                 offer.getMinPriceMultiplier(), offer.getMaxPriceMultiplier(), offer.getSpreadPercent(),
-                offer.getDrainPercent(), offer.getDrainMax(), offer.getRestockPercent(), offer.getRestockMax(),
+                offer.getDrainPercent(), offer.getDrainMax(), offer.getRestockMax(),
                 offer.getPerPlayerDailySellLimit(), offer.getGlobalDailySellLimit(), offer.getCallback(),
                 offer.getPriceResolver());
     }
@@ -941,6 +945,17 @@ public class ShopService {
             for (int index = 0; index < candidates.size(); index++) {
                 if (!indexes.contains(index)) continue;
                 SellSelection selection = candidates.get(index);
+                if (selectedAmount >= amount) break;
+                int selectedFromLine = Math.min(selection.amount(), amount - selectedAmount);
+                if (selectedFromLine <= 0) continue;
+                if (selectedFromLine != selection.amount()) {
+                    double fraction = selectedFromLine / (double) selection.amount();
+                    selection = new SellSelection(selection.slot(), selection.slotType(), selection.originalStack(),
+                            selectedFromLine, selection.state(), selection.maxDurability(), selection.modifier(),
+                            selection.modifierMultiplier(), selection.normalPayout() * fraction,
+                            Math.round(selection.basePayout() * fraction),
+                            Math.round(selection.adjustedPayout() * fraction));
+                }
                 selected.add(selection);
                 selectedPayout = Math.min(Long.MAX_VALUE - selectedPayout,
                         selectedPayout + Math.max(0L, selection.adjustedPayout()));
