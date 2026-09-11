@@ -57,6 +57,7 @@
       "title": "Plugin Settings for PH_PLUGIN_NAME"
     },
     "setting": {
+      "exposeshoptraders": { "label": "Expose shop traders", "desc": "Allows Manager read access to shop traders." },
       "dynamiceconomyenabled": {
         "desc": "Enables stock-based buy/sell price multipliers; stock rules stay active when disabled.",
         "label": "Dynamic economy enabled"

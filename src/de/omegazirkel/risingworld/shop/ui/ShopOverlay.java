@@ -1301,6 +1301,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 : plugin.traderSell(player, trader, offer.getId(), quantity);
     }
 
+    private ShopPurchaseResult sellOffer(ShopOffer offer, int quantity, ShopService.SellQuote quote) {
+        return trader == null ? plugin.sell(player, offer.getId(), quantity, quote)
+                : plugin.traderSell(player, trader, offer.getId(), quantity, quote);
+    }
+
     private UIElement actionButton(ShopOffer offer, OfferAction action) {
         AdvancedButton button = AdvancedButtonFactory
                 .defaultButton(t.get(action == OfferAction.SELL ? "tc.shop.ui.sell" : "tc.shop.ui.buy", player), event -> {
@@ -1422,7 +1427,23 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         refreshSelectedSystemTradeState(offer);
     }
 
+    private void completeSystemAction(ShopOffer offer, int quantity, boolean sellToSystem, ShopService.SellQuote quote) {
+        if (!sellToSystem || !quote.sellable()) {
+            refreshSelectedSystemTradeState(offer);
+            return;
+        }
+        ShopPurchaseResult result = sellOffer(offer, quantity, quote);
+        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (result.success) rebuild(); else refreshSelectedSystemTradeState(offer);
+    }
+
     private void showConditionSellConfirmation(ShopOffer offer, int quantity, ShopService.SellQuote quote) {
+        java.util.Set<Integer> selected = quote.initiallySelectedCandidateIndexes();
+        showConditionSellConfirmation(offer, quantity, quote, selected);
+    }
+
+    private void showConditionSellConfirmation(ShopOffer offer, int quantity, ShopService.SellQuote quote,
+            java.util.Set<Integer> selected) {
         OZUIElement blocker = new OZUIElement();
         blocker.setPivot(Pivot.UpperLeft);
         blocker.setPosition(0, 0, true);
@@ -1459,15 +1480,32 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         breakdownScroll.setSize(724, 250, false);
         dialog.addChild(breakdownScroll);
 
-        UILabel breakdown = label(sellConditionBreakdown(quote, currencyIdentifier(offer)), 12, Font.Default);
-        breakdown.setPivot(Pivot.UpperLeft);
-        breakdown.setPosition(0, 0, false);
-        breakdown.setSize(700, Math.max(250, quote.lines().size() * 36), false);
-        breakdown.setTextWrap(true);
-        breakdownScroll.addChild(breakdown);
+        int lineIndex = 0;
+        for (ShopService.SellQuoteLine line : quote.candidateLines()) {
+            final int index = lineIndex++;
+            if (line.maxDurability() <= 0 && "Normal".equals(line.modifier())) {
+                UILabel standard = label(sellConditionLine(line, currencyIdentifier(offer)), 12, Font.Default);
+                standard.setPivot(Pivot.UpperLeft);
+                standard.setPosition(0, index * 38, false);
+                standard.setSize(700, 34, false);
+                breakdownScroll.addChild(standard);
+                continue;
+            }
+            AdvancedButton choice = AdvancedButtonFactory.defaultButton(
+                    (selected.contains(index) ? "[x] " : "[ ] ") + sellConditionLine(line, currencyIdentifier(offer)), event -> {
+                        java.util.Set<Integer> changed = new java.util.HashSet<>(selected);
+                        if (!changed.add(index)) changed.remove(index);
+                        panel.removeChild(blocker);
+                        showConditionSellConfirmation(offer, quantity, quote, changed);
+                    });
+            choice.setPivot(Pivot.UpperLeft);
+            choice.setPosition(0, index * 38, false);
+            choice.setSize(700, 34, false);
+            breakdownScroll.addChild(choice);
+        }
 
         UILabel total = label(t.get("tc.shop.ui.sell.condition.total", player)
-                .replace("PH_PAYOUT", quote.payout() + " " + currencyIdentifier(offer)), 15, Font.DefaultBold);
+                .replace("PH_PAYOUT", quote.selectLines(selected).payout() + " " + currencyIdentifier(offer)), 15, Font.DefaultBold);
         total.setPivot(Pivot.UpperLeft);
         total.setPosition(18, 350, false);
         total.setSize(500, 28, false);
@@ -1482,7 +1520,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
 
         AdvancedButton confirm = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.sell.confirm", player), event -> {
             panel.removeChild(blocker);
-            completeSystemAction(offer, quantity, true);
+            completeSystemAction(offer, quantity, true, quote.selectLines(selected));
         });
         confirm.setPivot(Pivot.LowerRight);
         confirm.setPosition(742, 422, false);
@@ -1515,6 +1553,19 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                     .replace("PH_PAYOUT", line.payout() + " " + currency));
         }
         return lines.toString();
+    }
+
+    private String sellConditionLine(ShopService.SellQuoteLine line, String currency) {
+        int durabilityPercent = line.maxDurability() <= 0 ? 100
+                : (int) Math.round(100.0d * line.durability() / line.maxDurability());
+        return t.get("tc.shop.ui.sell.condition.line", player)
+                .replace("PH_AMOUNT", String.valueOf(line.amount()))
+                .replace("PH_DURABILITY_PERCENT", String.valueOf(durabilityPercent))
+                .replace("PH_DURABILITY", String.valueOf(line.durability()))
+                .replace("PH_MAX_DURABILITY", String.valueOf(line.maxDurability()))
+                .replace("PH_MODIFIER_PERCENT", String.valueOf((int) Math.round(100.0d * line.modifierMultiplier())))
+                .replace("PH_MODIFIER", line.modifier()).replace("PH_BASE", line.basePayout() + " " + currency)
+                .replace("PH_PAYOUT", line.payout() + " " + currency);
     }
 
     private void refreshSelectedSystemTradeState(ShopOffer offer) {

@@ -400,6 +400,10 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult sell(Player player, String offerId, int quantity) {
+        return sell(player, offerId, quantity, null);
+    }
+
+    public ShopPurchaseResult sell(Player player, String offerId, int quantity, ShopService.SellQuote selectedQuote) {
         ShopOffer offer = findSystemOfferFor(player, offerId).orElse(null);
         if (offer != null && !isSystemShopAvailableFor(player)) {
             return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.system.disabled", player));
@@ -414,7 +418,8 @@ class ShopRuntime extends Plugin {
                 return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get(key, player));
             }
         }
-        ShopPurchaseResult result = service.sell(player, effectiveOffer, 1);
+        ShopPurchaseResult result = selectedQuote == null ? service.sell(player, effectiveOffer, 1)
+                : service.sell(player, effectiveOffer, selectedQuote);
         if (result.success && result.offer != null && result.offer.isSystemOffer() && economyStore != null) {
             economyStore.recordSystemBuy(ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)),
                     player.getDbID(),
@@ -447,6 +452,11 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity) {
+        return traderSell(player, trader, offerId, quantity, null);
+    }
+
+    public ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity,
+            ShopService.SellQuote selectedQuote) {
         ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
         if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
@@ -455,7 +465,7 @@ class ShopRuntime extends Plugin {
             if (!check.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
                     t.get(check.messageKey(), player));
         }
-        ShopService.SellQuote quote = service.quoteSell(player, effective);
+        ShopService.SellQuote quote = selectedQuote == null ? service.quoteSell(player, effective) : selectedQuote;
         if (!quote.sellable()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
         WalletBridge wallet = new WalletBridge((Shop) this);
         String currency = effective.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
@@ -472,7 +482,8 @@ class ShopRuntime extends Plugin {
                     "Trader modifier premium: " + effective.getId(), currency, "OZ - Shop", premiumCorrelation);
             if (!funding.success()) return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, funding.message());
         }
-        ShopPurchaseResult result = service.sellToSystemAccount(player, effective, 1, trader.accountId());
+        ShopPurchaseResult result = selectedQuote == null ? service.sellToSystemAccount(player, effective, 1, trader.accountId())
+                : service.sellToSystemAccount(player, effective, selectedQuote, trader.accountId());
         if (!result.success && premium > 0L) {
             wallet.reverseAccountTransferIdempotent(premiumCorrelation, premiumCorrelation + ":rollback",
                     "Trader modifier premium rollback: " + effective.getId(), "OZ - Shop");

@@ -42,6 +42,11 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
+    public void modifierPayoutStillAppliesWhenTheItemHasNoDurabilityDefinition() {
+        assertTrue(ShopService.conditionAdjustedPayout(100L, 0, 0, Modifier.Godly) > 100L);
+    }
+
+    @Test
     public void automaticTicksOnlyRunForSuppliedModes() {
         assertFalse(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.STATIC)));
         assertFalse(ShopEconomyStore.automaticTicksEnabled(offer(ShopStockMode.PLAYER_SUPPLIED)));

@@ -7,6 +7,7 @@ import de.omegazirkel.risingworld.shop.ShopOffer;
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
 import de.omegazirkel.risingworld.shop.Trader;
 import de.omegazirkel.risingworld.shop.WalletBridge;
+import de.omegazirkel.risingworld.shop.ShopItemNames;
 import net.risingworld.api.World;
 import net.risingworld.api.objects.Npc;
 
@@ -43,6 +44,9 @@ public final class ShopTraderExportService {
         ShopEconomyStore.EconomyState state = economyStates.apply(trader, offer);
         long stock = state == null ? offer.getDefaultStock() : state.stock();
         return new ShopOfferExport(currentOffer.getId(), currentOffer.getItemName(), currentOffer.getItemVariant(),
-                currentOffer.getAmount(), currentOffer.getPrice(), stock, currentOffer.getCurrencyIdentifier());
+                currentOffer.getAmount(), currentOffer.getPrice(), stock, currentOffer.getCurrencyIdentifier(),
+                currentOffer.getSellPrice(), currentOffer.getBuyPrice(), currentOffer.getDefaultStockLimit(),
+                ShopItemNames.label(currentOffer.getItemName(), currentOffer.getItemVariant(), currentOffer.getTitle(null), "de"),
+                ShopItemNames.label(currentOffer.getItemName(), currentOffer.getItemVariant(), currentOffer.getTitle(null), "en"));
     }
 }

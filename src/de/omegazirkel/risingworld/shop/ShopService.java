@@ -267,16 +267,27 @@ public class ShopService {
     }
 
     public ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity) {
-        return sell(player, offer, quantity, "");
+        return sell(player, offer, quantity, "", null);
+    }
+
+    /** Sells exactly the inventory states captured by a previously displayed quote. */
+    public ShopPurchaseResult sell(Player player, ShopOffer offer, SellQuote quote) {
+        return sell(player, offer, 1, "", quote);
     }
 
     /** Executes a system-item sale paid from one Wallet system account. */
     public ShopPurchaseResult sellToSystemAccount(Player player, ShopOffer offer, int quantity,
             String payerSystemAccountId) {
-        return sell(player, offer, quantity, payerSystemAccountId);
+        return sell(player, offer, quantity, payerSystemAccountId, null);
     }
 
-    private ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity, String payerSystemAccountId) {
+    public ShopPurchaseResult sellToSystemAccount(Player player, ShopOffer offer, SellQuote quote,
+            String payerSystemAccountId) {
+        return sell(player, offer, 1, payerSystemAccountId, quote);
+    }
+
+    private ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity, String payerSystemAccountId,
+            SellQuote suppliedQuote) {
         if (player == null || player.getDbID() <= 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
         }
@@ -291,7 +302,7 @@ public class ShopService {
         if (!wallet.isAvailable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.WALLET_UNAVAILABLE, "OZ - Wallet is not available.");
         }
-        SellQuote quote = quoteSell(player, effectiveOffer);
+        SellQuote quote = suppliedQuote == null ? quoteSell(player, effectiveOffer) : suppliedQuote;
         if (!quote.sellable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
         }
@@ -335,10 +346,10 @@ public class ShopService {
         if (player == null || player.getInventory() == null || offer == null) return SellQuote.invalid("Inventory is unavailable.");
         int remaining = offer.getAmount();
         double unitPayout = Math.max(0L, offer.getBuyPrice()) / (double) Math.max(1, offer.getAmount());
-        List<SellSelection> selections = new ArrayList<>();
+        List<SellSelection> candidates = new ArrayList<>();
         double payout = 0.0d;
         for (SlotType slotType : SlotType.values()) {
-            for (int slot = 0; slot < player.getInventory().getSlotCount(slotType) && remaining > 0; slot++) {
+            for (int slot = 0; slot < player.getInventory().getSlotCount(slotType); slot++) {
                 Item item = player.getInventory().getItem(slot, slotType);
                 if (!matchesSystemOfferItem(item, offer)) continue;
                 int amount = Math.min(remaining, item.getStack());
@@ -349,16 +360,27 @@ public class ShopService {
                         Modifier.Normal);
                 double itemPayout = conditionAdjustedPayoutExact(unitPayout, item.getDurability(), maxDurability,
                         modifier);
-                selections.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item),
+                candidates.add(new SellSelection(slot, slotType, item.getStack(), amount, snapshot(item),
                         maxDurability, modifier == null ? "Normal" : modifier.name(),
                         modifierPayoutMultiplier(modifier), normalPayout * amount, floorPayout(normalPayout * amount),
                         floorPayout(itemPayout * amount)));
-                payout += itemPayout * amount;
-                remaining -= amount;
             }
         }
+        candidates.sort((left, right) -> Boolean.compare(requiresExplicitSelection(left), requiresExplicitSelection(right)));
+        List<SellSelection> selections = new ArrayList<>();
+        for (SellSelection candidate : candidates) {
+            if (remaining <= 0) break;
+            int amount = Math.min(remaining, candidate.amount());
+            SellSelection selection = amount == candidate.amount() ? candidate : new SellSelection(candidate.slot(),
+                    candidate.slotType(), candidate.originalStack(), amount, candidate.state(), candidate.maxDurability(),
+                    candidate.modifier(), candidate.modifierMultiplier(), candidate.normalPayout(), candidate.basePayout(),
+                    floorPayout(candidate.adjustedPayout() * amount / Math.max(1, candidate.amount())));
+            selections.add(selection);
+            payout += selection.adjustedPayout();
+            remaining -= amount;
+        }
         if (selections.isEmpty()) return SellQuote.invalid("No sellable item with remaining durability is available.");
-        return new SellQuote(selections, floorPayout(payout), offer.getAmount() - remaining,
+        return new SellQuote(selections, candidates, floorPayout(payout), offer.getAmount() - remaining,
                 remaining == 0 ? "" : "Only items with remaining durability can be sold.");
     }
 
@@ -725,11 +747,14 @@ public class ShopService {
     }
 
     static double conditionAdjustedPayoutExact(double unitPayout, int durability, int maxDurability, Modifier modifier) {
-        if (maxDurability <= 0) return Math.max(0L, unitPayout);
-        if (durability <= 0) return 0L;
-        return Math.max(0.0d, unitPayout)
-                * Math.min(1.0d, durability / (double) maxDurability)
+        if (maxDurability > 0 && durability <= 0) return 0L;
+        double condition = maxDurability <= 0 ? 1.0d : Math.min(1.0d, durability / (double) maxDurability);
+        return Math.max(0.0d, unitPayout) * condition
                 * modifierPayoutMultiplier(modifier);
+    }
+
+    private static boolean requiresExplicitSelection(SellSelection selection) {
+        return selection.originalStack() <= 1 || selection.maxDurability() > 0 || !"Normal".equals(selection.modifier());
     }
 
     private static long floorPayout(double payout) {
@@ -851,18 +876,21 @@ public class ShopService {
 
     public static final class SellQuote {
         private final List<SellSelection> selections;
+        private final List<SellSelection> candidates;
         private final long payout;
         private final int amount;
         private final String message;
 
-        private SellQuote(List<SellSelection> selections, long payout, int amount, String message) {
+        private SellQuote(List<SellSelection> selections, List<SellSelection> candidates, long payout, int amount,
+                String message) {
             this.selections = List.copyOf(selections);
+            this.candidates = List.copyOf(candidates);
             this.payout = payout;
             this.amount = amount;
             this.message = message == null ? "" : message;
         }
 
-        public static SellQuote invalid(String message) { return new SellQuote(List.of(), 0L, 0, message); }
+        public static SellQuote invalid(String message) { return new SellQuote(List.of(), List.of(), 0L, 0, message); }
         List<SellSelection> selections() { return selections; }
         public long payout() { return payout; }
         /** Trader-funded amount is capped at the equivalent Normal-modifier payout. */
@@ -887,6 +915,39 @@ public class ShopService {
                     selection.state().durability(), selection.maxDurability(), selection.modifier(),
                     selection.modifierMultiplier(), selection.basePayout(), selection.adjustedPayout()))
                     .toList();
+        }
+        public List<SellQuoteLine> candidateLines() {
+            return candidates.stream().map(selection -> new SellQuoteLine(selection.amount(),
+                    selection.state().durability(), selection.maxDurability(), selection.modifier(),
+                    selection.modifierMultiplier(), selection.basePayout(), selection.adjustedPayout())).toList();
+        }
+        public java.util.Set<Integer> initiallySelectedCandidateIndexes() {
+            java.util.Set<Integer> indexes = new java.util.HashSet<>();
+            for (int index = 0; index < candidates.size(); index++) {
+                for (SellSelection selection : selections) {
+                    if (selection == candidates.get(index)) {
+                        indexes.add(index);
+                        break;
+                    }
+                }
+            }
+            return indexes;
+        }
+        public SellQuote selectLines(java.util.Set<Integer> indexes) {
+            if (indexes == null || indexes.isEmpty()) return SellQuote.invalid("No items selected.");
+            List<SellSelection> selected = new ArrayList<>();
+            long selectedPayout = 0L;
+            int selectedAmount = 0;
+            for (int index = 0; index < candidates.size(); index++) {
+                if (!indexes.contains(index)) continue;
+                SellSelection selection = candidates.get(index);
+                selected.add(selection);
+                selectedPayout = Math.min(Long.MAX_VALUE - selectedPayout,
+                        selectedPayout + Math.max(0L, selection.adjustedPayout()));
+                selectedAmount += selection.amount();
+            }
+            return new SellQuote(selected, candidates, selectedPayout, selectedAmount,
+                    selected.isEmpty() ? "No items selected." : "");
         }
         ShopOffer payoutOffer(ShopOffer offer) {
             return offer.economyCopy(amount, offer.getBasePrice(), payout, offer.getSellPrice());

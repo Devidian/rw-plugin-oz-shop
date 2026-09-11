@@ -57,6 +57,7 @@
       "title": "Plugin Einstellungen für PH_PLUGIN_NAME"
     },
     "setting": {
+      "exposeshoptraders": { "label": "Händler bereitstellen", "desc": "Erlaubt dem Manager lesenden Zugriff auf Shop-Händler." },
       "dynamiceconomyenabled": {
         "desc": "Aktiviert lagerbasierte Kauf-/Verkaufspreis-Multiplikatoren; Lagerregeln bleiben auch bei deaktivierter Option aktiv.",
         "label": "Dynamische Wirtschaft aktivieren"
