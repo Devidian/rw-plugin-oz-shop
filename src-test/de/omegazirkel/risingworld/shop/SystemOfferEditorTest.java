@@ -60,4 +60,23 @@ public class SystemOfferEditorTest {
             Files.deleteIfExists(directory);
         }
     }
+
+    @Test
+    public void movePersistsFileOrderAndRejectsBoundaries() throws Exception {
+        Path directory = Files.createTempDirectory("shop-editor-order-test");
+        Path file = directory.resolve("trader.json");
+        try {
+            SystemOfferEditor editor = new SystemOfferEditor(directory);
+            SystemOfferFile.writeObjects(file, List.of(SystemOfferEditor.defaultOffer("first", 0),
+                    SystemOfferEditor.defaultOffer("second", 0), SystemOfferEditor.defaultOffer("third", 0)));
+            assertTrue(editor.move("trader.json", "second.0", -1));
+            assertEquals("second.0", SystemOfferFile.readObjects(file).get(0).get("id"));
+            assertTrue(editor.move("trader.json", "second.0", 1));
+            assertFalse(editor.move("trader.json", "first.0", -1));
+            assertFalse(editor.move("trader.json", "third.0", 1));
+        } finally {
+            Files.deleteIfExists(file);
+            Files.deleteIfExists(directory);
+        }
+    }
 }

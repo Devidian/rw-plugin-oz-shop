@@ -626,6 +626,16 @@ class ShopRuntime extends Plugin {
                 : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.save.failed", player));
     }
 
+    public ShopPurchaseResult moveOffer(Player player, Trader trader, ShopOffer offer, int direction) {
+        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        String file = editorOfferFile(player, trader);
+        if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
+        boolean moved = new SystemOfferEditor((Shop) this).move(file, offer.getId(), direction);
+        if (moved && trader == null) reloadSystemOffers();
+        return moved ? ShopPurchaseResult.success(t.get("tc.shop.editor.order.saved", player), null)
+                : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.order.boundary", player));
+    }
+
     private String editorOfferFile(Player player, Trader trader) {
         String file = trader == null ? systemOffersFileFor(player) : trader.systemOffersFile();
         return file == null || file.isBlank() || file.equalsIgnoreCase("system-offers.default.json")

@@ -164,7 +164,6 @@ public class ShopService {
     public synchronized List<ShopOffer> listSystemOffers() {
         return offers.values().stream()
                 .filter(ShopOffer::isSystemOffer)
-                .sorted(Comparator.comparing(ShopOffer::getId))
                 .toList();
     }
 

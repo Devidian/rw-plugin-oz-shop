@@ -220,6 +220,12 @@
         "not": {
           "allowed": "Nur Administratoren können Angebotsdateien bearbeiten."
         },
+        "order": {
+          "boundary": "Das Angebot kann nicht weiter verschoben werden.",
+          "down": "Nach unten",
+          "saved": "Angebotsreihenfolge gespeichert.",
+          "up": "Nach oben"
+        },
         "readonly": "Schreibgeschützt: ID PH_ID | Item PH_ITEM | Variante PH_VARIANT | Aktiviert: true",
         "remove": {
           "$value": "Artikel entfernen",

@@ -946,9 +946,19 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         if (hasEditableOfferFile()) {
             AdvancedButton edit = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.edit", player), event -> showOfferEditor(offer));
             edit.setPivot(Pivot.UpperLeft); edit.setPosition(x + 286, 12, false); edit.setSize(180, 28, false); edit.setBorderEdgeRadius(3, false); styleResetButton(edit); options.addChild(edit);
+            AdvancedButton moveUp = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.order.up", player), event -> moveOffer(offer, -1));
+            moveUp.setPivot(Pivot.UpperLeft); moveUp.setPosition(x + 472, 42, false); moveUp.setSize(88, 28, false); moveUp.setBorderEdgeRadius(3, false); styleResetButton(moveUp); options.addChild(moveUp);
+            AdvancedButton moveDown = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.order.down", player), event -> moveOffer(offer, 1));
+            moveDown.setPivot(Pivot.UpperLeft); moveDown.setPosition(x + 564, 42, false); moveDown.setSize(88, 28, false); moveDown.setBorderEdgeRadius(3, false); styleResetButton(moveDown); options.addChild(moveDown);
             AdvancedButton remove = AdvancedButtonFactory.danger(t.get("tc.shop.editor.remove", player), event -> showOfferRemoveConfirmation(offer));
             remove.setPivot(Pivot.UpperLeft); remove.setPosition(x + 286, 72, false); remove.setSize(180, 28, false); remove.setBorderEdgeRadius(3, false); styleResetButton(remove); options.addChild(remove);
         }
+    }
+
+    private void moveOffer(ShopOffer offer, int direction) {
+        ShopPurchaseResult result = plugin.moveOffer(player, trader, offer, direction);
+        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (result.success) rebuild();
     }
 
     private boolean hasEditableOfferFile() {

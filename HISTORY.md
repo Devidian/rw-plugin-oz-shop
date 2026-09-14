@@ -2,6 +2,13 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## Unreleased
+
+## [0.8.0] - 2026-09-14 | System offer order
+
+- feat: allow administrators to move editable system offers up or down while preserving their JSON order and economy state.
+- fix: place offer-order controls clear of the target-stock action in the administrator overlay.
+
 ## [0.7.1] - 2026-09-12 | System economy limits and fixed restock
 
 - fix: limit condition-confirmation sales to the requested amount and revalidate that amount before inventory or Wallet mutation.

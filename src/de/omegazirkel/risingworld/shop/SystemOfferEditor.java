@@ -120,6 +120,28 @@ public final class SystemOfferEditor {
         return mutate(targetName, offerId, values, false);
     }
 
+    /** Moves an offer one position in its editable JSON file without changing its data. */
+    public boolean move(String targetName, String offerId, int direction) {
+        if (direction != -1 && direction != 1) return false;
+        Path target = editableFile(targetName);
+        if (target == null || offerId == null) return false;
+        try {
+            List<Map<String, Object>> offers = new ArrayList<>(SystemOfferFile.readObjects(target));
+            for (int index = 0; index < offers.size(); index++) {
+                if (!offerId.equalsIgnoreCase(String.valueOf(offers.get(index).get("id")))) continue;
+                int targetIndex = index + direction;
+                if (targetIndex < 0 || targetIndex >= offers.size()) return false;
+                Map<String, Object> current = offers.remove(index);
+                offers.add(targetIndex, current);
+                SystemOfferFile.writeObjects(target, offers);
+                return true;
+            }
+        } catch (IOException | IllegalArgumentException ex) {
+            Shop.logger().error("Could not reorder system offer: " + ex.getMessage());
+        }
+        return false;
+    }
+
     private boolean mutate(String targetName, String offerId, Map<String, Object> values, boolean remove) {
         Path target = editableFile(targetName);
         if (target == null || offerId == null) return false;

@@ -220,6 +220,12 @@
         "not": {
           "allowed": "Only administrators can edit offer files."
         },
+        "order": {
+          "boundary": "This offer cannot be moved further.",
+          "down": "Move down",
+          "saved": "Offer order saved.",
+          "up": "Move up"
+        },
         "readonly": "Read-only: ID PH_ID | item PH_ITEM | variant PH_VARIANT | Enabled: true",
         "remove": {
           "$value": "Remove item",
