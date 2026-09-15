@@ -63,6 +63,19 @@ public final class SystemOfferFile {
         }
     }
 
+    /** Complete immutable catalog, used by sibling plugins for canonical base-price lookup. */
+    public static List<ShopOffer> loadCompleteCatalog(Shop plugin) {
+        Path catalog = offerFile(plugin, "system-offers.complete.json");
+        try {
+            return Files.exists(catalog)
+                    ? parseOffers(Files.readString(catalog, StandardCharsets.UTF_8), "")
+                    : List.of();
+        } catch (IOException | IllegalArgumentException ex) {
+            Shop.logger().warn("Could not load complete system offer catalog: " + ex.getMessage());
+            return List.of();
+        }
+    }
+
     /** Resolves Dev offer files from the server that actually receives uploads. */
     static Path offerFile(Shop plugin, String fileName) {
         Path runtimeRoot = Paths.get(plugin.getPath() != null ? plugin.getPath() : ".").toAbsolutePath().normalize();

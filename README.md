@@ -143,6 +143,12 @@ in the world but no longer opens a Shop trader overlay.
 Other plugins can look up `OZ - Shop` and call these methods on the main plugin class:
 
 ```java
+/**
+ * Returns the immutable complete-catalog base price for one concrete item unit,
+ * or 0 when that item/variant has no price.
+ */
+public double systemOfferBaseUnitPrice(String itemName, int itemVariant);
+
 public ShopOfferRegistrationResult registerOffer(
     String id,
     String title,

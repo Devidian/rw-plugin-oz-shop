@@ -6,6 +6,7 @@ Planning is stored in repository-local docs.
 - Ingame offer editor: [docs/active/ingame-offer-editor.md](docs/active/ingame-offer-editor.md)
 - Trader generator: [docs/active/trader-generator.md](docs/active/trader-generator.md)
 - System-offer default conversion audit: [docs/active/system-offers-default-conversion-audit.md](docs/active/system-offers-default-conversion-audit.md)
+- Complete-catalog base-price API: [docs/active/property-clearance-base-price-api.md](docs/active/property-clearance-base-price-api.md)
 - Roadmaps and larger plans: [docs/roadmaps/](docs/roadmaps/)
 - Completed phase summaries: [docs/phase-archive.md](docs/phase-archive.md)
 - Planning and documentation standards: [docs/policies/repository-policy.md](docs/policies/repository-policy.md)

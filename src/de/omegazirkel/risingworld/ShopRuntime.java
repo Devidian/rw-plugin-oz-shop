@@ -6,6 +6,9 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -78,6 +81,7 @@ class ShopRuntime extends Plugin {
     private static ShopEconomyStore economyStore;
     private static TraderService traderService;
     private static TraderGeneratorConfig traderGeneratorConfig;
+    private static Map<String, Double> completeCatalogBaseUnitPrices = Map.of();
     private static final int[] LIGHT_SKIN_COLORS = { 0xFFE0BD, 0xF1C27D, 0xE0AC69, 0xFFDBAC };
     private static final int[] MEDIUM_SKIN_COLORS = { 0xC68642, 0xA56B46, 0x8D5524 };
     private static final int[] DARK_SKIN_COLORS = { 0x6F4E37, 0x4B2E20 };
@@ -792,6 +796,12 @@ class ShopRuntime extends Plugin {
         return SystemOfferFile.load((Shop) this, offerFile, s.generateDefinitionExports, s.systemShopCurrency);
     }
 
+    /** Returns the immutable complete-catalog base price for one concrete item unit, or zero when unpriced. */
+    public double systemOfferBaseUnitPrice(String itemName, int itemVariant) {
+        if (itemName == null || itemName.isBlank()) return 0.0d;
+        return completeCatalogBaseUnitPrices.getOrDefault(completeCatalogKey(itemName, itemVariant), 0.0d);
+    }
+
     public ShopEconomyStore.EconomyState economyStateFor(Player player, ShopOffer offer) {
         if (offer == null || economyStore == null) {
             return new ShopEconomyStore.EconomyState(
@@ -941,8 +951,23 @@ class ShopRuntime extends Plugin {
         List<ShopOffer> offers = SystemOfferFile.load((Shop) this, s.systemOffersFile, s.generateDefinitionExports,
                 s.systemShopCurrency);
         service.replaceSystemOffers(offers);
+        refreshCompleteCatalogBaseUnitPrices();
         reconcileEconomyState();
         return offers.size();
+    }
+
+    private void refreshCompleteCatalogBaseUnitPrices() {
+        Map<String, Double> prices = new LinkedHashMap<>();
+        for (ShopOffer offer : SystemOfferFile.loadCompleteCatalog((Shop) this)) {
+            if (offer.getItemName() == null || offer.getItemName().isBlank() || offer.getAmount() <= 0) continue;
+            prices.putIfAbsent(completeCatalogKey(offer.getItemName(), offer.getItemVariant()),
+                    Math.max(0.0d, offer.getBasePrice()) / offer.getAmount());
+        }
+        completeCatalogBaseUnitPrices = Map.copyOf(prices);
+    }
+
+    private static String completeCatalogKey(String itemName, int itemVariant) {
+        return itemName.trim().toLowerCase(Locale.ROOT) + ':' + Math.max(0, itemVariant);
     }
 
     public void reloadShopZones() {

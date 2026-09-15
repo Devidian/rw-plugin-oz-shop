@@ -2,7 +2,9 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
-## Unreleased
+## [0.9.0] - 2026-09-15 | Complete catalog base-price API
+
+- feat: expose cached per-unit base prices from the immutable complete system-offer catalog for sibling plugins.
 
 ## [0.8.0] - 2026-09-14 | System offer order
 
