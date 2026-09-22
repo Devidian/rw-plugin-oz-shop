@@ -251,7 +251,13 @@
         "offers": "Es sind keine Shop-Angebote verfügbar."
       },
       "purchase": {
-        "completed": "PH_AMOUNT× PH_OFFER gekauft."
+        "completed": "PH_AMOUNT× PH_OFFER gekauft.",
+        "error": {
+          "insufficient_balance": "Das ausgewählte Konto hat nicht genügend Guthaben für diesen Kauf.",
+          "payment_failed": "Die Zahlung für diesen Kauf konnte nicht durchgeführt werden.",
+          "refunded": "Der Kauf konnte nicht abgeschlossen werden. Deine Zahlung wurde zurückerstattet.",
+          "refund_failed": "Der Kauf konnte nicht abgeschlossen werden; die Rückerstattung benötigt die Aufmerksamkeit eines Administrators."
+        }
       },
       "reloaded": "PH_COUNT System-Shop-Angebote neu geladen.",
       "sale": {

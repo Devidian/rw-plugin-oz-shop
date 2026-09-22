@@ -46,6 +46,22 @@ public class ShopService {
                 null);
     }
 
+    /** Registers an opt-in offer that may choose a system-account payer and receives a durable purchase context. */
+    public synchronized ShopOfferRegistrationResult registerContextPluginOffer(String id, String title, String description,
+            long price, String currencyIdentifier, String icon, String category, String source, String pluginIdentifier,
+            ShopPurchaseContextCallback callback, ShopPurchasePolicy policy, ShopPriceResolver priceResolver) {
+        return registerContextPluginOffer(id,title,description,price,currencyIdentifier,icon,category,source,pluginIdentifier,callback,policy,priceResolver,null);
+    }
+    public synchronized ShopOfferRegistrationResult registerContextPluginOffer(String id, String title, String description,
+            long price, String currencyIdentifier, String icon, String category, String source, String pluginIdentifier,
+            ShopPurchaseContextCallback callback, ShopPurchasePolicy policy, ShopPriceResolver priceResolver, ShopOfferLocalization localization) {
+        if (callback == null) return ShopOfferRegistrationResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A purchase callback is required.");
+        ShopOfferRegistrationResult result = registerPluginOffer(id, title, description, price, currencyIdentifier, icon,
+                category, source, pluginIdentifier, (player, offer) -> ShopPurchaseResult.success("Context callback deferred.", offer), priceResolver, localization);
+        if (result.success) { result.offer.setPurchaseContextCallback(callback); result.offer.setPurchasePolicy(policy); }
+        return result;
+    }
+
     public synchronized ShopOfferRegistrationResult registerPluginOffer(
             String id,
             String title,
@@ -161,6 +177,16 @@ public class ShopService {
                 .toList();
     }
 
+    public synchronized List<ShopOffer> listPluginOffers(Player player) {
+        return listPluginOffers().stream().filter(offer -> allowedForDisplay(player, offer)).toList();
+    }
+
+    private boolean allowedForDisplay(Player player, ShopOffer offer) {
+        if (offer.getPurchasePolicy() == null) return true;
+        try { return offer.getPurchasePolicy().authorize(player, offer, offer.getPrice(player)).allowed(); }
+        catch (RuntimeException ex) { return false; }
+    }
+
     public synchronized List<ShopOffer> listSystemOffers() {
         return offers.values().stream()
                 .filter(ShopOffer::isSystemOffer)
@@ -220,7 +246,7 @@ public class ShopService {
         if (!effectiveOffer.isEnabled()) {
             return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, "Offer is disabled.");
         }
-        if (effectiveOffer.getCallback() == null) {
+        if (effectiveOffer.getCallback() == null && effectiveOffer.getContextCallback() == null) {
             return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_MISSING,
                     "Offer has no purchase action registered.");
         }
@@ -235,13 +261,20 @@ public class ShopService {
             return ShopPurchaseResult.failure(ShopErrorCode.PRICE_RESOLUTION_FAILED,
                     "Could not resolve offer price: " + ex.getMessage());
         }
+        ShopPurchaseAuthorization authorization = ShopPurchaseAuthorization.allowPlayer();
+        if (effectiveOffer.getPurchasePolicy() != null) {
+            try { authorization = effectiveOffer.getPurchasePolicy().authorize(player, effectiveOffer, price); }
+            catch (RuntimeException ex) { return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, "Offer authorization failed."); }
+            if (authorization == null || !authorization.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
+                    authorization == null || authorization.message() == null ? "You cannot purchase this offer." : authorization.message());
+        }
         if (effectiveOffer.isSystemOffer() && !canAddSystemOfferItem(player, effectiveOffer)) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVENTORY_FULL, "Your inventory is full.");
         }
 
         PaymentReceipt payment = PaymentReceipt.none();
         if (price > 0) {
-            payment = charge(player, effectiveOffer, price, payeeSystemAccountId);
+            payment = charge(player, effectiveOffer, price, authorization.payerSystemAccountId(), authorization.payerPluginIdentifier(), payeeSystemAccountId);
             if (!payment.result().success()) {
                 Shop.logger().error(payment.result().toString());
                 return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, payment.result().message());
@@ -249,7 +282,10 @@ public class ShopService {
         }
 
         try {
-            ShopPurchaseResult callbackResult = effectiveOffer.getCallback().complete(player, effectiveOffer);
+            ShopPurchaseResult callbackResult = effectiveOffer.getContextCallback() != null
+                    ? effectiveOffer.getContextCallback().complete(new ShopPurchaseContext(player, effectiveOffer, price,
+                            effectiveOffer.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier() : effectiveOffer.getCurrencyIdentifier(), payment.correlationId(), authorization.payerSystemAccountId(), authorization.payerPluginIdentifier()))
+                    : effectiveOffer.getCallback().complete(player, effectiveOffer);
             if (callbackResult == null) {
                 return failAfterPayment(player, effectiveOffer, price, payment,
                         "Purchase action returned no result after payment.");
@@ -403,24 +439,29 @@ public class ShopService {
                 message + " Payment was refunded.");
     }
 
-    private PaymentReceipt charge(Player player, ShopOffer offer, long price, String payeeSystemAccountId) {
+    private PaymentReceipt charge(Player player, ShopOffer offer, long price, String payerSystemAccountId, String payerPluginIdentifier, String payeeSystemAccountId) {
         String reason = "Shop purchase: " + offer.getId();
         String currency = offer.getCurrencyIdentifier().isBlank()
                 ? wallet.defaultCurrencyIdentifier() : offer.getCurrencyIdentifier();
         if (wallet.hasSystemAccountApi() && !currency.isBlank()) {
             String correlation = "shop:purchase:" + player.getDbID() + ":" + UUID.randomUUID();
-            WalletBridge.WalletTransferCallResult result = payeeSystemAccountId == null || payeeSystemAccountId.isBlank()
+            WalletBridge.WalletTransferCallResult result = payerSystemAccountId != null && !payerSystemAccountId.isBlank()
+                    ? wallet.transferSystemToSystemIdempotent(payerSystemAccountId, wallet.worldSystemAccountId(), price, reason,
+                            currency, payerPluginIdentifier == null || payerPluginIdentifier.isBlank() ? "OZ - Shop" : payerPluginIdentifier, correlation)
+                    : payeeSystemAccountId == null || payeeSystemAccountId.isBlank()
                     ? wallet.transferPlayerToWorldIdempotent(player.getDbID(), price, reason, currency, "OZ - Shop",
                             correlation)
                     : wallet.transferPlayerToSystemIdempotent(player.getDbID(), payeeSystemAccountId, price, reason,
                             currency, "OZ - Shop", correlation);
             return new PaymentReceipt(new WalletBridge.WalletCallResult(result.success(), result.message()),
-                    correlation, true);
+                    correlation, true, payerSystemAccountId != null && !payerSystemAccountId.isBlank()
+                            ? payerPluginIdentifier : "OZ - Shop");
         }
+        if (payerSystemAccountId != null && !payerSystemAccountId.isBlank()) return new PaymentReceipt(new WalletBridge.WalletCallResult(false, "Wallet system-account API is required."), "", false, "OZ - Shop");
         WalletBridge.WalletCallResult result = offer.getCurrencyIdentifier().isBlank()
                 ? wallet.withdrawDefault(player.getDbID(), price, reason, "OZ - Shop")
                 : wallet.withdraw(player.getDbID(), price, reason, offer.getCurrencyIdentifier(), "OZ - Shop");
-        return new PaymentReceipt(result, "", false);
+        return new PaymentReceipt(result, "", false, "OZ - Shop");
     }
 
     private WalletBridge.WalletCallResult refund(Player player, ShopOffer offer, long price, PaymentReceipt payment) {
@@ -430,7 +471,7 @@ public class ShopService {
         if (payment.routedToWorld()) {
             WalletBridge.WalletTransferCallResult reversal = wallet.reverseAccountTransferIdempotent(
                     payment.correlationId(), payment.correlationId() + ":refund", "Shop refund: " + offer.getId(),
-                    "OZ - Shop");
+                    payment.transferCreatorPluginIdentifier());
             return new WalletBridge.WalletCallResult(reversal.success(), reversal.message());
         }
         if (offer.getCurrencyIdentifier().isBlank()) {
@@ -441,9 +482,9 @@ public class ShopService {
     }
 
     private record PaymentReceipt(WalletBridge.WalletCallResult result, String correlationId,
-            boolean routedToWorld) {
+            boolean routedToWorld, String transferCreatorPluginIdentifier) {
         private static PaymentReceipt none() {
-            return new PaymentReceipt(WalletBridge.WalletCallResult.success("No payment required."), "", false);
+            return new PaymentReceipt(WalletBridge.WalletCallResult.success("No payment required."), "", false, "OZ - Shop");
         }
     }
 

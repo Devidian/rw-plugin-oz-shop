@@ -251,7 +251,13 @@
         "offers": "No shop offers are available."
       },
       "purchase": {
-        "completed": "Purchased PH_AMOUNT× PH_OFFER."
+        "completed": "Purchased PH_AMOUNT× PH_OFFER.",
+        "error": {
+          "insufficient_balance": "The selected account does not have enough balance for this purchase.",
+          "payment_failed": "The payment for this purchase could not be completed.",
+          "refunded": "The purchase could not be completed. Your payment has been refunded.",
+          "refund_failed": "The purchase could not be completed and the refund requires administrator attention."
+        }
       },
       "reloaded": "Reloaded PH_COUNT system shop offers.",
       "sale": {

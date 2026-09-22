@@ -339,7 +339,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 setupSystemShop(List.of(), t.get("tc.shop.system.disabled", player));
             }
         } else if (activeTab == Tab.PLUGIN) {
-            setupOffers(plugin.listPluginOffers(), t.get("tc.shop.ui.empty.plugin", player), OfferAction.BUY);
+            setupOffers(plugin.listPluginOffers(player), t.get("tc.shop.ui.empty.plugin", player), OfferAction.BUY);
         } else {
             if (trader != null) setupTraderManagement(); else setupAdminTable();
         }
@@ -957,7 +957,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
 
     private void moveOffer(ShopOffer offer, int direction) {
         ShopPurchaseResult result = plugin.moveOffer(player, trader, offer, direction);
-        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (!result.success) {
+            player.showErrorMessageBox(t.get("tc.shop.ui.title", player), result.message);
+        } else {
+            player.sendTextMessage(c.okay + result.message);
+        }
         if (result.success) rebuild();
     }
 
@@ -1336,7 +1340,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         ShopPurchaseResult result = action == OfferAction.SELL
                 ? sellOffer(offer, 1)
                 : buyOffer(offer, 1);
-        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+        if (!result.success) {
+            player.showErrorMessageBox(t.get("tc.shop.ui.title", player), plugin.purchaseMessage(player, result));
+        } else {
+            player.sendTextMessage(c.okay + result.message);
+        }
         if (result.success && action == OfferAction.BUY && !offer.isSystemOffer()
                 && ShopPlayerPreferences.pluginPurchaseSuccessMessageEnabled(player)) {
             player.showSuccessMessageBox(t.get("tc.shop.ui.title", player), result.message);
@@ -1345,55 +1353,12 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     }
 
     private void showPluginPurchaseConfirmation(ShopOffer offer) {
-        OZUIElement blocker = new OZUIElement();
-        blocker.setPivot(Pivot.UpperLeft);
-        blocker.setPosition(0, 0, true);
-        blocker.setSize(100, 100, true);
-        blocker.setBackgroundColor(0, 0, 0, 0.54f);
-        blocker.setClickable(true);
-
-        OZUIElement dialog = new OZUIElement();
-        dialog.setPivot(Pivot.MiddleCenter);
-        dialog.setPosition(50, 50, true);
-        dialog.setSize(500, 230, false);
-        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f);
-        dialog.setBorder(1);
-        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f);
-        dialog.setBorderEdgeRadius(6, false);
-
-        UILabel title = label(t.get("tc.shop.ui.plugin.purchase.confirm.title", player), 20, Font.DefaultBold);
-        title.setPivot(Pivot.UpperLeft);
-        title.setPosition(18, 16, false);
-        title.setSize(464, 28, false);
-        dialog.addChild(title);
-
-        UILabel text = label(t.get("tc.shop.ui.plugin.purchase.confirm.text", player)
+        String text = t.get("tc.shop.ui.plugin.purchase.confirm.text", player)
                 .replace("PH_OFFER", offerTitle(offer))
-                .replace("PH_PRICE", offerPrice(offer, OfferAction.BUY)), 14, Font.Default);
-        text.setPivot(Pivot.UpperLeft);
-        text.setPosition(18, 56, false);
-        text.setSize(464, 80, false);
-        text.setTextWrap(true);
-        text.setTextAlign(TextAnchor.UpperLeft);
-        dialog.addChild(text);
-
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker));
-        cancel.setPivot(Pivot.LowerLeft);
-        cancel.setPosition(18, 212, false);
-        cancel.setSize(150, 30, false);
-        dialog.addChild(cancel);
-
-        UIElement confirm = AdvancedButtonFactory.ok(t.get("tc.shop.ui.plugin.purchase.confirm", player), event -> {
-            panel.removeChild(blocker);
-            completePluginOfferAction(offer, OfferAction.BUY);
-        });
-        confirm.setPivot(Pivot.LowerRight);
-        confirm.setPosition(482, 212, false);
-        confirm.setSize(190, 30, false);
-        dialog.addChild(confirm);
-
-        blocker.addChild(dialog);
-        panel.addChild(blocker);
+                .replace("PH_PRICE", offerPrice(offer, OfferAction.BUY));
+        player.showMessageBox(net.risingworld.api.ui.MessageBoxButtons.Yes_No,
+                t.get("tc.shop.ui.plugin.purchase.confirm.title", player), text, 0,
+                answer -> { if (answer == 0) completePluginOfferAction(offer, OfferAction.BUY); });
     }
 
     private void executeSystemAction(ShopOffer offer, UITextField amountField, boolean sellToSystem) {

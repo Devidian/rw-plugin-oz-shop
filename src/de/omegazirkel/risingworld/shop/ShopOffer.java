@@ -35,6 +35,8 @@ public class ShopOffer {
     private final long perPlayerDailySellLimit;
     private final long globalDailySellLimit;
     private final ShopPurchaseCallback callback;
+    private ShopPurchaseContextCallback contextCallback;
+    private ShopPurchasePolicy purchasePolicy;
     private final ShopPriceResolver priceResolver;
     private ShopOfferLocalization localization;
 
@@ -235,6 +237,10 @@ public class ShopOffer {
     public long getPerPlayerDailySellLimit() { return perPlayerDailySellLimit; }
     public long getGlobalDailySellLimit() { return globalDailySellLimit; }
     ShopPurchaseCallback getCallback() { return callback; }
+    ShopPurchaseContextCallback getContextCallback() { return contextCallback; }
+    ShopPurchasePolicy getPurchasePolicy() { return purchasePolicy; }
+    void setPurchaseContextCallback(ShopPurchaseContextCallback value) { contextCallback = value; }
+    void setPurchasePolicy(ShopPurchasePolicy value) { purchasePolicy = value; }
     ShopPriceResolver getPriceResolver() { return priceResolver; }
     void setLocalization(ShopOfferLocalization localization) { this.localization = localization; }
     private static String localized(String value, String fallback) {

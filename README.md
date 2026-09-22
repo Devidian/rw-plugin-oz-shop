@@ -215,6 +215,12 @@ public List<ShopOffer> listOffers();
 
 public List<ShopOffer> listPluginOffers();
 
+public ShopOfferRegistrationResult registerContextOffer(
+    String id, String title, String description, long price, String currencyIdentifier,
+    String icon, String category, String source, String pluginIdentifier,
+    ShopPurchaseContextCallback callback, ShopPurchasePolicy policy, ShopPriceResolver priceResolver
+);
+
 public List<ShopOffer> listSystemOffers();
 
 public int reloadSystemOffers();
@@ -225,6 +231,8 @@ Offer ids are trimmed and normalized to lowercase. Prices are whole-number non-n
 Plugin-registered offers live only in the runtime registry. Shop does not persist them to disk or database, so registering plugins should register on enable and can call `unregisterOffer(id, pluginIdentifier)` for one offer or `unregisterOffers(pluginIdentifier)` during shutdown/reload. System offers are reloaded from the configured JSON file and replaced independently, while plugin offers stay registered across `/shop reload`.
 
 Purchase flow validates the offer, requires Wallet, resolves the current price, and executes the callback synchronously. With Wallet's system-account API, the charge is transferred atomically into the current world account; older Wallet versions retain the compatible withdrawal behavior. If payment fails, the callback is not called. If the callback fails, throws, or returns no result after a successful payment, Shop reverses the world-account transfer idempotently (or uses the legacy deposit refund) and returns `CALLBACK_FAILED` with a refund note. If that compensation also fails, Shop returns `REFUND_FAILED` so admins can investigate the charged-but-not-delivered purchase. Shop buy-back payouts remain system-created money and do not debit the world account.
+
+`registerContextOffer` is opt-in and leaves `ShopPurchaseCallback` compatibility untouched. Its policy is evaluated when plugin offers are listed and again immediately before payment. A policy may nominate a Wallet system account as payer; Shop transfers its funds to the world account and passes the exact price, currency and correlation ID to the context callback. Failed fulfillment reverses that original transfer.
 
 ### Example Plugin Registration
 

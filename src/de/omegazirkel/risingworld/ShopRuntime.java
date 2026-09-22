@@ -262,7 +262,8 @@ class ShopRuntime extends Plugin {
         if (cmdParts[1].equalsIgnoreCase("buy") && cmdParts.length >= 3) {
             ShopPurchaseResult result = purchase(player, cmdParts[2],
                     cmdParts.length == 4 ? parsePositiveInt(cmdParts[3], 1) : 1);
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+            if (result.success) player.sendTextMessage(c.okay + result.message);
+            else player.showErrorMessageBox(t.get("tc.shop.ui.title", player), purchaseMessage(player, result));
             return;
         }
         if (cmdParts[1].equalsIgnoreCase("sell") && cmdParts.length >= 3) {
@@ -297,6 +298,24 @@ class ShopRuntime extends Plugin {
             ShopPurchaseCallback callback) {
         return service.registerPluginOffer(id, title, description, price, currencyIdentifier, icon, pluginIdentifier,
                 callback);
+    }
+
+    public ShopOfferRegistrationResult registerContextOffer(String id, String title, String description, long price,
+            String currencyIdentifier, String icon, String category, String source, String pluginIdentifier,
+            de.omegazirkel.risingworld.shop.ShopPurchaseContextCallback callback,
+            de.omegazirkel.risingworld.shop.ShopPurchasePolicy policy,
+            de.omegazirkel.risingworld.shop.ShopPriceResolver priceResolver) {
+        return service.registerContextPluginOffer(id, title, description, price, currencyIdentifier, icon, category,
+                source, pluginIdentifier, callback, policy, priceResolver);
+    }
+    public ShopOfferRegistrationResult registerContextOffer(String id, String title, String description, long price,
+            String currencyIdentifier, String icon, String category, String source, String pluginIdentifier,
+            de.omegazirkel.risingworld.shop.ShopPurchaseContextCallback callback,
+            de.omegazirkel.risingworld.shop.ShopPurchasePolicy policy,
+            de.omegazirkel.risingworld.shop.ShopPriceResolver priceResolver,
+            de.omegazirkel.risingworld.shop.ShopOfferLocalization localization) {
+        return service.registerContextPluginOffer(id, title, description, price, currencyIdentifier, icon, category,
+                source, pluginIdentifier, callback, policy, priceResolver, localization);
     }
 
     public ShopOfferRegistrationResult registerOffer(
@@ -371,6 +390,22 @@ class ShopRuntime extends Plugin {
 
     public ShopPurchaseResult purchase(Player player, String offerId) {
         return purchase(player, offerId, 1);
+    }
+
+    /** Converts Wallet/framework failures into player-facing, localized Shop messages. */
+    public String purchaseMessage(Player player, ShopPurchaseResult result) {
+        if (result.success) return result.message;
+        if (result.errorCode == ShopErrorCode.PAYMENT_FAILED) {
+            if (result.message != null && result.message.toLowerCase(Locale.ROOT).contains("balance is too low"))
+                return t.get("tc.shop.purchase.error.insufficient_balance", player);
+            return t.get("tc.shop.purchase.error.payment_failed", player);
+        }
+        if (result.errorCode == ShopErrorCode.REFUND_FAILED)
+            return t.get("tc.shop.purchase.error.refund_failed", player);
+        if (result.errorCode == ShopErrorCode.CALLBACK_FAILED
+                && result.message != null && result.message.contains("Payment was refunded."))
+            return t.get("tc.shop.purchase.error.refunded", player);
+        return result.message;
     }
 
     public ShopPurchaseResult purchase(Player player, String offerId, int quantity) {
@@ -714,7 +749,7 @@ class ShopRuntime extends Plugin {
             if (value <= 0L) continue;
             String currency = offer.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
                     : offer.getCurrencyIdentifier();
-            WalletBridge.WalletCallResult sale = wallet.creditSystemAccountIdempotent(trader.accountId(), value,
+            WalletBridge.WalletTransferCallResult sale = wallet.creditSystemAccountIdempotent(trader.accountId(), value,
                     "Trader dissolution stock sale: " + offer.getId(), currency, "OZ - Shop",
                     prefix + ":stock:" + currency + ":" + offer.getId());
             if (!sale.success()) return failureDetail(sale.message(), "Trader stock settlement failed.");
@@ -779,6 +814,9 @@ class ShopRuntime extends Plugin {
 
     public List<ShopOffer> listPluginOffers() {
         return service.listPluginOffers();
+    }
+    public List<ShopOffer> listPluginOffers(net.risingworld.api.objects.Player player) {
+        return service.listPluginOffers(player);
     }
 
     public List<ShopOffer> listSystemOffers() {

@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.10.0] - 2026-09-22 | Context offers
+
+- feat: add an opt-in context-offer contract with per-player visibility, dynamic
+  system-account payment and correlation IDs; failed fulfillment reverses the
+  original Wallet transfer.
+
 ## [0.9.0] - 2026-09-15 | Complete catalog base-price API
 
 - feat: expose cached per-unit base prices from the immutable complete system-offer catalog for sibling plugins.
