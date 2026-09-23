@@ -2,6 +2,10 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## [0.11.0] - 2026-09-23 | JSON-only settings runtime
+
+- change: use world-scoped JSON settings only; transfer legacy Properties values manually.
+
 ## [0.10.0] - 2026-09-22 | Context offers
 
 - feat: add an opt-in context-offer contract with per-player visibility, dynamic

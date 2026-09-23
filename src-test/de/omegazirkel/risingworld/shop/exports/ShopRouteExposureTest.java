@@ -14,8 +14,10 @@ public class ShopRouteExposureTest {
 
     @Test
     public void loadsShopZoneExposureFlagFromSettings() throws Exception {
-        Path settings = Files.createTempFile("oz-shop-settings-", ".properties");
-        Files.writeString(settings, "exposeShopZones=false\n");
+        Path directory = Files.createTempDirectory("oz-shop-settings-");
+        Path settings = directory.resolve("settings.world.json");
+        Files.writeString(directory.resolve("settings.default.json"), "{\"exposeShopZones\":true}");
+        Files.writeString(settings, "{\"exposeShopZones\":false}");
 
         PluginSettings pluginSettings = PluginSettings.getInstance();
         pluginSettings.initSettings(settings.toString());
