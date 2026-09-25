@@ -1522,7 +1522,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                     .replace("PH_DURABILITY", String.valueOf(line.durability()))
                     .replace("PH_MAX_DURABILITY", String.valueOf(line.maxDurability()))
                     .replace("PH_MODIFIER_PERCENT", String.valueOf(modifierPercent))
-                    .replace("PH_MODIFIER", line.modifier())
+                    .replace("PH_MODIFIER", localizedModifier(line.modifier()))
                     .replace("PH_BASE", line.basePayout() + " " + currency)
                     .replace("PH_PAYOUT", line.payout() + " " + currency));
         }
@@ -1538,8 +1538,16 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 .replace("PH_DURABILITY", String.valueOf(line.durability()))
                 .replace("PH_MAX_DURABILITY", String.valueOf(line.maxDurability()))
                 .replace("PH_MODIFIER_PERCENT", String.valueOf((int) Math.round(100.0d * line.modifierMultiplier())))
-                .replace("PH_MODIFIER", line.modifier()).replace("PH_BASE", line.basePayout() + " " + currency)
+                .replace("PH_MODIFIER", localizedModifier(line.modifier())).replace("PH_BASE", line.basePayout() + " " + currency)
                 .replace("PH_PAYOUT", line.payout() + " " + currency);
+    }
+
+    private String localizedModifier(String name) {
+        if (name == null || name.isBlank()) return "";
+        if ("Normal".equals(name)) return name;
+        String localized = net.risingworld.api.Server.getLocalizedString(player.getLanguage(),
+                "item.modifier." + name.toLowerCase(java.util.Locale.ROOT));
+        return localized == null || localized.isBlank() ? name : localized;
     }
 
     private void refreshSelectedSystemTradeState(ShopOffer offer) {

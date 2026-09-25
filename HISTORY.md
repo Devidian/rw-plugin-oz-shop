@@ -2,6 +2,12 @@
 
 <https://www.conventionalcommits.org/en/v1.0.0/>
 
+## Unreleased
+
+## [0.11.1] - 2026-09-25 | Localized item modifiers
+
+- fix: display game-localized item modifier names in sell condition details.
+
 ## [0.11.0] - 2026-09-23 | JSON-only settings runtime
 
 - change: use world-scoped JSON settings only; transfer legacy Properties values manually.

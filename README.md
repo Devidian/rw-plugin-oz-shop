@@ -2,6 +2,8 @@
 
 Shared shop and purchase API plugin for Rising World.
 
+Sell condition details display item modifier names in the player's game language.
+
 ## Responsibilities
 
 - plugin offer registration API
