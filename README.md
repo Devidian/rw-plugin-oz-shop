@@ -1,5 +1,7 @@
 # OZ - Shop
 
+**Build baseline:** JDK 25 (`--release 25`) and the bundled Rising World PluginAPI 0.9.3.2 JAR.
+
 Shared shop and purchase API plugin for Rising World.
 
 Sell condition details display item modifier names in the player's game language.

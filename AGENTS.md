@@ -27,7 +27,7 @@ If `OZ - Wallet` is missing or not loaded, this plugin may load but purchases mu
 
 ## Mandatory Workflow Rules
 
-- Preserve the Java 20 baseline.
+- Preserve the Java 25 baseline.
 - Keep purchase orchestration in Shop and economy state in Wallet.
 - Keep plugin-specific purchase fulfillment in the registering feature plugin callback.
 - Use `rw-plugin-oz-tools` helpers for shared runtime concerns.
