@@ -8,7 +8,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
@@ -65,6 +67,9 @@ public class ShopEconomyRulesTest {
     public void drainUsesCurrentStockAndRestockUsesFixedPerTickAmount() {
         assertEquals(50L, ShopEconomyStore.stockDrainAmount(1_000L, 10.0d, 50L, 1.0d));
         assertEquals(50L, ShopEconomyStore.stockDrainAmount(100L, 50.0d, 50L, 1.0d));
+        assertEquals(1L, ShopEconomyStore.stockDrainAmount(10L, 1.0d, 5L, 1.0d));
+        assertEquals(2L, ShopEconomyStore.stockDrainAmount(100L, 100.0d, 2L, 1.0d));
+        assertEquals(0L, ShopEconomyStore.stockDrainAmount(10L, 0.0d, 5L, 1.0d));
         assertEquals(0L, ShopEconomyStore.stockDrainAmount(1_000L, 10.0d, 50L, 0.5d));
         assertEquals(0L, ShopEconomyStore.fixedRestockAmount(5L, 0.5d));
         assertEquals(120L, ShopEconomyStore.fixedRestockAmount(5L, 24.0d));
@@ -253,13 +258,104 @@ public class ShopEconomyRulesTest {
     }
 
     @Test
-    public void hybridTraderDrainOnlyUsesStockAboveTarget() {
-        ShopOffer hybrid = offer(ShopStockMode.HYBRID);
-
-        assertEquals(0L, TraderService.automaticDrainBase(hybrid, 10L, 10L));
-        assertEquals(1L, TraderService.automaticDrainBase(hybrid, 11L, 10L));
+    public void traderDrainOnlyUsesStockAboveTargetIncludingZero() {
+        for (ShopStockMode mode : List.of(ShopStockMode.LOOT, ShopStockMode.HYBRID)) {
+            ShopOffer offer = offer(mode);
+            assertEquals(0L, TraderService.automaticDrainBase(offer, 0L, 0L));
+            assertEquals(1L, TraderService.automaticDrainBase(offer, 1L, 0L));
+            assertEquals(0L, TraderService.automaticDrainBase(offer, 10L, 10L));
+            assertEquals(1L, TraderService.automaticDrainBase(offer, 11L, 10L));
+        }
         assertEquals(0L, TraderService.automaticDrainBase(offer(ShopStockMode.SYSTEM_SUPPLIED), 10L, 10L));
-        assertEquals(5L, TraderService.automaticDrainBase(offer(ShopStockMode.LOOT), 15L, 10L));
+    }
+
+    @Test
+    public void traderDrainPersistsOnlyAfterWalletSettlementForZeroAndPositiveTargets() throws Exception {
+        for (ShopStockMode mode : List.of(ShopStockMode.LOOT, ShopStockMode.HYBRID)) {
+            for (long target : new long[] { 0L, 10L }) {
+                ShopOffer configured = offer(mode).economyConfigCopy(target, target + 20L, 0.0d, 0.0d,
+                        mode, 0.25d, 4.0d, 25.0d, 100.0d, 1L, 0L, 0L, 0L);
+                try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+                    Trader trader = new Trader(1L, "Test", "Test", 1L, "test.json", true);
+                    TraderService service = new TraderService(connection);
+                    ShopEconomyStore store = new ShopEconomyStore(connection);
+                    assertTrue(store.configure(trader.economyScope(), configured.getId(), target + 1L, 0.0d, 0.0d));
+                    WalletBridge failedWallet = new WalletBridge(null) {
+                        @Override
+                        public WalletTransferCallResult transferWorldToSystemIdempotent(String payeeAccountId,
+                                long value, String reason, String currencyIdentifier, String pluginIdentifier,
+                                String correlationId) {
+                            return new WalletTransferCallResult(false, "failed", correlationId);
+                        }
+                    };
+                    assertTrue(service.reconcileEconomy(trader, List.of(configured), store, failedWallet,
+                            "COINS", false, true).changes().isEmpty());
+                    assertEquals(target + 1L, store.stateForWithoutTick(trader.economyScope(), configured).stock());
+
+                    WalletBridge successfulWallet = new WalletBridge(null) {
+                        @Override
+                        public WalletTransferCallResult transferWorldToSystemIdempotent(String payeeAccountId,
+                                long value, String reason, String currencyIdentifier, String pluginIdentifier,
+                                String correlationId) {
+                            return new WalletTransferCallResult(true, "", correlationId);
+                        }
+                    };
+                    assertEquals(1, service.reconcileEconomy(trader, List.of(configured), store, successfulWallet,
+                            "COINS", false, true).changes().size());
+                    assertEquals(target, store.stateForWithoutTick(trader.economyScope(), configured).stock());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void lowPercentTraderDrainReachesZeroOnlyAfterWalletSettlement() throws Exception {
+        for (ShopStockMode mode : List.of(ShopStockMode.LOOT, ShopStockMode.HYBRID)) {
+            ShopOffer hammer = offer(mode).economyConfigCopy(0L, 20L, 0.0d, 0.0d,
+                    mode, 0.25d, 4.0d, 25.0d, 1.0d, 5L, 2L, 0L, 0L);
+            try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+                long[] now = { System.currentTimeMillis() };
+                ShopEconomyStore store = new ShopEconomyStore(connection, () -> now[0]);
+                TraderService service = new TraderService(connection);
+                Trader theresa = new Trader(1L, "Theresa", "Test", 1L, "test.json", true);
+                assertTrue(store.configure(theresa.economyScope(), hammer.getId(), 10L, 0.0d, 0.0d));
+                now[0] = System.currentTimeMillis() + 1_000L;
+                store.initializeScope(theresa.economyScope());
+                AtomicInteger walletCalls = new AtomicInteger();
+                WalletBridge wallet = new WalletBridge(null) {
+                    @Override
+                    public WalletTransferCallResult transferWorldToSystemIdempotent(String payeeAccountId,
+                            long value, String reason, String currencyIdentifier, String pluginIdentifier,
+                            String correlationId) {
+                        return new WalletTransferCallResult(walletCalls.incrementAndGet() > 1, "", correlationId);
+                    }
+                };
+
+                assertTrue(service.reconcileEconomy(theresa, List.of(hammer), store, wallet,
+                        "COINS", false, false).changes().isEmpty());
+                assertEquals(10L, store.stateForWithoutTick(theresa.economyScope(), hammer).stock());
+                assertEquals(0, walletCalls.get());
+
+                now[0] += 3_600_000L;
+                assertTrue(service.reconcileEconomy(theresa, List.of(hammer), store, wallet,
+                        "COINS", false, false).changes().isEmpty());
+                assertEquals(10L, store.stateForWithoutTick(theresa.economyScope(), hammer).stock());
+                assertEquals(1, walletCalls.get());
+
+                for (long expectedStock = 9L; expectedStock >= 0L; expectedStock--) {
+                    now[0] += 3_600_000L;
+                    assertEquals(1, service.reconcileEconomy(theresa, List.of(hammer), store, wallet,
+                            "COINS", false, false).changes().size());
+                    assertEquals(expectedStock, store.stateForWithoutTick(theresa.economyScope(), hammer).stock());
+                }
+                assertEquals(11, walletCalls.get());
+                now[0] += 3_600_000L;
+                assertTrue(service.reconcileEconomy(theresa, List.of(hammer), store, wallet,
+                        "COINS", false, false).changes().isEmpty());
+                assertEquals(0L, store.stateForWithoutTick(theresa.economyScope(), hammer).stock());
+                assertEquals(11, walletCalls.get());
+            }
+        }
     }
 
     @Test

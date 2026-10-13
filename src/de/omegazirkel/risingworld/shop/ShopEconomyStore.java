@@ -841,7 +841,7 @@ public class ShopEconomyStore {
         }
         double raw = stock * (percent / 100.0d) * elapsedHours;
         double capped = max > 0L ? Math.min(raw, max * elapsedHours) : raw;
-        return (long) Math.floor(capped);
+        return capped > 0.0d ? Math.max(1L, (long) Math.floor(capped)) : 0L;
     }
 
     static long fixedRestockAmount(long max, double elapsedHours) {

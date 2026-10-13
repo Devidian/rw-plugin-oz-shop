@@ -169,7 +169,7 @@ public final class TraderService {
 
     static long automaticDrainBase(ShopOffer offer, long stock, long targetStock) {
         long safeStock = Math.max(0L, stock);
-        if (ShopEconomyStore.automaticDrainEnabled(offer) && targetStock > 0L) {
+        if (ShopEconomyStore.automaticDrainEnabled(offer) && targetStock >= 0L) {
             return Math.max(0L, safeStock - targetStock);
         }
         return 0L;

@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## [0.11.2] - 2026-10-13 | Trader drain at zero target
+
+- fix: let LOOT and HYBRID trader offers drain stock to a zero target after successful Wallet settlement.
+- fix: drain at least one unit per due tick when a positive percentage would otherwise round below one.
+- build: compile with Java 25 and refresh the bundled Rising World PluginAPI 0.9.3.2 JAR.
+
 ## [0.11.1] - 2026-09-25 | Localized item modifiers
 
 - fix: display game-localized item modifier names in sell condition details.

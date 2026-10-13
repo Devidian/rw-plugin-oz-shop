@@ -146,7 +146,7 @@ public class PluginSettings {
                         "Enables stock-based buy/sell price multipliers; stock rules stay active when disabled.",
                         dynamicEconomyEnabled, "false", AdminSettingsType.BOOLEAN),
                 entry("economyTickIntervalHours", "Economy tick interval hours",
-                        "Hours between automatic stock reconciliation ticks. Fractions accumulate until at least one item changes.",
+                        "Hours between automatic stock reconciliation ticks.",
                         economyTickIntervalHours, "1", AdminSettingsType.INTEGER),
                 entry("economyReportGlobal", "Global economy reports", "Sends a report after changed global stock ticks.",
                         economyReportGlobal, "false", AdminSettingsType.BOOLEAN),
