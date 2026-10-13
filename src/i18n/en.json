@@ -102,10 +102,6 @@
         "desc": "Reloads settings and system offers when settings.properties changes.",
         "label": "Reload on change"
       },
-      "requireshopzone": {
-        "desc": "Limits player shop tabs to shop areas; admin tabs stay available.",
-        "label": "Require shop zone"
-      },
       "sendpluginwelcome": {
         "desc": "Shows a short Shop message when a player joins.",
         "label": "Welcome message"
@@ -117,10 +113,6 @@
       "shopcommand": {
         "desc": "Chat command used to list and buy shop offers.",
         "label": "Shop command"
-      },
-      "shopenabled": {
-        "desc": "Allows players to use the shop.",
-        "label": "Shop enabled"
       },
       "shopzonesfile": {
         "desc": "JSON file used for admin-managed shop areas.",
@@ -140,7 +132,11 @@
       },
       "systemshopenabled": {
         "desc": "Allows system-shop offers unless a shop area overrides this value.",
-        "label": "System shop enabled"
+        "label": "Global system shop"
+      },
+      "pluginshopenabled": {
+        "desc": "Allows plugin-shop offers unless a shop area overrides this value.",
+        "label": "Global plugin shop"
       },
       "systemshop": {
         "desc": "System offer file and system-shop behavior.",
@@ -244,7 +240,7 @@
       "info": {
         "panel": {
           "info": "\u003cb\u003ePH_PLUGIN_NAME\u003c/b\u003e\nVersion: PH_VERSION\nCommand: /PH_PLUGIN_CMD\n\nShop provides system offers and plugin-registered purchase actions backed by Wallet payments.",
-          "status": "\u003cb\u003eShop status\u003c/b\u003e\nWallet: PH_WALLET_STATUS\nShop enabled: PH_SHOP_ENABLED\nSystem shop enabled: PH_SYSTEM_SHOP_ENABLED\nDefinition exports: PH_DEFINITION_EXPORTS\nDynamic economy: PH_DYNAMIC_ECONOMY\nRequire shop zone: PH_REQUIRE_SHOP_ZONE\nCurrent zone: PH_CURRENT_ZONE\nShop zones: PH_SHOP_ZONES\nSystem offers: PH_SYSTEM_OFFERS\nPlugin offers: PH_PLUGIN_OFFERS"
+          "status": "\u003cb\u003eShop status\u003c/b\u003e\nWallet: PH_WALLET_STATUS\nSystem shop enabled: PH_SYSTEM_SHOP_ENABLED\nPlugin shop enabled: PH_PLUGIN_SHOP_ENABLED\nDefinition exports: PH_DEFINITION_EXPORTS\nDynamic economy: PH_DYNAMIC_ECONOMY\nCurrent zone: PH_CURRENT_ZONE\nShop zones: PH_SHOP_ZONES\nSystem offers: PH_SYSTEM_OFFERS\nPlugin offers: PH_PLUGIN_OFFERS"
         }
       },
       "no": {
@@ -610,8 +606,7 @@
         "created": "Area PH_AREA (#PH_AREA_ID) is now a shop area.",
         "no": {
           "area": "You must stand inside an existing area to mark it as a shop area."
-        },
-        "required": "You can only use the shop inside an area marked as a shop area."
+        }
       }
     }
   },
@@ -628,5 +623,8 @@
   "tc.shop.editor.field.stocklimit": "Stock limit",
   "tc.shop.editor.field.stockmode": "Mode",
   "tc.shop.sale.selection.amount": "Select exactly the requested item amount.",
-  "tc.shop.editor.field.targetstock": "Target stock"
+  "tc.shop.editor.field.targetstock": "Target stock",
+  "tc.shop.ui.zone.pluginshop.label": "Plugin shop in this shop area",
+  "tc.shop.ui.col.pluginshop": "Plugin shop",
+  "tc.shop.plugin.disabled": "The plugin shop is disabled here."
 }

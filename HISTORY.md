@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+## [0.12.0] - 2026-10-13 | Independent shop controls
+
+- feat: control global system and plugin shops independently, with separate shop-area overrides and matching offer tabs.
+- change: remove the redundant Shop enabled and Require shop zone settings; effective system and plugin switches determine access.
+
 ## [0.11.2] - 2026-10-13 | Trader drain at zero target
 
 - fix: let LOOT and HYBRID trader offers drain stock to a zero target after successful Wallet settlement.

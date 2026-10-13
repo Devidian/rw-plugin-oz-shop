@@ -409,9 +409,29 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult purchase(Player player, String offerId, int quantity) {
-        ShopOffer offer = findSystemOfferFor(player, offerId).orElseGet(() -> findOffer(offerId));
+        return purchase(player, offerId, quantity, false);
+    }
+
+    public ShopPurchaseResult purchasePluginOfferAtTrader(Player player, Trader trader, String offerId, int quantity) {
+        if (trader == null || traderService == null || traderService.find(trader.npcId())
+                .filter(Trader::pluginShopEnabled).isEmpty()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.plugin.disabled", player));
+        }
+        ShopOffer offer = findOffer(offerId);
+        if (offer == null || offer.isSystemOffer()) {
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, t.get("tc.shop.no.offers", player));
+        }
+        return purchase(player, offerId, quantity, true);
+    }
+
+    private ShopPurchaseResult purchase(Player player, String offerId, int quantity, boolean traderPluginShop) {
+        ShopOffer offer = traderPluginShop ? findOffer(offerId)
+                : findSystemOfferFor(player, offerId).orElseGet(() -> findOffer(offerId));
         if (offer != null && offer.isSystemOffer() && !isSystemShopAvailableFor(player)) {
             return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.system.disabled", player));
+        }
+        if (offer != null && !offer.isSystemOffer() && !traderPluginShop && !isPluginShopAvailableFor(player)) {
+            return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.plugin.disabled", player));
         }
         int effectiveQuantity = Math.max(1, quantity);
         String economyScope = ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null));
@@ -1019,10 +1039,7 @@ class ShopRuntime extends Plugin {
         if (player == null) {
             return false;
         }
-        if (!s.shopEnabled) {
-            return false;
-        }
-        return !s.requireShopZone || (zoneService != null && zoneService.isInEnabledZone(player));
+        return isSystemShopAvailableFor(player) || isPluginShopAvailableFor(player);
     }
 
     public boolean isSystemShopAvailableFor(Player player) {
@@ -1034,14 +1051,14 @@ class ShopRuntime extends Plugin {
                 : zoneService.systemShopEnabledFor(player, s.systemShopEnabled);
     }
 
+    public boolean isPluginShopAvailableFor(Player player) {
+        if (player == null) return false;
+        return zoneService == null ? s.pluginShopEnabled
+                : zoneService.pluginShopEnabledFor(player, s.pluginShopEnabled);
+    }
+
     public String shopUnavailableMessage(Player player) {
-        if (!s.shopEnabled) {
-            return t.get("tc.shop.disabled", player);
-        }
-        if (s.requireShopZone) {
-            return t.get("tc.shop.zone.required", player);
-        }
-        return t.get("tc.shop.no.offers", player);
+        return t.get("tc.shop.disabled", player);
     }
 
     public ShopZoneService shopZoneService() {
@@ -1062,6 +1079,10 @@ class ShopRuntime extends Plugin {
 
     public ShopZone setZoneSystemShop(long areaId, int systemShop) {
         return zoneService == null ? null : zoneService.setSystemShopMode(areaId, systemShop).orElse(null);
+    }
+
+    public ShopZone setZonePluginShop(long areaId, int pluginShop) {
+        return zoneService == null ? null : zoneService.setPluginShopMode(areaId, pluginShop).orElse(null);
     }
 
     public ShopZone setZoneName(long areaId, String name) {
@@ -1208,7 +1229,7 @@ class ShopRuntime extends Plugin {
     public void sendOfferList(Player player) {
         List<ShopOffer> offers = listOffers().stream()
                 .filter(ShopOffer::isEnabled)
-                .filter(offer -> !offer.isSystemOffer() || isSystemShopAvailableFor(player))
+                .filter(offer -> offer.isSystemOffer() ? isSystemShopAvailableFor(player) : isPluginShopAvailableFor(player))
                 .toList();
         if (offers.isEmpty()) {
             player.sendTextMessage(c.info + t.get("tc.shop.no.offers", player));

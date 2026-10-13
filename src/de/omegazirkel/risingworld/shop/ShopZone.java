@@ -6,6 +6,7 @@ public class ShopZone {
     private final String createdBy;
     private final long createdAt;
     private final int systemShop;
+    private final int pluginShop;
     private final String systemOffersFile;
 
     public ShopZone(long areaId, String areaName, String createdBy, long createdAt) {
@@ -18,11 +19,17 @@ public class ShopZone {
 
     public ShopZone(long areaId, String areaName, String createdBy, long createdAt, int systemShop,
             String systemOffersFile) {
+        this(areaId, areaName, createdBy, createdAt, systemShop, -1, systemOffersFile);
+    }
+
+    public ShopZone(long areaId, String areaName, String createdBy, long createdAt, int systemShop,
+            int pluginShop, String systemOffersFile) {
         this.areaId = areaId;
         this.areaName = areaName == null ? "" : areaName.trim();
         this.createdBy = createdBy == null ? "" : createdBy.trim();
         this.createdAt = createdAt;
         this.systemShop = normalizeMode(systemShop);
+        this.pluginShop = normalizeMode(pluginShop);
         this.systemOffersFile = systemOffersFile == null ? "" : systemOffersFile.trim();
     }
 
@@ -31,10 +38,15 @@ public class ShopZone {
     public String getCreatedBy() { return createdBy; }
     public long getCreatedAt() { return createdAt; }
     public int getSystemShop() { return systemShop; }
+    public int getPluginShop() { return pluginShop; }
     public String getSystemOffersFile() { return systemOffersFile; }
 
     public boolean systemShopEnabled(boolean globalEnabled) {
         return systemShop == -1 ? globalEnabled : systemShop == 1;
+    }
+
+    public boolean pluginShopEnabled(boolean globalEnabled) {
+        return pluginShop == -1 ? globalEnabled : pluginShop == 1;
     }
 
     public static int normalizeMode(int mode) {

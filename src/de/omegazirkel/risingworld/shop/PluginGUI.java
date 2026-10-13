@@ -42,17 +42,15 @@ public class PluginGUI {
         if (plugin == null) {
             return;
         }
-        if (uiPlayer.isAdmin()) {
-            showShopMenu(uiPlayer);
-            return;
-        }
-        openDirectShop(uiPlayer);
+        showShopMenu(uiPlayer);
     }
 
     private void showShopMenu(Player player) {
         List<MenuItem> items = new ArrayList<>();
-        items.add(new MenuItem("oz-shop", t(player, "tc.menu.shop.list"),
-                this::openDirectShop));
+        if (player.isAdmin() || plugin.isShopAvailableFor(player)) {
+            items.add(new MenuItem("oz-shop", t(player, "tc.menu.shop.list"),
+                    this::openDirectShop));
+        }
         if (player.isAdmin() && plugin.currentShopZone(player).isEmpty()) {
             items.add(new MenuItem("oz-shop", t(player, "tc.menu.shop.zone.create"),
                     this::createOrEnableZone));

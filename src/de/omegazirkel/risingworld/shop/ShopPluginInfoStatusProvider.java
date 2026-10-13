@@ -36,11 +36,10 @@ public class ShopPluginInfoStatusProvider implements PluginInfoStatusProvider {
         ShopZone currentZone = plugin.currentShopZone(player).orElse(null);
         return t().get("tc.shop.info.panel.status", player)
                 .replace("PH_WALLET_STATUS", available(plugin.walletAvailable()))
-                .replace("PH_SHOP_ENABLED", String.valueOf(settings.shopEnabled))
                 .replace("PH_SYSTEM_SHOP_ENABLED", String.valueOf(settings.systemShopEnabled))
+                .replace("PH_PLUGIN_SHOP_ENABLED", String.valueOf(settings.pluginShopEnabled))
                 .replace("PH_DEFINITION_EXPORTS", String.valueOf(settings.generateDefinitionExports))
                 .replace("PH_DYNAMIC_ECONOMY", String.valueOf(settings.dynamicEconomyEnabled))
-                .replace("PH_REQUIRE_SHOP_ZONE", String.valueOf(settings.requireShopZone))
                 .replace("PH_CURRENT_ZONE", currentZone == null ? "-" : currentZone.getAreaName())
                 .replace("PH_SHOP_ZONES", String.valueOf(plugin.listShopZones().size()))
                 .replace("PH_SYSTEM_OFFERS", String.valueOf(plugin.listSystemOffers().size()))

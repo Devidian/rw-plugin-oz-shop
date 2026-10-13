@@ -4,6 +4,8 @@
 
 Shared shop and purchase API plugin for Rising World.
 
+Global system and plugin shops have separate switches. Shop areas can inherit, enable or disable either shop independently. Offer tabs and the player radial menu follow the effective setting at the current area.
+
 Sell condition details display item modifier names in the player's game language.
 
 ## Responsibilities
@@ -41,10 +43,9 @@ sendPluginWelcome=false
 systemOffersFile=system-offers.json
 systemShopCurrency=
 systemShopEnabled=true
+pluginShopEnabled=true
 generateDefinitionExports=false
 dynamicEconomyEnabled=false
-shopEnabled=true
-requireShopZone=false
 shopZonesFile=shop-zones.json
 showShopZoneIndicator=true
 exposeShopZones=true
@@ -71,7 +72,7 @@ System-shop stock state is always maintained for configured offers. Positive sco
 
 For `LOOT` and `HYBRID`, a due automatic drain tick removes at least one unit when the configured percentage produces a positive amount below one. `drainMax` and the target stock still cap the reduction; trader offers can drain to a target of zero only after successful Wallet settlement.
 
-`shopEnabled=false` disables player purchases and listing. `requireShopZone=true` restricts non-admin `/shop` access to existing Rising World areas that an admin has marked as shop areas. Shop zones are stored in world-scoped SQLite; `shopZonesFile` is retained as a one-time import source when the SQLite table is empty.
+`systemShopEnabled` and `pluginShopEnabled` independently control player purchases and listing. A shop area can override either switch. Shop zones are stored in world-scoped SQLite; `shopZonesFile` is retained as a one-time import source when the SQLite table is empty.
 
 `economyTickIntervalHours=1` configures the automatic stock-reconciliation interval. Drain and restock are calculated together from the elapsed time since the last effective stock change. Fractional changes do not advance that timestamp, so they accumulate until at least one whole item can be added or removed.
 
@@ -324,7 +325,7 @@ Direct command purchases remain available for fast workflows.
 
 ## Admin Shop Zones
 
-Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. This create action is hidden when the current area is already a shop area. If the admin is not standing inside an area, no shop area is created. The `Zone` tab is available only to admins standing in an existing area and focuses on the current area. For a non-Shop area it shows the area name/id and a mark-as-shop action. For an existing Shop-Zone it edits the stored display name, syncs that name from the current Rising World area, updates or clears the zone-specific system-offer file, switches systemshop mode between inherit/disabled/enabled, removes the current zone after confirmation, and resets current-zone system-offer stocks to target after confirmation. The admin tab remains the global shop-area list, removes shop status after confirmation, and cycles each area's system-shop override through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones only control where the shared shop may be opened when `requireShopZone=true` and how system-shop offers are enabled in that area.
+Admins can open the Shop entry in the plugin radial menu to mark the current existing area as a shop area. This create action is hidden when the current area is already a shop area. If the admin is not standing inside an area, no shop area is created. The `Zone` tab is available only to admins standing in an existing area and focuses on the current area. For a non-Shop area it shows the area name/id and a mark-as-shop action. For an existing Shop-Zone it edits the stored display name, syncs that name from the current Rising World area, updates or clears the zone-specific system-offer file, switches system and plugin shop modes between inherit/disabled/enabled, removes the current zone after confirmation, and resets current-zone system-offer stocks to target after confirmation. The admin tab remains the global shop-area list, removes shop status after confirmation, and cycles each area's shop overrides through inherit, disabled, and enabled. Plugin-registered offers are not persisted in the zone file; zones control how system and plugin offers are enabled in that area.
 
 Players see the Shop icon in the shared Tools indicator panel while they are in a configured shop area. Disabling `showShopZoneIndicator` hides this HUD indication without changing shop access or purchases.
 

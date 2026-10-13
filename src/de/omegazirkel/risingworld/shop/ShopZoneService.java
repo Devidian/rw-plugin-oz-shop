@@ -79,7 +79,7 @@ public class ShopZoneService {
         ShopZone zone = existing == null
                 ? new ShopZone(area.getID(), areaName(area), player.getName(), System.currentTimeMillis())
                 : new ShopZone(area.getID(), areaName(area), existing.getCreatedBy(), existing.getCreatedAt(),
-                        existing.getSystemShop(), existing.getSystemOffersFile());
+                        existing.getSystemShop(), existing.getPluginShop(), existing.getSystemOffersFile());
         zones.put(area.getID(), zone);
         save(zone);
         return Optional.of(zone);
@@ -91,7 +91,17 @@ public class ShopZoneService {
             return Optional.empty();
         }
         ShopZone updated = new ShopZone(existing.getAreaId(), existing.getAreaName(), existing.getCreatedBy(),
-                existing.getCreatedAt(), ShopZone.normalizeMode(systemShop), existing.getSystemOffersFile());
+                existing.getCreatedAt(), ShopZone.normalizeMode(systemShop), existing.getPluginShop(), existing.getSystemOffersFile());
+        zones.put(areaId, updated);
+        save(updated);
+        return Optional.of(updated);
+    }
+
+    public synchronized Optional<ShopZone> setPluginShopMode(long areaId, int pluginShop) {
+        ShopZone existing = zones.get(areaId);
+        if (existing == null) return Optional.empty();
+        ShopZone updated = new ShopZone(existing.getAreaId(), existing.getAreaName(), existing.getCreatedBy(),
+                existing.getCreatedAt(), existing.getSystemShop(), pluginShop, existing.getSystemOffersFile());
         zones.put(areaId, updated);
         save(updated);
         return Optional.of(updated);
@@ -104,7 +114,7 @@ public class ShopZoneService {
         }
         String zoneName = name == null || name.trim().isBlank() ? "Area #" + areaId : name.trim();
         ShopZone updated = new ShopZone(existing.getAreaId(), zoneName, existing.getCreatedBy(),
-                existing.getCreatedAt(), existing.getSystemShop(), existing.getSystemOffersFile());
+                existing.getCreatedAt(), existing.getSystemShop(), existing.getPluginShop(), existing.getSystemOffersFile());
         zones.put(areaId, updated);
         save(updated);
         return Optional.of(updated);
@@ -124,7 +134,7 @@ public class ShopZoneService {
             return Optional.empty();
         }
         ShopZone updated = new ShopZone(existing.getAreaId(), existing.getAreaName(), existing.getCreatedBy(),
-                existing.getCreatedAt(), existing.getSystemShop(), systemOffersFile);
+                existing.getCreatedAt(), existing.getSystemShop(), existing.getPluginShop(), systemOffersFile);
         zones.put(areaId, updated);
         save(updated);
         return Optional.of(updated);
@@ -134,6 +144,10 @@ public class ShopZoneService {
         return zoneAt(player)
                 .map(zone -> zone.systemShopEnabled(globalEnabled))
                 .orElse(globalEnabled);
+    }
+
+    public synchronized boolean pluginShopEnabledFor(Player player, boolean globalEnabled) {
+        return zoneAt(player).map(zone -> zone.pluginShopEnabled(globalEnabled)).orElse(globalEnabled);
     }
 
     public synchronized boolean deleteAreaZone(long areaId) {
@@ -156,7 +170,8 @@ public class ShopZoneService {
                         created_by TEXT NOT NULL,
                         created_at BIGINT NOT NULL,
                         system_shop INTEGER NOT NULL DEFAULT -1,
-                        system_offers_file TEXT NOT NULL DEFAULT ''
+                        system_offers_file TEXT NOT NULL DEFAULT '',
+                        plugin_shop INTEGER NOT NULL DEFAULT -1
                     );
                     """);
             if (!columnExists("shop_zones", "system_offers_file")) {
@@ -164,6 +179,9 @@ public class ShopZoneService {
                         ALTER TABLE shop_zones
                         ADD COLUMN system_offers_file TEXT NOT NULL DEFAULT '';
                         """);
+            }
+            if (!columnExists("shop_zones", "plugin_shop")) {
+                statement.execute("ALTER TABLE shop_zones ADD COLUMN plugin_shop INTEGER NOT NULL DEFAULT -1;");
             }
         } catch (SQLException ex) {
             Shop.logger().error("Could not initialize shop-zone database: " + ex.getMessage());
@@ -184,7 +202,7 @@ public class ShopZoneService {
 
     private void loadFromDatabase() throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
-                SELECT area_id, area_name, created_by, created_at, system_shop, system_offers_file
+                SELECT area_id, area_name, created_by, created_at, system_shop, system_offers_file, plugin_shop
                 FROM shop_zones
                 ORDER BY area_name COLLATE NOCASE ASC, area_id ASC;
                 """);
@@ -195,7 +213,7 @@ public class ShopZoneService {
                         result.getString("area_name"),
                         result.getString("created_by"),
                         result.getLong("created_at"),
-                        result.getInt("system_shop"),
+                        result.getInt("system_shop"), result.getInt("plugin_shop"),
                         result.getString("system_offers_file"));
                 if (zone.getAreaId() > 0) {
                     zones.put(zone.getAreaId(), zone);
@@ -226,14 +244,15 @@ public class ShopZoneService {
 
     private void save(ShopZone zone) {
         try (PreparedStatement statement = connection.prepareStatement("""
-                INSERT INTO shop_zones(area_id, area_name, created_by, created_at, system_shop, system_offers_file)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO shop_zones(area_id, area_name, created_by, created_at, system_shop, system_offers_file, plugin_shop)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(area_id) DO UPDATE SET
                     area_name=excluded.area_name,
                     created_by=excluded.created_by,
                     created_at=excluded.created_at,
                     system_shop=excluded.system_shop,
-                    system_offers_file=excluded.system_offers_file;
+                    system_offers_file=excluded.system_offers_file,
+                    plugin_shop=excluded.plugin_shop;
                 """)) {
             statement.setLong(1, zone.getAreaId());
             statement.setString(2, zone.getAreaName());
@@ -241,6 +260,7 @@ public class ShopZoneService {
             statement.setLong(4, zone.getCreatedAt());
             statement.setInt(5, zone.getSystemShop());
             statement.setString(6, zone.getSystemOffersFile());
+            statement.setInt(7, zone.getPluginShop());
             statement.executeUpdate();
         } catch (SQLException ex) {
             Shop.logger().error("Could not save shop zones: " + ex.getMessage());
@@ -263,6 +283,7 @@ public class ShopZoneService {
                 stringValue(object, "createdBy"),
                 longValue(object, "createdAt", 0L),
                 (int) longValue(object, "systemShop", -1L),
+                (int) longValue(object, "pluginShop", -1L),
                 stringValue(object, "systemOffersFile"));
     }
 

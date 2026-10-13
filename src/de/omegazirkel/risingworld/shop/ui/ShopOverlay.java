@@ -159,6 +159,10 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         if (trader == null && (activeTab == Tab.SYSTEM || activeTab == Tab.PLUGIN) && !plugin.isShopAvailableFor(player)) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
         }
+        if (trader == null && activeTab == Tab.SYSTEM && !plugin.isSystemShopAvailableFor(player)
+                && plugin.isPluginShopAvailableFor(player)) activeTab = Tab.PLUGIN;
+        if (trader == null && activeTab == Tab.PLUGIN && !plugin.isPluginShopAvailableFor(player)
+                && plugin.isSystemShopAvailableFor(player)) activeTab = Tab.SYSTEM;
         if (activeTab == Tab.ZONE && (!player.isAdmin() || (trader == null && !plugin.isInValidArea(player)))) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
         }
@@ -261,9 +265,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         boolean playerShopAvailable = trader != null || plugin.isShopAvailableFor(player);
         int adminX = 24;
         if (playerShopAvailable) {
-            panel.addChild(tab(t.get(trader == null ? "tc.shop.ui.tab.system" : "tc.shop.trader.ui.tab.system", player), 24, 86, 170, Tab.SYSTEM));
-            if (trader == null || trader.pluginShopEnabled()) panel.addChild(tab(t.get("tc.shop.ui.tab.plugin", player), 194, 86, 170, Tab.PLUGIN));
-            adminX = 364;
+            boolean systemVisible = trader != null || plugin.isSystemShopAvailableFor(player);
+            boolean pluginVisible = trader == null ? plugin.isPluginShopAvailableFor(player) : trader.pluginShopEnabled();
+            if (systemVisible) panel.addChild(tab(t.get(trader == null ? "tc.shop.ui.tab.system" : "tc.shop.trader.ui.tab.system", player), 24, 86, 170, Tab.SYSTEM));
+            if (pluginVisible) panel.addChild(tab(t.get("tc.shop.ui.tab.plugin", player), systemVisible ? 194 : 24, 86, 170, Tab.PLUGIN));
+            adminX = 24 + (systemVisible ? 170 : 0) + (pluginVisible ? 170 : 0);
         }
         if (player.isAdmin()) {
             if (trader != null) {
@@ -1305,8 +1311,9 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     }
 
     private ShopPurchaseResult buyOffer(ShopOffer offer, int quantity) {
-        return trader == null || !offer.isSystemOffer() ? plugin.purchase(player, offer.getId(), quantity)
-                : plugin.traderPurchase(player, trader, offer.getId(), quantity);
+        if (trader == null) return plugin.purchase(player, offer.getId(), quantity);
+        return offer.isSystemOffer() ? plugin.traderPurchase(player, trader, offer.getId(), quantity)
+                : plugin.purchasePluginOfferAtTrader(player, trader, offer.getId(), quantity);
     }
 
     private ShopPurchaseResult sellOffer(ShopOffer offer, int quantity) {
@@ -2036,12 +2043,17 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         body.addChild(systemShopModeButton(zone, 0, 140, 284));
         body.addChild(systemShopModeButton(zone, 1, 262, 284));
 
-        body.addChild(zoneButton(t.get("tc.shop.ui.zone.reset.stocks", player), 18, 354, 260,
+        addZoneLabel(18, 326, t.get("tc.shop.ui.zone.pluginshop.label", player));
+        body.addChild(pluginShopModeButton(zone, -1, 18, 354));
+        body.addChild(pluginShopModeButton(zone, 0, 140, 354));
+        body.addChild(pluginShopModeButton(zone, 1, 262, 354));
+
+        body.addChild(zoneButton(t.get("tc.shop.ui.zone.reset.stocks", player), 18, 428, 260,
                 event -> {
                     pendingResetZoneStocks = true;
                     rebuild();
                 }));
-        UIElement remove = zoneButton(t.get("tc.shop.ui.zone.remove", player), 304, 354, 220,
+        UIElement remove = zoneButton(t.get("tc.shop.ui.zone.remove", player), 304, 428, 220,
                 event -> {
                     pendingRemoveZone = zone;
                     rebuild();
@@ -2204,6 +2216,23 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         return button;
     }
 
+    private UIElement pluginShopModeButton(ShopZone zone, int mode, int x, int y) {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(systemShopModeLabel(mode), event -> {
+            plugin.setZonePluginShop(zone.getAreaId(), mode);
+            rebuild();
+        });
+        button.setPivot(Pivot.UpperLeft);
+        button.setPosition(x, y, false);
+        button.setSize(108, 30, false);
+        button.setBorder(1);
+        button.setBorderEdgeRadius(3, false);
+        if (zone.getPluginShop() == mode) {
+            button.setBackgroundColor(0.54f, 0.38f, 0.07f, 0.96f);
+            button.setBorderColor(0.95f, 0.75f, 0.25f, 0.72f);
+        }
+        return button;
+    }
+
     private String systemShopModeLabel(int mode) {
         return switch (mode) {
             case 0 -> t.get("tc.shop.ui.systemshop.disabled", player);
@@ -2260,9 +2289,10 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                         t.get("tc.shop.ui.col.area", player),
                         t.get("tc.shop.ui.col.area.id", player),
                         t.get("tc.shop.ui.col.systemshop", player),
+                        t.get("tc.shop.ui.col.pluginshop", player),
                         t.get("tc.shop.ui.col.created.by", player),
                         t.get("tc.shop.ui.col.action", player)),
-                Arrays.asList(34f, 14f, 18f, 18f, 16f));
+                Arrays.asList(27f, 12f, 16f, 16f, 16f, 13f));
         table.setScrollBodyHeight(TABLE_BODY_HEIGHT);
 
         List<ShopZone> zones = plugin.listShopZones();
@@ -2278,11 +2308,12 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
 
     private TableRow zoneRow(ShopZone zone) {
         return new TableRow(Arrays.asList(
-                labelCell(zone.getAreaName(), 34f),
-                labelCell(String.valueOf(zone.getAreaId()), 14f),
-                new TableCell(systemShopButton(zone), 18f),
-                labelCell(zone.getCreatedBy(), 18f),
-                new TableCell(removeZoneButton(zone), 16f)));
+                labelCell(zone.getAreaName(), 27f),
+                labelCell(String.valueOf(zone.getAreaId()), 12f),
+                new TableCell(systemShopButton(zone), 16f),
+                new TableCell(pluginShopButton(zone), 16f),
+                labelCell(zone.getCreatedBy(), 16f),
+                new TableCell(removeZoneButton(zone), 13f)));
     }
 
     private UIElement systemShopButton(ShopZone zone) {
@@ -2294,6 +2325,19 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                         .replace("PH_AREA", updated.getAreaName())
                         .replace("PH_MODE", systemShopLabel(updated)));
             }
+            rebuild();
+        });
+        button.setPivot(Pivot.UpperLeft);
+        button.setPosition(4, 5, false);
+        button.setSize(92, 22, false);
+        button.setBorderEdgeRadius(3, false);
+        return button;
+    }
+
+    private UIElement pluginShopButton(ShopZone zone) {
+        AdvancedButton button = AdvancedButtonFactory.defaultButton(systemShopModeLabel(zone.getPluginShop()), event -> {
+            int next = zone.getPluginShop() == -1 ? 0 : zone.getPluginShop() == 0 ? 1 : -1;
+            plugin.setZonePluginShop(zone.getAreaId(), next);
             rebuild();
         });
         button.setPivot(Pivot.UpperLeft);

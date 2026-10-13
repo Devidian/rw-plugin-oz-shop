@@ -102,10 +102,6 @@
         "desc": "Lädt Einstellungen und Systemangebote neu, wenn sich settings.properties ändert.",
         "label": "Bei Änderung neu laden"
       },
-      "requireshopzone": {
-        "desc": "Beschränkt Spieler-Reiter auf Shop-Areas; Admin-Reiter bleiben verfügbar.",
-        "label": "Shop-Zone erforderlich"
-      },
       "sendpluginwelcome": {
         "desc": "Zeigt beim Betreten eine kurze Shop-Nachricht.",
         "label": "Willkommensnachricht"
@@ -117,10 +113,6 @@
       "shopcommand": {
         "desc": "Chat-Befehl zum Anzeigen und Kaufen von Shop-Angeboten.",
         "label": "Shop-Befehl"
-      },
-      "shopenabled": {
-        "desc": "Erlaubt Spielern die Shop-Nutzung.",
-        "label": "Shop aktiviert"
       },
       "shopzonesfile": {
         "desc": "JSON-Datei für adminverwaltete Shop-Areas.",
@@ -140,7 +132,11 @@
       },
       "systemshopenabled": {
         "desc": "Erlaubt Systemshop-Angebote, sofern eine Shop-Area diesen Wert nicht überschreibt.",
-        "label": "Systemshop aktiviert"
+        "label": "Globaler Systemshop"
+      },
+      "pluginshopenabled": {
+        "desc": "Erlaubt Pluginshop-Angebote, sofern eine Shop-Area diesen Wert nicht überschreibt.",
+        "label": "Globaler Pluginshop"
       },
       "systemshop": {
         "desc": "Systemangebotsdatei und Systemshop-Verhalten.",
@@ -244,7 +240,7 @@
       "info": {
         "panel": {
           "info": "\u003cb\u003ePH_PLUGIN_NAME\u003c/b\u003e\nVersion: PH_VERSION\nBefehl: /PH_PLUGIN_CMD\n\nShop stellt Systemangebote und von Plugins registrierte Kaufaktionen mit Wallet-Zahlungen bereit.",
-          "status": "\u003cb\u003eShop Status\u003c/b\u003e\nWallet: PH_WALLET_STATUS\nShop aktiv: PH_SHOP_ENABLED\nSystemshop aktiv: PH_SYSTEM_SHOP_ENABLED\nDefinitions-Exporte: PH_DEFINITION_EXPORTS\nDynamische Wirtschaft: PH_DYNAMIC_ECONOMY\nShop-Zone erforderlich: PH_REQUIRE_SHOP_ZONE\nAktuelle Zone: PH_CURRENT_ZONE\nShop-Zonen: PH_SHOP_ZONES\nSystemangebote: PH_SYSTEM_OFFERS\nPlugin-Angebote: PH_PLUGIN_OFFERS"
+          "status": "\u003cb\u003eShop Status\u003c/b\u003e\nWallet: PH_WALLET_STATUS\nSystemshop aktiv: PH_SYSTEM_SHOP_ENABLED\nPlugin-Shop aktiv: PH_PLUGIN_SHOP_ENABLED\nDefinitions-Exporte: PH_DEFINITION_EXPORTS\nDynamische Wirtschaft: PH_DYNAMIC_ECONOMY\nAktuelle Zone: PH_CURRENT_ZONE\nShop-Zonen: PH_SHOP_ZONES\nSystemangebote: PH_SYSTEM_OFFERS\nPlugin-Angebote: PH_PLUGIN_OFFERS"
         }
       },
       "no": {
@@ -610,8 +606,7 @@
         "created": "Area PH_AREA (#PH_AREA_ID) ist jetzt eine Shop-Area.",
         "no": {
           "area": "Du musst in einer bestehenden Area stehen, um sie als Shop-Area zu markieren."
-        },
-        "required": "Du kannst den Shop nur in einer Area nutzen, die als Shop-Area markiert ist."
+        }
       }
     }
   },
@@ -628,5 +623,8 @@
   "tc.shop.editor.field.stocklimit": "Bestandslimit",
   "tc.shop.editor.field.stockmode": "Modus",
   "tc.shop.sale.selection.amount": "Wähle genau die angeforderte Artikelmenge aus.",
-  "tc.shop.editor.field.targetstock": "Zielbestand"
+  "tc.shop.editor.field.targetstock": "Zielbestand",
+  "tc.shop.ui.zone.pluginshop.label": "Pluginshop in dieser Shop-Area",
+  "tc.shop.ui.col.pluginshop": "Pluginshop",
+  "tc.shop.plugin.disabled": "Der Pluginshop ist hier deaktiviert."
 }

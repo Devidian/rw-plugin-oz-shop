@@ -25,8 +25,7 @@ public class PluginSettings {
     public String systemOffersFile = "system-offers.json";
     public String systemShopCurrency = "";
     public boolean systemShopEnabled = true;
-    public boolean shopEnabled = true;
-    public boolean requireShopZone = false;
+    public boolean pluginShopEnabled = true;
     public String shopZonesFile = "shop-zones.json";
     public boolean showShopZoneIndicator = true;
     public boolean generateDefinitionExports = false;
@@ -81,10 +80,8 @@ public class PluginSettings {
                     defaults.getProperty("systemShopCurrency", "")).trim().toUpperCase();
             systemShopEnabled = settings.getProperty("systemShopEnabled",
                     defaults.getProperty("systemShopEnabled", "true")).contentEquals("true");
-            shopEnabled = settings.getProperty("shopEnabled", defaults.getProperty("shopEnabled", "true"))
-                    .contentEquals("true");
-            requireShopZone = settings.getProperty("requireShopZone",
-                    defaults.getProperty("requireShopZone", "false")).contentEquals("true");
+            pluginShopEnabled = settings.getProperty("pluginShopEnabled",
+                    defaults.getProperty("pluginShopEnabled", "true")).contentEquals("true");
             shopZonesFile = settings.getProperty("shopZonesFile",
                     defaults.getProperty("shopZonesFile", "shop-zones.json"));
             showShopZoneIndicator = settings.getProperty("showShopZoneIndicator",
@@ -115,8 +112,7 @@ public class PluginSettings {
             logger().info("Game definition exports are " + (generateDefinitionExports ? "enabled" : "disabled"));
             logger().info("Dynamic economy is " + (dynamicEconomyEnabled ? "enabled" : "disabled"));
             logger().info("System shop is " + (systemShopEnabled ? "enabled" : "disabled"));
-            logger().info("Shop access is " + (shopEnabled ? "enabled" : "disabled")
-                    + (requireShopZone ? " and zone-gated" : " globally available"));
+            logger().info("Plugin shop is " + (pluginShopEnabled ? "enabled" : "disabled"));
         } catch (IOException ex) {
             logger().error("IOException on initSettings: " + ex.getMessage());
             ex.printStackTrace();
@@ -139,6 +135,9 @@ public class PluginSettings {
                 entry("systemShopEnabled", "System shop enabled",
                         "Allows system-shop offers unless a shop area overrides this value.", systemShopEnabled, "true",
                         AdminSettingsType.BOOLEAN),
+                entry("pluginShopEnabled", "Global plugin shop",
+                        "Allows plugin offers unless a shop area overrides this value.", pluginShopEnabled, "true",
+                        AdminSettingsType.BOOLEAN),
                 entry("generateDefinitionExports", "Generate definition exports",
                         "Writes generated item and recipe export JSON files next to system offers.",
                         generateDefinitionExports, "false", AdminSettingsType.BOOLEAN),
@@ -158,11 +157,6 @@ public class PluginSettings {
                         "Comma-separated exact player names; append ;de or ;en to choose each report language.", economyReportRecipients, "",
                         AdminSettingsType.STRING),
                 AdminSettingsEntry.group("shopAccess", "Shop access", "Player shop access and shop-area behavior."),
-                entry("shopEnabled", "Shop enabled", "Allows players to use the shop.", shopEnabled, "true",
-                        AdminSettingsType.BOOLEAN),
-                entry("requireShopZone", "Require shop zone",
-                        "Restricts shop access to areas marked as shop areas unless the player is an admin.",
-                        requireShopZone, "false", AdminSettingsType.BOOLEAN),
                 entry("shopZonesFile", "Shop zones file", "JSON file used for admin-managed shop areas.",
                         shopZonesFile, "shop-zones.json", AdminSettingsType.STRING),
                 entry("showShopZoneIndicator", "Show shop-zone indicator",
