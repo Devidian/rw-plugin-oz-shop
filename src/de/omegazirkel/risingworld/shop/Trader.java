@@ -2,11 +2,17 @@ package de.omegazirkel.risingworld.shop;
 
 /** Persisted Shop-owned identity for one non-player trader. */
 public record Trader(long npcId, String name, String createdBy, long createdAt, String systemOffersFile,
-        boolean pluginShopEnabled) {
+        boolean pluginShopEnabled, int factionId) {
     public Trader {
         name = name == null ? "" : name.trim();
         createdBy = createdBy == null ? "" : createdBy.trim();
         systemOffersFile = systemOffersFile == null ? "" : systemOffersFile.trim();
+        factionId = Math.max(0, factionId);
+    }
+
+    public Trader(long npcId, String name, String createdBy, long createdAt, String systemOffersFile,
+            boolean pluginShopEnabled) {
+        this(npcId, name, createdBy, createdAt, systemOffersFile, pluginShopEnabled, 0);
     }
 
     public String accountId() {

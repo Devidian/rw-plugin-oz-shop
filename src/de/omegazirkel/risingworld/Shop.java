@@ -14,6 +14,14 @@ import net.risingworld.api.events.player.ui.PlayerUITextFieldChangeEvent;
 
 /** Rising World entry point; shop behavior lives in {@link ShopRuntime}. */
 public final class Shop extends ShopRuntime implements Listener, FileChangeListener {
+    @Override public int getFactionTraderCount(int factionId) { return super.getFactionTraderCount(factionId); }
+    @Override public boolean isFactionTraderPaymentReserved(String correlationId, int factionId,
+            int playerDbId, long amount, String currency) {
+        return super.isFactionTraderPaymentReserved(correlationId, factionId, playerDbId, amount, currency);
+    }
+    @Override public boolean isFactionTraderPaymentReversalAllowed(String correlationId, int factionId) {
+        return super.isFactionTraderPaymentReversalAllowed(correlationId, factionId);
+    }
     public static OZLogger logger() { return ShopRuntime.logger(); }
     public static ShopPurchaseResult unavailable(String message) {
         return ShopRuntime.unavailable(message);

@@ -144,6 +144,7 @@ public class ShopEconomyStore {
     }
 
     public void recordSystemSale(String scope, ShopOffer offer, long value) {
+        if (isFactionTraderScope(scope)) return;
         if (offer == null || offer.getId() == null || offer.getId().isBlank() || !offer.isSystemOffer()) {
             return;
         }
@@ -239,6 +240,114 @@ public class ShopEconomyStore {
         } catch (SQLException ex) {
             Shop.logger().error("Could not check shop stock for " + effectiveScope + "/" + offer.getId() + ": "
                     + ex.getMessage());
+            return false;
+        }
+    }
+
+    /** Creates a zero-stock row only when an offer is added to a faction file. */
+    public synchronized void initializeFactionOffer(String scope, ShopOffer offer) {
+        if (scope != null && scope.startsWith("trader:") && offer != null && offer.isSystemOffer())
+            ensureOfferState(scope, offer.getId(), 0L);
+    }
+
+    public synchronized boolean hasFactionState(String scope, String offerId) {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM shop_offer_economy_state WHERE scope = ? AND offer_id = ?")) {
+            statement.setString(1, scope);
+            statement.setString(2, offerId);
+            try (ResultSet rows = statement.executeQuery()) { return rows.next(); }
+        } catch (SQLException ex) { Shop.logger().error("Faction trader stock lookup failed: " + ex.getMessage()); return false; }
+    }
+
+    public synchronized boolean hasPendingFactionOperations(String scope, String offerId) {
+        String sql = offerId == null
+                ? "SELECT 1 FROM shop_faction_stock_operations WHERE scope=? AND status='RESERVED' LIMIT 1"
+                : "SELECT 1 FROM shop_faction_stock_operations WHERE scope=? AND offer_id=? AND status='RESERVED' LIMIT 1";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, scope);
+            if (offerId != null) statement.setString(2, offerId);
+            try (ResultSet rows = statement.executeQuery()) { return rows.next(); }
+        } catch (SQLException ex) { Shop.logger().error("Faction trader pending-operation lookup failed: " + ex.getMessage()); return true; }
+    }
+
+    /** A durable reservation excludes stock from concurrent sales or inbound capacity. */
+    public synchronized boolean reserveFactionStock(String scope, ShopOffer offer, String direction, String operationId) {
+        if (scope == null || !scope.startsWith("trader:") || offer == null || offer.getAmount() <= 0
+                || operationId == null || operationId.isBlank() || !("OUT".equals(direction) || "IN".equals(direction)))
+            return false;
+        long amount = offer.getAmount();
+        long maxStock = offer.getDefaultStockLimit() > 0L ? offer.getDefaultStockLimit() : Long.MAX_VALUE;
+        if (amount > maxStock) return false;
+        try {
+            if (!connection.getAutoCommit()) return false;
+            connection.setAutoCommit(false);
+            try (PreparedStatement journal = connection.prepareStatement("""
+                    INSERT INTO shop_faction_stock_operations(operation_id,scope,offer_id,direction,amount,status,created_at,updated_at)
+                    VALUES(?,?,?,?,?,'RESERVED',?,?)
+                    """); PreparedStatement state = connection.prepareStatement("OUT".equals(direction)
+                    ? "UPDATE shop_offer_economy_state SET stock=stock-?,updated_at=? WHERE scope=? AND offer_id=? AND stock>=?"
+                    : "UPDATE shop_offer_economy_state SET reserved_inbound=reserved_inbound+?,updated_at=? "
+                      + "WHERE scope=? AND offer_id=? AND reserved_inbound>=0 AND stock>=0 AND stock<=?-reserved_inbound")) {
+                long now = System.currentTimeMillis();
+                journal.setString(1, operationId); journal.setString(2, scope); journal.setString(3, offer.getId());
+                journal.setString(4, direction); journal.setLong(5, amount); journal.setLong(6, now); journal.setLong(7, now);
+                journal.executeUpdate();
+                state.setLong(1, amount); state.setLong(2, now); state.setString(3, scope); state.setString(4, offer.getId());
+                state.setLong(5, "OUT".equals(direction) ? amount : maxStock - amount);
+                if (state.executeUpdate() != 1) { connection.rollback(); return false; }
+                connection.commit();
+                return true;
+            } catch (SQLException ex) { connection.rollback(); throw ex; }
+            finally { connection.setAutoCommit(true); }
+        } catch (SQLException ex) {
+            Shop.logger().error("Faction trader stock reservation failed " + operationId + ": " + ex.getMessage());
+            return false;
+        }
+    }
+
+    /** Commits a reservation after Wallet and inventory succeed, or reverses its stock effect. */
+    public synchronized boolean finishFactionStock(String operationId, boolean commit) {
+        if (operationId == null || operationId.isBlank()) return false;
+        try {
+            if (!connection.getAutoCommit()) return false;
+            connection.setAutoCommit(false);
+            try (PreparedStatement lookup = connection.prepareStatement("""
+                    SELECT scope,offer_id,direction,amount,status FROM shop_faction_stock_operations WHERE operation_id=?
+                    """)) {
+                lookup.setString(1, operationId);
+                try (ResultSet rows = lookup.executeQuery()) {
+                    if (!rows.next()) { connection.rollback(); return false; }
+                    String status = rows.getString("status");
+                    if (!"RESERVED".equals(status)) { connection.rollback(); return status.equals(commit ? "COMMITTED" : "COMPENSATED"); }
+                    String scope = rows.getString("scope"); String offerId = rows.getString("offer_id");
+                    String direction = rows.getString("direction"); long amount = rows.getLong("amount");
+                    String sql = "OUT".equals(direction)
+                            ? (commit ? "UPDATE shop_offer_economy_state SET updated_at=? WHERE scope=? AND offer_id=?"
+                                    : "UPDATE shop_offer_economy_state SET stock=stock+?,updated_at=? WHERE scope=? AND offer_id=?")
+                            : (commit ? "UPDATE shop_offer_economy_state SET stock=stock+?,reserved_inbound=reserved_inbound-?,updated_at=? WHERE scope=? AND offer_id=? AND reserved_inbound>=?"
+                                    : "UPDATE shop_offer_economy_state SET reserved_inbound=reserved_inbound-?,updated_at=? WHERE scope=? AND offer_id=? AND reserved_inbound>=?");
+                    try (PreparedStatement state = connection.prepareStatement(sql)) {
+                        int index = 1;
+                        if (!"OUT".equals(direction) || !commit) state.setLong(index++, amount);
+                        if (!"OUT".equals(direction) && commit) state.setLong(index++, amount);
+                        state.setLong(index++, System.currentTimeMillis());
+                        state.setString(index++, scope); state.setString(index++, offerId);
+                        if (!"OUT".equals(direction)) state.setLong(index, amount);
+                        if (state.executeUpdate() != 1) { connection.rollback(); return false; }
+                    }
+                    try (PreparedStatement update = connection.prepareStatement(
+                            "UPDATE shop_faction_stock_operations SET status=?,updated_at=? WHERE operation_id=? AND status='RESERVED'")) {
+                        update.setString(1, commit ? "COMMITTED" : "COMPENSATED");
+                        update.setLong(2, System.currentTimeMillis()); update.setString(3, operationId);
+                        if (update.executeUpdate() != 1) { connection.rollback(); return false; }
+                    }
+                    connection.commit();
+                    return true;
+                }
+            } catch (SQLException ex) { connection.rollback(); throw ex; }
+            finally { connection.setAutoCommit(true); }
+        } catch (SQLException ex) {
+            Shop.logger().error("Faction trader stock finalization failed " + operationId + ": " + ex.getMessage());
             return false;
         }
     }
@@ -401,6 +510,7 @@ public class ShopEconomyStore {
     }
 
     public boolean configure(String scope, String offerId, long stock, double drainRate, double refillRate) {
+        if (isFactionTraderScope(scope)) return false;
         if (offerId == null || offerId.isBlank()) {
             return false;
         }
@@ -429,6 +539,7 @@ public class ShopEconomyStore {
     }
 
     public int resetStocksToTarget(String scope, Collection<ShopOffer> offers) {
+        if (isFactionTraderScope(scope)) return 0;
         if (offers == null || offers.isEmpty()) {
             return 0;
         }
@@ -471,16 +582,29 @@ public class ShopEconomyStore {
     /** Removes one offer's persisted state without affecting other offers in the same shop scope. */
     public boolean deleteOffer(String scope, String offerId) {
         if (scope == null || scope.isBlank() || offerId == null || offerId.isBlank()) return false;
+        boolean ownTransaction = false;
+        try {
+            ownTransaction = connection.getAutoCommit();
+            if (ownTransaction) connection.setAutoCommit(false);
+        } catch (SQLException ex) { return false; }
         try (PreparedStatement state = connection.prepareStatement("DELETE FROM shop_offer_economy_state WHERE scope = ? AND offer_id = ?");
                 PreparedStatement stats = connection.prepareStatement("DELETE FROM shop_offer_trade_stats WHERE scope = ? AND offer_id = ?");
                 PreparedStatement counters = connection.prepareStatement("DELETE FROM shop_offer_daily_sell_counters WHERE scope = ? AND offer_id = ?")) {
             for (PreparedStatement statement : new PreparedStatement[] { state, stats, counters }) {
                 statement.setString(1, scope); statement.setString(2, offerId); statement.executeUpdate();
             }
+            if (ownTransaction) connection.commit();
             return true;
         } catch (SQLException ex) {
+            if (ownTransaction) try { connection.rollback(); } catch (SQLException rollback) {
+                Shop.logger().error("Could not roll back shop offer removal: " + rollback.getMessage());
+            }
             Shop.logger().error("Could not remove shop offer economy state " + scope + "/" + offerId + ": " + ex.getMessage());
             return false;
+        } finally {
+            if (ownTransaction) try { connection.setAutoCommit(true); } catch (SQLException ex) {
+                Shop.logger().error("Could not restore shop database autocommit: " + ex.getMessage());
+            }
         }
     }
 
@@ -493,6 +617,7 @@ public class ShopEconomyStore {
     }
 
     public void recordSystemBuy(String scope, long playerId, ShopOffer offer, long value) {
+        if (isFactionTraderScope(scope)) return;
         if (offer == null || offer.getId() == null || offer.getId().isBlank() || !offer.isSystemOffer()) {
             return;
         }
@@ -550,6 +675,7 @@ public class ShopEconomyStore {
                         scope TEXT NOT NULL,
                         offer_id TEXT NOT NULL,
                         stock BIGINT NOT NULL DEFAULT 0,
+                        reserved_inbound BIGINT NOT NULL DEFAULT 0,
                         target_stock BIGINT NOT NULL DEFAULT 0,
                         stock_limit BIGINT NOT NULL DEFAULT 0,
                         drain_rate REAL NOT NULL DEFAULT 0,
@@ -571,6 +697,19 @@ public class ShopEconomyStore {
                     );
                     """);
             migrateEconomyStateColumns();
+            addColumnIfMissing("shop_offer_economy_state", "reserved_inbound", "BIGINT NOT NULL DEFAULT 0");
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS shop_faction_stock_operations (
+                        operation_id TEXT PRIMARY KEY,
+                        scope TEXT NOT NULL,
+                        offer_id TEXT NOT NULL,
+                        direction TEXT NOT NULL,
+                        amount BIGINT NOT NULL,
+                        status TEXT NOT NULL,
+                        created_at BIGINT NOT NULL,
+                        updated_at BIGINT NOT NULL
+                    )
+                    """);
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS shop_offer_trade_stats (
                         scope TEXT NOT NULL,
@@ -606,6 +745,18 @@ public class ShopEconomyStore {
         } catch (SQLException ex) {
             Shop.logger().error("Could not initialize shop economy database: " + ex.getMessage());
         }
+    }
+
+    private boolean isFactionTraderScope(String scope) {
+        if (scope == null || !scope.startsWith("trader:")) return false;
+        long npcId;
+        try { npcId = Long.parseLong(scope.substring("trader:".length())); }
+        catch (NumberFormatException ex) { return false; }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT faction_id FROM shop_traders WHERE npc_id=?")) {
+            statement.setLong(1, npcId);
+            try (ResultSet rows = statement.executeQuery()) { return rows.next() && rows.getInt(1) > 0; }
+        } catch (SQLException ex) { return false; }
     }
 
     public void applyTicks(Collection<ShopOffer> offers, Collection<ShopZone> zones) {

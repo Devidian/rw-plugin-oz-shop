@@ -47,6 +47,10 @@ public final class SystemOfferFile {
                 createOfferExportFile(exportOfferFile);
                 createRecipeExportFile(recipeExportFile);
             }
+            if (Files.notExists(offerFile) && offerFile.getFileName().toString().startsWith("faction.")) {
+                Shop.logger().error("Faction trader offer file is missing: " + offerFile);
+                return List.of();
+            }
             if (Files.notExists(offerFile) && Files.exists(defaultOfferFile)) {
                 Shop.logger().info("system-offers.json not found, copying from system-offers.default.json...");
                 Files.copy(defaultOfferFile, offerFile);

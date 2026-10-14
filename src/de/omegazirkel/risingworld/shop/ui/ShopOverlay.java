@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import de.omegazirkel.risingworld.Shop;
+import de.omegazirkel.risingworld.OZTools;
 import de.omegazirkel.risingworld.shop.ShopEconomyStore;
+import de.omegazirkel.risingworld.shop.FactionTraderBridge;
 import de.omegazirkel.risingworld.shop.ShopPlayerPreferences;
 import de.omegazirkel.risingworld.shop.ShopItemNames;
 import de.omegazirkel.risingworld.shop.ShopOffer;
@@ -40,6 +42,8 @@ import net.risingworld.api.objects.Player;
 import net.risingworld.api.World;
 import net.risingworld.api.assets.TextureAsset;
 import net.risingworld.api.ui.UILabel;
+import net.risingworld.api.ui.MessageBoxButtons;
+import net.risingworld.api.ui.UITarget;
 import net.risingworld.api.ui.UIElement;
 import net.risingworld.api.ui.UIScrollView;
 import net.risingworld.api.ui.UIScrollView.ScrollViewMode;
@@ -77,7 +81,6 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     private Trader trader;
     private Timer economyCountdownTimer;
     private ShopZone pendingRemoveZone;
-    private Trader pendingDissolveTrader;
     private boolean pendingResetZoneStocks;
     private ShopOffer selectedSystemOffer;
     private OZUIElement systemOptions;
@@ -140,12 +143,22 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     @Override
     protected String titleText() {
         return trader == null ? t.get(titleLabelKey, player)
-                : t.get("tc.shop.trader.ui.title", player).replace("PH_TRADER", trader.name());
+                : t.get(trader.factionId() > 0 ? "tc.shop.trader.ui.faction.title" : "tc.shop.trader.ui.title", player)
+                        .replace("PH_TRADER", trader.name());
     }
 
     @Override
     protected String descriptionText() {
-        return trader == null ? t.get(descLabelKey, player) : t.get("tc.shop.trader.ui.subtitle", player);
+        return trader == null ? t.get(descLabelKey, player)
+                : trader.factionId() > 0
+                        ? t.get("tc.shop.trader.ui.faction.subtitle", player)
+                                .replace("PH_FACTION", factionNameForHeader())
+                        : t.get("tc.shop.trader.ui.subtitle", player);
+    }
+
+    private String factionNameForHeader() {
+        String name = new FactionTraderBridge(plugin).factionName(trader.factionId());
+        return name == null ? "#" + trader.factionId() : name;
     }
 
     @Override
@@ -163,7 +176,8 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 && plugin.isPluginShopAvailableFor(player)) activeTab = Tab.PLUGIN;
         if (trader == null && activeTab == Tab.PLUGIN && !plugin.isPluginShopAvailableFor(player)
                 && plugin.isSystemShopAvailableFor(player)) activeTab = Tab.SYSTEM;
-        if (activeTab == Tab.ZONE && (!player.isAdmin() || (trader == null && !plugin.isInValidArea(player)))) {
+        if (activeTab == Tab.ZONE && (trader == null
+                ? !player.isAdmin() || !plugin.isInValidArea(player) : !plugin.canManageTrader(player, trader))) {
             activeTab = player.isAdmin() ? Tab.ADMIN : Tab.SYSTEM;
         }
         selectedSystemAmountField = null;
@@ -182,7 +196,6 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         setupBody();
         setupRemoveConfirmation();
         setupZoneStockResetConfirmation();
-        setupTraderDissolveConfirmation();
     }
 
     private void setupHeader() {
@@ -225,7 +238,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     }
 
     private void setupEconomyCountdown() {
-        if (trader == null && !plugin.isSystemShopAvailableFor(player)) return;
+        if (trader != null && trader.factionId() > 0 || trader == null && !plugin.isSystemShopAvailableFor(player)) return;
         UILabel countdown = label(economyCountdownText(), 18, Font.DefaultBold);
         OZUIElement entry = new OZUIElement();
         entry.setPivot(Pivot.UpperRight); entry.style.position.set(Position.Absolute);
@@ -271,11 +284,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
             if (pluginVisible) panel.addChild(tab(t.get("tc.shop.ui.tab.plugin", player), systemVisible ? 194 : 24, 86, 170, Tab.PLUGIN));
             adminX = 24 + (systemVisible ? 170 : 0) + (pluginVisible ? 170 : 0);
         }
-        if (player.isAdmin()) {
-            if (trader != null) {
-                panel.addChild(tab(t.get("tc.shop.trader.ui.tab.settings", player), adminX, 86, 170, Tab.ZONE));
-                panel.addChild(tab(t.get("tc.shop.trader.ui.tab.admin", player), adminX + 170, 86, 170, Tab.ADMIN));
-            } else if (plugin.isInValidArea(player)) {
+        if (trader != null && plugin.canManageTrader(player, trader)) {
+            panel.addChild(tab(t.get("tc.shop.trader.ui.tab.settings", player), adminX, 86, 170, Tab.ZONE));
+            if (trader.factionId() == 0) panel.addChild(tab(t.get("tc.shop.trader.ui.tab.admin", player), adminX + 170, 86, 170, Tab.ADMIN));
+        } else if (player.isAdmin() && trader == null) {
+            if (plugin.isInValidArea(player)) {
                 panel.addChild(tab(t.get("tc.shop.ui.tab.zone", player), adminX, 86, 170, Tab.ZONE));
                 panel.addChild(tab(t.get("tc.shop.ui.tab.admin", player), adminX + 170, 86, 170, Tab.ADMIN));
             } else {
@@ -396,7 +409,8 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
 
         OZUIElement entry = new OZUIElement();
         entry.setPivot(Pivot.UpperLeft);
-        entry.setSize(184, 24, false);
+        boolean factionAccount = trader.factionId() > 0;
+        entry.setSize(factionAccount ? 222 : 184, 24, false);
         entry.style.marginRight.set(8);
         entry.style.marginTop.set(2);
         entry.setBackgroundColor(0.08f, 0.08f, 0.08f, 0.55f);
@@ -404,16 +418,17 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         entry.setBorderColor(0.95f, 0.75f, 0.25f, 0.48f);
         entry.setBorderEdgeRadius(4, false);
 
-        UILabel account = label(t.get("tc.shop.trader.ui.account.label", player), 12, Font.DefaultBold);
+        UILabel account = label(t.get(factionAccount ? "tc.shop.trader.ui.faction.account.label"
+                : "tc.shop.trader.ui.account.label", player), 12, Font.DefaultBold);
         account.setPivot(Pivot.UpperLeft);
         account.setPosition(10, 3, false);
-        account.setSize(92, 18, false);
+        account.setSize(factionAccount ? 130 : 92, 18, false);
         account.setTextAlign(TextAnchor.MiddleLeft);
         entry.addChild(account);
 
         UILabel amount = label(String.valueOf(plugin.traderBalance(trader)), 12, Font.DefaultBold);
         amount.setPivot(Pivot.UpperRight);
-        amount.setPosition(176, 3, false);
+        amount.setPosition(factionAccount ? 214 : 176, 3, false);
         amount.setSize(72, 18, false);
         amount.setFontColor(0xF2C766FF);
         amount.setTextAlign(TextAnchor.MiddleRight);
@@ -635,7 +650,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
             inventoryOnly.setBackgroundColor(0.12f, 0.40f, 0.16f, 0.96f);
         }
         body.addChild(inventoryOnly);
-        if (player.isAdmin() && hasEditableOfferFile()) {
+        if (hasEditableOfferFile()) {
             AdvancedButton add = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.add", player), event -> selectOfferToAdd());
             add.setPivot(Pivot.UpperLeft); add.setPosition(776, 8, false); add.setSize(180, 30, false);
             add.setBorderEdgeRadius(3, false);
@@ -916,7 +931,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
             optionActions.addChild(sell);
         }
 
-        if (player.isAdmin()) {
+        if (trader == null ? player.isAdmin() : plugin.canManageTrader(player, trader)) {
             addAdminEconomyDetails(options, effectiveOffer, economyStateFor(effectiveOffer));
         }
     }
@@ -941,14 +956,16 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 .replace("PH_MAX", String.valueOf(offer.getDrainMax())));
         addAdminEconomyLine(options, x, 82, t.get("tc.shop.ui.admin.restock", player)
                 .replace("PH_MAX", String.valueOf(offer.getRestockMax())));
-        AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.admin.reset.target", player),
-                event -> showResetStockConfirmation(offer, state));
-        reset.setPivot(Pivot.UpperLeft);
-        reset.setPosition(x + 286, 42, false);
-        reset.setSize(180, 28, false);
-        reset.setBorderEdgeRadius(3, false);
-        styleResetButton(reset);
-        options.addChild(reset);
+        if (trader == null || trader.factionId() == 0) {
+            AdvancedButton reset = AdvancedButtonFactory.defaultButton(t.get("tc.shop.ui.admin.reset.target", player),
+                    event -> showResetStockConfirmation(offer, state));
+            reset.setPivot(Pivot.UpperLeft);
+            reset.setPosition(x + 286, 42, false);
+            reset.setSize(180, 28, false);
+            reset.setBorderEdgeRadius(3, false);
+            styleResetButton(reset);
+            options.addChild(reset);
+        }
         if (hasEditableOfferFile()) {
             AdvancedButton edit = AdvancedButtonFactory.defaultButton(t.get("tc.shop.editor.edit", player), event -> showOfferEditor(offer));
             edit.setPivot(Pivot.UpperLeft); edit.setPosition(x + 286, 12, false); edit.setSize(180, 28, false); edit.setBorderEdgeRadius(3, false); styleResetButton(edit); options.addChild(edit);
@@ -972,7 +989,7 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
     }
 
     private boolean hasEditableOfferFile() {
-        return player.isAdmin() && plugin.canEditOfferFile(player, trader);
+        return plugin.canEditOfferFile(player, trader);
     }
 
     private void selectOfferToAdd() {
@@ -1019,22 +1036,29 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         UILabel title = label(t.get("tc.shop.editor.edit", player) + ": " + offerTitle(offer), 18, Font.DefaultBold);
         title.setPivot(Pivot.UpperLeft); title.setPosition(18, 14, false); title.setSize(650, 26, false); dialog.addChild(title);
         Map<String, UITextField> fields = new LinkedHashMap<>();
-        String[] keys = { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
+        String[] keys = trader != null && trader.factionId() > 0
+                ? new String[] { "stockLimit", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent",
+                        "perPlayerDailySellLimit", "globalDailySellLimit" }
+                : new String[] { "stock", "targetStock", "stockLimit", "stockMode", "drainPercent", "drainMax", "restockMax", "basePrice", "minPriceMultiplier", "maxPriceMultiplier", "spreadPercent", "perPlayerDailySellLimit", "globalDailySellLimit" };
         for (int index = 0; index < keys.length; index++) {
             String key = keys[index]; int column = index / 7; int row = index % 7; int x = 18 + column * 334; int y = 56 + row * 62;
             UILabel caption = label(t.get("tc.shop.editor.field." + key.toLowerCase(Locale.ROOT), player), 12, Font.Default); caption.setPivot(Pivot.UpperLeft); caption.setPosition(x, y, false); caption.setSize(300, 18, false); dialog.addChild(caption);
             if ("stockMode".equals(key)) continue;
             UITextField field = textField(editorValue(offer, key)); field.setPivot(Pivot.UpperLeft); field.setPosition(x, y + 20, false); field.setSize(300, 28, false); field.setMaxCharacters(40); dialog.addChild(field); fields.put(key, field);
         }
-        UILabel modeCaption = label(t.get("tc.shop.editor.field.stockmode", player), 12, Font.Default); modeCaption.setPivot(Pivot.UpperLeft); modeCaption.setPosition(18, 242, false); modeCaption.setSize(300, 18, false); dialog.addChild(modeCaption);
-        Dropdown modeDropdown = new Dropdown(Arrays.stream(ShopStockMode.values()).map(mode -> new DropdownOption(mode.name(), stockModeLabel(mode))).toList(), offer.getStockMode().name(), null);
-        modeDropdown.setPivot(Pivot.UpperLeft); modeDropdown.setPosition(18, 262, false); modeDropdown.setSize(300, 28, false); dialog.addChild(modeDropdown);
+        Dropdown modeDropdown = null;
+        if (trader == null || trader.factionId() == 0) {
+            UILabel modeCaption = label(t.get("tc.shop.editor.field.stockmode", player), 12, Font.Default); modeCaption.setPivot(Pivot.UpperLeft); modeCaption.setPosition(18, 242, false); modeCaption.setSize(300, 18, false); dialog.addChild(modeCaption);
+            modeDropdown = new Dropdown(Arrays.stream(ShopStockMode.values()).map(mode -> new DropdownOption(mode.name(), stockModeLabel(mode))).toList(), offer.getStockMode().name(), null);
+            modeDropdown.setPivot(Pivot.UpperLeft); modeDropdown.setPosition(18, 262, false); modeDropdown.setSize(300, 28, false); dialog.addChild(modeDropdown);
+        }
         UILabel readonly = label(t.get("tc.shop.editor.readonly", player).replace("PH_ID", offer.getId()).replace("PH_ITEM", offer.getItemName()).replace("PH_VARIANT", String.valueOf(offer.getItemVariant())), 11, Font.Default);
         readonly.setPivot(Pivot.UpperLeft); readonly.setPosition(18, 500, false); readonly.setSize(650, 28, false); readonly.setTextWrap(true); dialog.addChild(readonly);
         UILabel context = label(editorContext(), 11, Font.Default); context.setPivot(Pivot.UpperLeft); context.setPosition(18, 536, false); context.setSize(650, 24, false); context.setTextWrap(true); context.setFontColor(0xC8C0B2FF); dialog.addChild(context);
         UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> panel.removeChild(blocker)); cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 590, false); cancel.setSize(150, 30, false); dialog.addChild(cancel);
+        Dropdown selectedMode = modeDropdown;
         UIElement save = AdvancedButtonFactory.ok(t.get("tc.shop.ui.save", player), event -> collectEditorFields(fields, new LinkedHashMap<>(), keys, 0, values -> {
-            values.put("stockMode", modeDropdown.getSelectedKey());
+            if (selectedMode != null) values.put("stockMode", selectedMode.getSelectedKey());
             panel.removeChild(blocker); ShopPurchaseResult result = plugin.updateOffer(player, trader, offer, values);
             player.sendTextMessage((result.success ? c.okay : c.error) + result.message); if (result.success) rebuild();
         })); save.setPivot(Pivot.LowerRight); save.setPosition(672, 590, false); save.setSize(160, 30, false); dialog.addChild(save);
@@ -2088,76 +2112,61 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
         title.setPosition(18, 18, false);
         title.setSize(600, 30, false);
         body.addChild(title);
-        addZoneLine(18, 56, t.get("tc.shop.trader.ui.account", player)
+        addZoneLine(18, 56, t.get(trader.factionId() > 0 ? "tc.shop.trader.ui.faction.account"
+                : "tc.shop.trader.ui.account", player)
                 .replace("PH_BALANCE", String.valueOf(plugin.traderBalance(trader))));
         addZoneLabel(18, 96, t.get("tc.shop.trader.ui.name", player));
         UITextField nameField = textField(trader.name());
         nameField.setPivot(Pivot.UpperLeft); nameField.setPosition(18, 122, false); nameField.setSize(320, 30, false);
         body.addChild(nameField);
         body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 122, 118, event ->
-                nameField.getCurrentText(player, value -> { trader = plugin.renameTrader(trader.npcId(), value); rebuild(); })));
-        addZoneLabel(18, 176, t.get("tc.shop.trader.ui.offers.file", player));
-        UITextField fileField = textField(trader.systemOffersFile());
-        fileField.setPivot(Pivot.UpperLeft); fileField.setPosition(18, 202, false); fileField.setSize(320, 30, false);
-        body.addChild(fileField);
-        body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 202, 118, event ->
-                fileField.getCurrentText(player, this::saveTraderOfferFile)));
-        body.addChild(zoneButton(t.get(trader.pluginShopEnabled() ? "tc.shop.trader.ui.plugin.on" : "tc.shop.trader.ui.plugin.off", player),
-                18, 270, 260, event -> {
-                    trader = plugin.setTraderPluginShopEnabled(trader.npcId(), !trader.pluginShopEnabled());
-                    if (!trader.pluginShopEnabled() && activeTab == Tab.PLUGIN) activeTab = Tab.SYSTEM;
-                    rebuild();
-                }));
-        body.addChild(zoneButton(t.get("tc.shop.trader.replenish", player), 294, 270, 178, event -> {
-            ShopPurchaseResult result = plugin.replenishTraderStartCapital(player, trader);
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            rebuild();
-        }));
+                nameField.getCurrentText(player, value -> { Trader updated = plugin.renameTrader(player, trader.npcId(), value);
+                    if (updated != null) { trader = updated; rebuild(); } })));
+        if (trader.factionId() == 0) {
+            addZoneLabel(18, 176, t.get("tc.shop.trader.ui.offers.file", player));
+            UITextField fileField = textField(trader.systemOffersFile());
+            fileField.setPivot(Pivot.UpperLeft); fileField.setPosition(18, 202, false); fileField.setSize(320, 30, false);
+            body.addChild(fileField);
+            body.addChild(zoneButton(t.get("tc.shop.ui.save", player), 354, 202, 118, event ->
+                    fileField.getCurrentText(player, this::saveTraderOfferFile)));
+            body.addChild(zoneButton(t.get(trader.pluginShopEnabled() ? "tc.shop.trader.ui.plugin.on" : "tc.shop.trader.ui.plugin.off", player),
+                    18, 270, 260, event -> {
+                        trader = plugin.setTraderPluginShopEnabled(trader.npcId(), !trader.pluginShopEnabled());
+                        if (!trader.pluginShopEnabled() && activeTab == Tab.PLUGIN) activeTab = Tab.SYSTEM;
+                        rebuild();
+                    }));
+            body.addChild(zoneButton(t.get("tc.shop.trader.replenish", player), 294, 270, 178, event -> {
+                ShopPurchaseResult result = plugin.replenishTraderStartCapital(player, trader);
+                player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+                rebuild();
+            }));
+        }
         UIElement dissolve = zoneButton(t.get("tc.shop.trader.ui.dissolve", player), 18, 340, 260,
-                event -> { pendingDissolveTrader = trader; rebuild(); });
+                event -> confirmTraderDissolve(trader));
         if (dissolve instanceof AdvancedButton dissolveButton) styleResetButton(dissolveButton);
         body.addChild(dissolve);
     }
 
-    private void setupTraderDissolveConfirmation() {
-        if (pendingDissolveTrader == null) return;
-        OZUIElement blocker = new OZUIElement();
-        blocker.setPivot(Pivot.UpperLeft); blocker.setPosition(0, 0, true); blocker.setSize(100, 100, true);
-        blocker.setBackgroundColor(0, 0, 0, 0.54f); blocker.setClickable(true);
-        OZUIElement dialog = new OZUIElement();
-        dialog.setPivot(Pivot.MiddleCenter); dialog.setPosition(50, 50, true); dialog.setSize(540, 230, false);
-        dialog.setBackgroundColor(0.08f, 0.07f, 0.06f, 0.98f); dialog.setBorder(1);
-        dialog.setBorderColor(0.95f, 0.75f, 0.25f, 0.74f); dialog.setBorderEdgeRadius(6, false);
-        UILabel title = label(t.get("tc.shop.trader.ui.dissolve.confirm.title", player), 20, Font.DefaultBold);
-        title.setPivot(Pivot.UpperLeft); title.setPosition(18, 16, false); title.setSize(500, 28, false);
-        dialog.addChild(title);
-        UILabel text = label(t.get("tc.shop.trader.ui.dissolve.confirm.text", player)
-                .replace("PH_TRADER", pendingDissolveTrader.name()), 14, Font.Default);
-        text.setPivot(Pivot.UpperLeft); text.setPosition(18, 56, false); text.setSize(500, 100, false);
-        text.setTextWrap(true); text.setTextAlign(TextAnchor.UpperLeft); dialog.addChild(text);
-        UIElement cancel = AdvancedButtonFactory.cancel(t.get("tc.btn.cancel", player), event -> {
-            pendingDissolveTrader = null; rebuild();
-        });
-        cancel.setPivot(Pivot.LowerLeft); cancel.setPosition(18, 212, false); cancel.setSize(170, 30, false);
-        dialog.addChild(cancel);
-        AdvancedButton unlink = AdvancedButtonFactory.defaultButton(t.get("tc.shop.trader.ui.dissolve.unlink", player), event -> {
-            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader, false);
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            pendingDissolveTrader = null;
-            if (result.success) close(); else rebuild();
-        });
-        styleConditionSellButton(unlink);
-        unlink.setPivot(Pivot.LowerLeft); unlink.setPosition(198, 212, false); unlink.setSize(160, 30, false);
-        dialog.addChild(unlink);
-        AdvancedButton deleteNpc = AdvancedButtonFactory.danger(t.get("tc.shop.trader.ui.dissolve.npc", player), event -> {
-            ShopPurchaseResult result = plugin.dissolveTrader(player, pendingDissolveTrader, true);
-            player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
-            pendingDissolveTrader = null;
-            if (result.success) close(); else rebuild();
-        });
-        deleteNpc.setPivot(Pivot.LowerRight); deleteNpc.setPosition(522, 212, false); deleteNpc.setSize(154, 30, false);
-        dialog.addChild(deleteNpc);
-        blocker.addChild(dialog); panel.addChild(blocker);
+    private void confirmTraderDissolve(Trader target) {
+        if (target == null || !plugin.canManageTrader(player, target)) return;
+        boolean faction = target.factionId() > 0;
+        String title = t.get(faction ? "tc.shop.trader.ui.dissolve.faction.title"
+                : "tc.shop.trader.ui.dissolve.confirm.title", player);
+        String text = t.get(faction ? "tc.shop.trader.ui.dissolve.faction.text"
+                : "tc.shop.trader.ui.dissolve.confirm.text", player).replace("PH_TRADER", target.name());
+        player.removeUIElement(this);
+        player.closeAllActiveUIWindows();
+        OZTools.runAfterModalClose(player, () -> player.showMessageBox(MessageBoxButtons.Yes_No_Cancel,
+                title, text, 0, answer -> plugin.enqueue(() -> {
+                    if (!player.isConnected()) return;
+                    if (answer != null && (answer == 0 || answer == 1)) {
+                        ShopPurchaseResult result = plugin.dissolveTrader(player, target, answer == 0);
+                        player.sendTextMessage((result.success ? c.okay : c.error) + result.message);
+                        if (result.success) { close(); return; }
+                    }
+                    rebuild();
+                    player.addUIElement(this, UITarget.Modal);
+                })));
     }
 
     private void setupTraderManagement() {

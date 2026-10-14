@@ -115,9 +115,31 @@ When an administrator saves a missing `.json` file name in the Zone or Trader se
 
 ## NPC traders
 
+Faction leaders and officers may create a male or female trader in the Shop
+radial menu or with `/shop factiontrader male|female`
+while their faction has a trader license. Each faction trader uses the faction
+Wallet account and a dedicated `faction.[factionName].[traderName].json` offer
+file. Filename parts transliterate accented characters to ASCII while the
+displayed faction and trader names retain their original spelling. Renaming
+the trader moves this file only when the name and file are free.
+Offers begin with zero stock in `PLAYER_SUPPLIED` mode and no automatic movement.
+Stock limit can be edited; target stock stays at zero. Stock, target stock,
+stock mode, drain, and restock cannot be changed through the editor or
+Shop's update API. Purchases require reserved, real stock; sales into the
+trader reserve inbound capacity before inventory and payment, pay from the
+faction account through Factions, and cap positive modifier bonuses while
+retaining durability reductions. Stock reservation outcomes are recorded in
+`shop_faction_stock_operations` for recovery. Removing an offer or dissolving a
+faction trader deletes its stock without a world-account sale. Faction traders
+show their owning faction in the shop header and have no plugin shop or
+start-capital action. Factions and Wallet are required
+for faction trades; private traders retain the behavior below.
+
 An administrator can create a new locked (but non-static) NPC trader at their current position with
-`/shop createtrader` (or `/shop ct`) or through the Shop radial menu. The new trader
-uses the admin's facing direction, a random configured gender/name/outfit, weighted
+`/shop createtrader male|female` (or `/shop ct male|female`) or through the
+separate male and female entries in the Shop radial menu. With no gender argument,
+the legacy command still chooses randomly. The new trader uses the admin's
+facing direction, a configured name/outfit for the selected gender, weighted
 RGB skin colours, hair/eye colours, and a
 facial-variation/tattoo selection, plus a localized `Trader`/`Händler` prefix.
 `traders-config.json` is copied from the packaged
@@ -132,7 +154,8 @@ next enable: scoped stock is settled at the stepped player-purchase price, posit
 the world account, and the Wallet account and Shop records are archived/removed.
 
 `/shop maketrader` (or `/shop mt`) remains available to turn an NPC in line of sight
-into a trader. Both workflows make the NPC interactable and invincible and assign the
+into a trader. Registered trader NPCs retain dummy behaviour so they do not wander.
+Both workflows make the NPC interactable and invincible and assign the
 deterministic Wallet account `trader::<npcId>` with 1000 initial units of the Shop
 currency. The first-run `default-trader.json` contains no offers. Each trader can use a
 separate offer file and enable or disable plugin offers through its admin-only

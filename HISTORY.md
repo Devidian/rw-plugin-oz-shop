@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- feat: add faction traders with dedicated files, faction Wallet payouts, and reserved player-supplied stock.
+- fix: exclude faction trader stock from automatic ticks and world-account liquidation.
+- fix: offer male and female private/faction trader creation in the radial menu with distinct icons; keep registered dummies stationary after spawn and reload.
+- fix: confirm all radial trader placements, write ASCII-safe faction offer filenames, and complete delayed NPC appearance and clothing setup after registration.
+- change: allow faction trader stock limits while keeping target stock at zero; use native placement and dissolution confirmations with faction-specific account and removal text.
+- change: display the owning faction's name in faction trader headers, with the stored faction ID as fallback.
+
 ## [0.12.0] - 2026-10-13 | Independent shop controls
 
 - feat: control global system and plugin shops independently, with separate shop-area overrides and matching offer tabs.

@@ -1,0 +1,3 @@
+- feat: add faction traders with faction account settlement and reserved player-supplied stock.
+- ui: add gender and faction creation icons, native confirmations, stock-limit controls and faction identity in trader headers.
+- fix: keep faction stock out of automatic ticks and world-account liquidation.

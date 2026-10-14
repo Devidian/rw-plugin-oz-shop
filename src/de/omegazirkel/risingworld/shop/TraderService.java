@@ -12,6 +12,7 @@ import java.util.Optional;
 import de.omegazirkel.risingworld.Shop;
 import net.risingworld.api.objects.Npc;
 import net.risingworld.api.objects.Player;
+import net.risingworld.api.definitions.Npcs;
 
 /** Trader persistence and NPC invariants; Wallet money movement stays in ShopRuntime. */
 public final class TraderService {
@@ -36,13 +37,23 @@ public final class TraderService {
                 ? new Trader(id, name, creator.getName(), System.currentTimeMillis(), "default-trader.json", true)
                 : new Trader(id, name, existing.createdBy(), existing.createdAt(), existing.systemOffersFile(),
                         existing.pluginShopEnabled());
-        save(trader);
-        return Optional.of(trader);
+        return save(trader) ? Optional.of(trader) : Optional.empty();
+    }
+
+    public synchronized Optional<Trader> registerFaction(Npc npc, Player creator, int factionId, String offerFile,
+            String name) {
+        if (npc == null || creator == null || factionId <= 0 || offerFile == null || offerFile.isBlank()
+                || name == null || name.isBlank() || find(npc.getGlobalID()).isPresent()) return Optional.empty();
+        npc.setName(name);
+        applyNpcFlags(npc);
+        Trader trader = new Trader(npc.getGlobalID(), name, creator.getName(), System.currentTimeMillis(),
+                offerFile, false, factionId);
+        return save(trader) ? Optional.of(trader) : Optional.empty();
     }
 
     public synchronized Optional<Trader> find(long npcId) {
         try (PreparedStatement statement = connection.prepareStatement("""
-                SELECT npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled
+                SELECT npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled, faction_id
                 FROM shop_traders WHERE npc_id = ?
                 """)) {
             statement.setLong(1, npcId);
@@ -57,7 +68,7 @@ public final class TraderService {
 
     public synchronized List<Trader> list() {
         try (PreparedStatement statement = connection.prepareStatement("""
-                SELECT npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled
+                SELECT npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled, faction_id
                 FROM shop_traders ORDER BY name COLLATE NOCASE ASC, npc_id ASC
                 """ ); ResultSet result = statement.executeQuery()) {
             java.util.ArrayList<Trader> traders = new java.util.ArrayList<>();
@@ -70,31 +81,65 @@ public final class TraderService {
         }
     }
 
+    public synchronized int factionTraderCount(int factionId) {
+        if (factionId <= 0) return 0;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM shop_traders WHERE faction_id = ?")) {
+            statement.setInt(1, factionId);
+            try (ResultSet rows = statement.executeQuery()) { return rows.next() ? rows.getInt(1) : 0; }
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not count faction traders: " + ex.getMessage());
+            return -1;
+        }
+    }
+
+    public synchronized boolean factionTraderNameExists(int factionId, String name, long excludeNpcId) {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM shop_traders WHERE faction_id = ? AND name = ? COLLATE NOCASE AND npc_id <> ? LIMIT 1")) {
+            statement.setInt(1, factionId);
+            statement.setString(2, name);
+            statement.setLong(3, excludeNpcId);
+            try (ResultSet rows = statement.executeQuery()) { return rows.next(); }
+        } catch (SQLException ex) {
+            Shop.logger().error("Could not check faction trader name: " + ex.getMessage());
+            return true;
+        }
+    }
+
     public synchronized Optional<Trader> rename(long npcId, String name) {
         Trader old = find(npcId).orElse(null);
-        if (old == null || name == null || name.trim().isBlank()) return Optional.empty();
+        if (old == null || old.factionId() > 0 || name == null || name.trim().isBlank()) return Optional.empty();
         Trader updated = new Trader(old.npcId(), name, old.createdBy(), old.createdAt(), old.systemOffersFile(),
-                old.pluginShopEnabled());
-        save(updated);
-        return Optional.of(updated);
+                old.pluginShopEnabled(), old.factionId());
+        return save(updated) ? Optional.of(updated) : Optional.empty();
+    }
+
+    public synchronized Optional<Trader> renameFaction(long npcId, String name, String file, SystemOfferEditor editor) {
+        Trader old = find(npcId).orElse(null);
+        if (old == null || old.factionId() <= 0 || name == null || name.isBlank() || file == null || file.isBlank()
+                || editor == null || factionTraderNameExists(old.factionId(), name, npcId)
+                || !editor.rename(old.systemOffersFile(), file))
+            return Optional.empty();
+        Trader updated = new Trader(old.npcId(), name, old.createdBy(), old.createdAt(), file, false, old.factionId());
+        if (save(updated)) return Optional.of(updated);
+        if (!editor.rename(file, old.systemOffersFile())) Shop.logger().error("Faction trader file rename rollback failed for " + npcId);
+        return Optional.empty();
     }
 
     public synchronized Optional<Trader> setSystemOffersFile(long npcId, String file) {
         Trader old = find(npcId).orElse(null);
-        if (old == null) return Optional.empty();
+        if (old == null || old.factionId() > 0) return Optional.empty();
         Trader updated = new Trader(old.npcId(), old.name(), old.createdBy(), old.createdAt(), file,
-                old.pluginShopEnabled());
-        save(updated);
-        return Optional.of(updated);
+                old.pluginShopEnabled(), old.factionId());
+        return save(updated) ? Optional.of(updated) : Optional.empty();
     }
 
     public synchronized Optional<Trader> setPluginShopEnabled(long npcId, boolean enabled) {
         Trader old = find(npcId).orElse(null);
-        if (old == null) return Optional.empty();
+        if (old == null || old.factionId() > 0) return Optional.empty();
         Trader updated = new Trader(old.npcId(), old.name(), old.createdBy(), old.createdAt(), old.systemOffersFile(),
-                enabled);
-        save(updated);
-        return Optional.of(updated);
+                enabled, old.factionId());
+        return save(updated) ? Optional.of(updated) : Optional.empty();
     }
 
     public synchronized boolean delete(long npcId) {
@@ -109,6 +154,9 @@ public final class TraderService {
 
     public void applyNpcFlags(Npc npc) {
         if (npc == null) return;
+        npc.setLocked(true);
+        npc.setStatic(false);
+        npc.setBehaviour(Npcs.Behaviour.Dummy);
         npc.setInteractable(true);
         npc.setInvincible(true);
     }
@@ -116,6 +164,8 @@ public final class TraderService {
     /** Settles trader-only automatic stock movement before persisting the stock delta. */
     public ShopEconomyStore.ScopeTickResult reconcileEconomy(Trader trader, List<ShopOffer> offers, ShopEconomyStore economy, WalletBridge wallet,
             String currencyIdentifier, boolean dynamicEconomyEnabled, boolean force) {
+        if (trader != null && trader.factionId() > 0)
+            return new ShopEconomyStore.ScopeTickResult(trader.economyScope(), List.of(), 0L);
         if (trader == null || economy == null || wallet == null || currencyIdentifier == null || currencyIdentifier.isBlank())
             return new ShopEconomyStore.ScopeTickResult(trader == null ? "" : trader.economyScope(), List.of(), 0L);
         economy.initializeScope(trader.economyScope());
@@ -194,20 +244,26 @@ public final class TraderService {
                         created_by TEXT NOT NULL,
                         created_at BIGINT NOT NULL,
                         system_offers_file TEXT NOT NULL DEFAULT 'default-trader.json',
-                        plugin_shop_enabled INTEGER NOT NULL DEFAULT 1
+                        plugin_shop_enabled INTEGER NOT NULL DEFAULT 1,
+                        faction_id INTEGER NOT NULL DEFAULT 0
                     )
                     """);
+            boolean found = false;
+            try (ResultSet columns = statement.executeQuery("PRAGMA table_info(shop_traders)")) {
+                while (columns.next()) if ("faction_id".equalsIgnoreCase(columns.getString("name"))) found = true;
+            }
+            if (!found) statement.execute("ALTER TABLE shop_traders ADD COLUMN faction_id INTEGER NOT NULL DEFAULT 0");
         } catch (SQLException ex) {
             Shop.logger().error("Could not initialize trader database: " + ex.getMessage());
         }
     }
 
-    private void save(Trader trader) {
+    private boolean save(Trader trader) {
         try (PreparedStatement statement = connection.prepareStatement("""
-                INSERT INTO shop_traders(npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO shop_traders(npc_id, name, created_by, created_at, system_offers_file, plugin_shop_enabled, faction_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(npc_id) DO UPDATE SET name=excluded.name, system_offers_file=excluded.system_offers_file,
-                    plugin_shop_enabled=excluded.plugin_shop_enabled
+                    plugin_shop_enabled=excluded.plugin_shop_enabled, faction_id=excluded.faction_id
                 """)) {
             statement.setLong(1, trader.npcId());
             statement.setString(2, trader.name());
@@ -215,15 +271,18 @@ public final class TraderService {
             statement.setLong(4, trader.createdAt());
             statement.setString(5, trader.systemOffersFile());
             statement.setInt(6, trader.pluginShopEnabled() ? 1 : 0);
+            statement.setInt(7, trader.factionId());
             statement.executeUpdate();
+            return true;
         } catch (SQLException ex) {
             Shop.logger().error("Could not save trader " + trader.npcId() + ": " + ex.getMessage());
+            return false;
         }
     }
 
     private static Trader read(ResultSet result) throws SQLException {
         return new Trader(result.getLong("npc_id"), result.getString("name"), result.getString("created_by"),
                 result.getLong("created_at"), result.getString("system_offers_file"),
-                result.getInt("plugin_shop_enabled") != 0);
+                result.getInt("plugin_shop_enabled") != 0, result.getInt("faction_id"));
     }
 }

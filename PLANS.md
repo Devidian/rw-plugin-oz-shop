@@ -3,6 +3,7 @@
 Planning is stored in repository-local docs.
 
 - Active implementation tasks: [docs/active/](docs/active/)
+- Faction traders: [docs/active/faction-traders.md](docs/active/faction-traders.md)
 - Ingame offer editor: [docs/active/ingame-offer-editor.md](docs/active/ingame-offer-editor.md)
 - Trader generator: [docs/active/trader-generator.md](docs/active/trader-generator.md)
 - System-offer default conversion audit: [docs/active/system-offers-default-conversion-audit.md](docs/active/system-offers-default-conversion-audit.md)

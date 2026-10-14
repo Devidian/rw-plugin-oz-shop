@@ -39,7 +39,15 @@
         },
         "list": "List offers",
         "trader": {
-          "create": "Create trader"
+          "create": {
+            "$value": "Create trader",
+            "male": "Create male trader",
+            "female": "Create female trader",
+            "faction": {
+              "male": "Create male faction trader",
+              "female": "Create female faction trader"
+            }
+          }
         },
         "zone": {
           "create": "Mark area as shop"
@@ -277,8 +285,26 @@
       "title": "Available shop offers",
       "trader": {
         "created": "Trader PH_TRADER (#PH_ID) was created.",
+        "faction": {
+          "create": {
+            "denied": "Your faction cannot create another trader right now.",
+            "gender": { "usage": "Usage: /shop factiontrader male|female" }
+          }
+        },
         "create": {
-          "failed": "The NPC trader could not be registered."
+          "failed": "The NPC trader could not be registered.",
+          "confirm": {
+            "title": "Place trader?",
+            "text": "Place PH_KIND at your position?",
+            "cancel": "Cancel",
+            "accept": "Place",
+            "kind": {
+              "male": "trader",
+              "female": "female trader",
+              "faction": { "male": "faction trader", "female": "female faction trader" }
+            }
+          },
+          "gender": { "usage": "Usage: /shop createtrader male|female" }
         },
         "dissolved": "Trader shop PH_TRADER was dissolved.",
         "dissolve": {
@@ -319,8 +345,12 @@
           "dissolve": {
             "$value": "Dissolve trader",
             "confirm": {
-              "text": "PH_TRADER\u0027s trader shop will close. All stock will be sold at base price, all account balances transferred to the world account, and the trader account archived. Should the NPC remain or be deleted as well?",
+              "text": "PH_TRADER\u0027s trader shop will close. Stock will be sold at base price, balances transferred to the world account, and the trader account archived. Yes = delete trader and NPC; No = delete trader data only; Cancel = leave everything unchanged.",
               "title": "Dissolve this trader?"
+            },
+            "faction": {
+              "text": "PH_TRADER: trader data, offer file and stock will be deleted without a sale. The faction account and its balance remain. Yes = delete trader and NPC; No = delete trader data only; Cancel = leave everything unchanged.",
+              "title": "Dissolve faction trader?"
             },
             "npc": "Delete both",
             "unlink": "Delete shop only"
@@ -344,6 +374,11 @@
             "title": "Trader settings"
           },
           "subtitle": "This trader\u0027s offers and balance.",
+          "faction": {
+            "title": "Faction trader: PH_TRADER",
+            "subtitle": "Faction: PH_FACTION · This trader\u0027s offers and faction account.",
+            "account": { "$value": "Faction account: PH_BALANCE", "label": "Faction account" }
+          },
           "tab": {
             "admin": "Trader management",
             "settings": "Trader settings",

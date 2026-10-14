@@ -39,7 +39,15 @@
         },
         "list": "Angebote anzeigen",
         "trader": {
-          "create": "Händler erstellen"
+          "create": {
+            "$value": "Händler erstellen",
+            "male": "Händler erstellen",
+            "female": "Händlerin erstellen",
+            "faction": {
+              "male": "Fraktionshändler erstellen",
+              "female": "Fraktionshändlerin erstellen"
+            }
+          }
         },
         "zone": {
           "create": "Area als Shop markieren"
@@ -277,8 +285,26 @@
       "title": "Verfügbare Shop-Angebote",
       "trader": {
         "created": "Händler PH_TRADER (#PH_ID) wurde erstellt.",
+        "faction": {
+          "create": {
+            "denied": "Deine Fraktion kann derzeit keinen weiteren Händler erstellen.",
+            "gender": { "usage": "Verwendung: /shop factiontrader male|female" }
+          }
+        },
         "create": {
-          "failed": "Der NPC-Händler konnte nicht registriert werden."
+          "failed": "Der NPC-Händler konnte nicht registriert werden.",
+          "confirm": {
+            "title": "Händler aufstellen?",
+            "text": "PH_KIND an deiner Position aufstellen?",
+            "cancel": "Abbrechen",
+            "accept": "Aufstellen",
+            "kind": {
+              "male": "Händler",
+              "female": "Händlerin",
+              "faction": { "male": "Fraktionshändler", "female": "Fraktionshändlerin" }
+            }
+          },
+          "gender": { "usage": "Verwendung: /shop createtrader male|female" }
         },
         "dissolved": "Händlershop PH_TRADER wurde aufgelöst.",
         "dissolve": {
@@ -319,8 +345,12 @@
           "dissolve": {
             "$value": "Händler auflösen",
             "confirm": {
-              "text": "Der Händlershop von PH_TRADER wird geschlossen. Alle Lagerbestände werden zum Basispreis verkauft, alle Kontostände ins Weltkonto übertragen und das Händlerkonto archiviert. Soll der NPC bestehen bleiben oder ebenfalls gelöscht werden?",
+              "text": "Der Händlershop von PH_TRADER wird geschlossen. Lagerbestände werden zum Basispreis verkauft, Guthaben ins Weltkonto übertragen und das Händlerkonto archiviert. Ja = Händler und NPC löschen; Nein = nur Händlerdaten löschen; Abbrechen = nichts ändern.",
               "title": "Händler wirklich auflösen?"
+            },
+            "faction": {
+              "text": "PH_TRADER: Händlerdaten, Angebotsdatei und Warenbestand werden ohne Verkauf gelöscht. Das Fraktionskonto und sein Guthaben bleiben bestehen. Ja = Händler und NPC löschen; Nein = nur Händlerdaten löschen; Abbrechen = nichts ändern.",
+              "title": "Fraktionshändler auflösen?"
             },
             "npc": "Beides löschen",
             "unlink": "Nur Shop löschen"
@@ -344,6 +374,11 @@
             "title": "Händlereinstellungen"
           },
           "subtitle": "Angebote und Kontostand dieses Händlers.",
+          "faction": {
+            "title": "Fraktionshändler: PH_TRADER",
+            "subtitle": "Fraktion: PH_FACTION · Angebote und Fraktionskonto dieses Händlers.",
+            "account": { "$value": "Fraktionskonto: PH_BALANCE", "label": "Fraktionskonto" }
+          },
           "tab": {
             "admin": "Händlerverwaltung",
             "settings": "Händlereinstellungen",

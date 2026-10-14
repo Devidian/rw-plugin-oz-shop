@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.omegazirkel.risingworld.shop.PluginSettings;
 import de.omegazirkel.risingworld.shop.DynamicEconomyPricing;
@@ -32,6 +33,7 @@ import de.omegazirkel.risingworld.shop.ShopZoneService;
 import de.omegazirkel.risingworld.shop.Trader;
 import de.omegazirkel.risingworld.shop.TraderService;
 import de.omegazirkel.risingworld.shop.TraderGeneratorConfig;
+import de.omegazirkel.risingworld.shop.FactionTraderBridge;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
 import de.omegazirkel.risingworld.shop.SystemOfferEditor;
 import de.omegazirkel.risingworld.shop.PluginGUI;
@@ -73,6 +75,21 @@ import net.risingworld.api.definitions.Clothing.ClothingDefinition;
 import net.risingworld.api.ui.UITarget;
 
 class ShopRuntime extends Plugin {
+    private final Map<String, FactionPayoutAuthorization> factionPayouts = new ConcurrentHashMap<>();
+    private record FactionPayoutAuthorization(int factionId, int playerDbId, long amount, String currency) { }
+
+    public boolean isFactionTraderPaymentReserved(String correlationId, int factionId, int playerDbId,
+            long amount, String currency) {
+        FactionPayoutAuthorization authorization = factionPayouts.get(correlationId);
+        return authorization != null && authorization.factionId() == factionId
+                && authorization.playerDbId() == playerDbId && authorization.amount() == amount
+                && authorization.currency().equalsIgnoreCase(currency);
+    }
+
+    public boolean isFactionTraderPaymentReversalAllowed(String correlationId, int factionId) {
+        FactionPayoutAuthorization authorization = factionPayouts.get(correlationId);
+        return authorization != null && authorization.factionId() == factionId;
+    }
     static final Colors c = Colors.getInstance();
     private static I18n t;
     private static PluginSettings s;
@@ -236,7 +253,17 @@ class ShopRuntime extends Plugin {
         }
         if (cmdParts.length > 1 && (cmdParts[1].equalsIgnoreCase("createtrader") || cmdParts[1].equalsIgnoreCase("ct"))
                 && player.isAdmin()) {
-            createTrader(player);
+            if (cmdParts.length == 2) createTrader(player);
+            else if (cmdParts.length == 3 && cmdParts[2].equalsIgnoreCase("male")) createTrader(player, true);
+            else if (cmdParts.length == 3 && cmdParts[2].equalsIgnoreCase("female")) createTrader(player, false);
+            else player.sendTextMessage(c.warning + t.get("tc.shop.trader.create.gender.usage", player));
+            return;
+        }
+        if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("factiontrader")) {
+            if (cmdParts.length == 2) createFactionTrader(player);
+            else if (cmdParts.length == 3 && cmdParts[2].equalsIgnoreCase("male")) createFactionTrader(player, true);
+            else if (cmdParts.length == 3 && cmdParts[2].equalsIgnoreCase("female")) createFactionTrader(player, false);
+            else player.sendTextMessage(c.warning + t.get("tc.shop.trader.faction.create.gender.usage", player));
             return;
         }
         if (cmdParts.length > 1 && cmdParts[1].equalsIgnoreCase("zoneoffers") && player.isAdmin()) {
@@ -495,15 +522,63 @@ class ShopRuntime extends Plugin {
         return traderService == null ? List.of() : traderService.list();
     }
 
+    public int getFactionTraderCount(int factionId) {
+        return traderService == null ? -1 : traderService.factionTraderCount(factionId);
+    }
+
+    public boolean canManageTrader(Player player, Trader trader) {
+        if (player == null || trader == null || traderService == null) return false;
+        Trader persisted = traderService.find(trader.npcId()).orElse(null);
+        if (persisted == null || persisted.factionId() != trader.factionId()
+                || !persisted.systemOffersFile().equals(trader.systemOffersFile())) return false;
+        if (trader.factionId() == 0) return player.isAdmin();
+        FactionTraderBridge factions = new FactionTraderBridge(this);
+        Integer actorFaction = factions.factionIdFor(player.getDbID());
+        return actorFaction != null && actorFaction == trader.factionId() && factions.canManage(player.getDbID());
+    }
+
     public List<ShopOffer> listTraderSystemOffers(Trader trader) {
         if (trader == null) return List.of();
         String file = trader.systemOffersFile().isBlank() ? "default-trader.json" : trader.systemOffersFile();
-        return SystemOfferFile.load((Shop) this, file, s.generateDefinitionExports, s.systemShopCurrency);
+        List<ShopOffer> offers = SystemOfferFile.load((Shop) this, file, s.generateDefinitionExports, s.systemShopCurrency);
+        if (trader.factionId() == 0) return offers;
+        return offers.stream().filter(offer -> offer.getStockMode() == ShopStockMode.PLAYER_SUPPLIED
+                && offer.getDrainPercent() == 0.0d && offer.getDrainMax() == 0L && offer.getRestockMax() == 0L
+                && offer.getDefaultDrainRate() == 0.0d && offer.getDefaultRefillRate() == 0.0d).toList();
     }
 
-    public ShopPurchaseResult traderPurchase(Player player, Trader trader, String offerId, int quantity) {
+    public synchronized ShopPurchaseResult traderPurchase(Player player, Trader trader, String offerId, int quantity) {
+        if (player == null || player.getDbID() <= 0)
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
+        trader = trader == null || traderService == null ? null : traderService.find(trader.npcId()).orElse(null);
+        if (trader == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader not found.");
         ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
         if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
+        if (trader.factionId() > 0) {
+            if (quantity <= 0 || (long) quantity * offer.getAmount() > Integer.MAX_VALUE
+                    || !offer.canPlayerBuyFromSystem())
+                return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "Invalid faction trader purchase amount.");
+            FactionTraderBridge factions = new FactionTraderBridge(this);
+            String accountId = factions.accountId(trader.factionId());
+            WalletBridge wallet = new WalletBridge((Shop) this);
+            if (economyStore == null || !wallet.isAvailable() || !wallet.hasSystemAccountApi()
+                    || accountId == null || accountId.isBlank() || !economyStore.hasFactionState(trader.economyScope(), offer.getId()))
+                return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, "Faction trader data is unavailable.");
+            ShopOffer factionOffer = dynamicTraderOffer(trader, offer, quantity);
+            String operationId = "shop:faction-trader:" + trader.factionId() + ":out:" + UUID.randomUUID();
+            if (!economyStore.reserveFactionStock(trader.economyScope(), factionOffer, "OUT", operationId))
+                return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.trader.dynamic.stock.empty", player));
+            ShopPurchaseResult result;
+            try {
+                result = service.purchaseFromSystemAccount(player, factionOffer, 1, accountId);
+            } catch (RuntimeException ex) {
+                logger().error("Faction trader purchase outcome requires reconciliation: " + operationId + ": " + ex.getMessage());
+                return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, "Faction trader trade requires reconciliation.");
+            }
+            if (!economyStore.finishFactionStock(operationId, result.success))
+                logger().error("Faction trader purchase stock compensation/finalization pending: " + operationId);
+            return localizedSystemTransactionResult(player, result, "tc.shop.purchase.completed");
+        }
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         if (economyStore != null && !economyStore.canSellToPlayer(trader.economyScope(), effective)) {
             return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.trader.dynamic.stock.empty", player));
@@ -518,10 +593,55 @@ class ShopRuntime extends Plugin {
         return traderSell(player, trader, offerId, quantity, null);
     }
 
-    public ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity,
+    public synchronized ShopPurchaseResult traderSell(Player player, Trader trader, String offerId, int quantity,
             ShopService.SellQuote selectedQuote) {
+        if (player == null || player.getDbID() <= 0)
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
+        trader = trader == null || traderService == null ? null : traderService.find(trader.npcId()).orElse(null);
+        if (trader == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader not found.");
         ShopOffer offer = findTraderOffer(trader, offerId).orElse(null);
         if (offer == null) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_NOT_FOUND, "Trader offer not found.");
+        if (trader.factionId() > 0) {
+            if (quantity <= 0 || (long) quantity * offer.getAmount() > Integer.MAX_VALUE
+                    || !offer.canPlayerSellToSystem())
+                return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "Invalid faction trader sale amount.");
+            FactionTraderBridge factions = new FactionTraderBridge(this);
+            WalletBridge wallet = new WalletBridge((Shop) this);
+            String accountId = factions.accountId(trader.factionId());
+            if (economyStore == null || !wallet.isAvailable() || !wallet.hasSystemAccountApi()
+                    || accountId == null || accountId.isBlank() || !economyStore.hasFactionState(trader.economyScope(), offer.getId()))
+                return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, "Faction trader data is unavailable.");
+            ShopOffer factionOffer = dynamicTraderOffer(trader, offer, quantity);
+            ShopEconomyStore.EconomyCheck stockCheck = economyStore.canBuyFromPlayer(
+                    trader.economyScope(), player.getDbID(), factionOffer);
+            if (!stockCheck.allowed()) return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED,
+                    t.get(stockCheck.messageKey(), player));
+            ShopService.SellQuote quote = selectedQuote == null ? service.quoteSell(player, factionOffer) : selectedQuote;
+            if (!quote.sellable() || quote.amount() != factionOffer.getAmount())
+                return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
+            String currency = factionOffer.getCurrencyIdentifier().isBlank() ? wallet.defaultCurrencyIdentifier()
+                    : factionOffer.getCurrencyIdentifier();
+            if (currency == null || currency.isBlank() || !TraderService.hasSufficientBasePayoutBalance(
+                    traderBalance(wallet, trader, currency), quote.traderPayoutCap()))
+                return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED,
+                        t.get("tc.shop.trader.insufficient.balance", player));
+            String operationId = "shop:faction-trader:" + trader.factionId() + ":in:" + UUID.randomUUID();
+            if (!economyStore.reserveFactionStock(trader.economyScope(), factionOffer, "IN", operationId))
+                return ShopPurchaseResult.failure(ShopErrorCode.OFFER_DISABLED, t.get("tc.shop.trader.dynamic.stock.full", player));
+            factionPayouts.put(operationId, new FactionPayoutAuthorization(trader.factionId(),
+                    player.getDbID(), quote.traderPayoutCap(), currency));
+            ShopPurchaseResult result;
+            try {
+                result = service.sellToFactionAccount(player, factionOffer, quote,
+                        trader.factionId(), factions, operationId);
+            } catch (RuntimeException ex) {
+                logger().error("Faction trader sale outcome requires reconciliation: " + operationId + ": " + ex.getMessage());
+                return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, "Faction trader trade requires reconciliation.");
+            } finally { factionPayouts.remove(operationId); }
+            if (!economyStore.finishFactionStock(operationId, result.success))
+                logger().error("Faction trader sale stock compensation/finalization pending: " + operationId);
+            return localizedSystemTransactionResult(player, result, "tc.shop.sale.completed");
+        }
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         if (selectedQuote != null && selectedQuote.amount() != effective.getAmount()) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT,
@@ -569,14 +689,17 @@ class ShopRuntime extends Plugin {
 
     private long traderBalance(WalletBridge wallet, Trader trader, String currency) {
         if (wallet == null || trader == null || currency == null || currency.isBlank()) return 0L;
-        return wallet.systemAccountBalances(trader.accountId()).stream()
+        String accountId = trader.factionId() > 0 ? new FactionTraderBridge(this).accountId(trader.factionId())
+                : trader.accountId();
+        if (accountId == null || accountId.isBlank()) return 0L;
+        return wallet.systemAccountBalances(accountId).stream()
                 .filter(balance -> balance.currencyIdentifier().equalsIgnoreCase(currency)).mapToLong(WalletBridge.SystemBalanceInfo::balance)
                 .findFirst().orElse(0L);
     }
 
     /** Restores one trader's start capital from the Wallet world account. */
     public ShopPurchaseResult replenishTraderStartCapital(Player player, Trader trader) {
-        if (player == null || !player.isAdmin() || trader == null) {
+        if (player == null || !player.isAdmin() || trader == null || trader.factionId() > 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.trader.replenish.failed", player));
         }
         WalletBridge wallet = new WalletBridge((Shop) this);
@@ -595,6 +718,10 @@ class ShopRuntime extends Plugin {
 
     public String traderBuyDisabledReason(Player player, Trader trader, ShopOffer offer, int quantity) {
         if (trader == null || offer == null || !offer.isSystemOffer() || !offer.canPlayerBuyFromSystem() || economyStore == null) return "";
+        if (trader.factionId() > 0 && (!economyStore.hasFactionState(trader.economyScope(), offer.getId())
+                || economyStore.stateForWithoutTick(trader.economyScope(), offer).stock()
+                        < (long) Math.max(1, quantity) * offer.getAmount()))
+            return t.get("tc.shop.trader.dynamic.stock.empty", player);
         ShopOffer effective = dynamicTraderOffer(trader, offer, quantity);
         return economyStore.canSellToPlayer(trader.economyScope(), effective) ? ""
                 : t.get("tc.shop.trader.dynamic.stock.empty", player);
@@ -619,17 +746,40 @@ class ShopRuntime extends Plugin {
     }
 
     public Trader renameTrader(long npcId, String name) {
-        Trader updated = traderService == null ? null : traderService.rename(npcId, name).orElse(null);
+        Trader existing = traderService == null ? null : traderService.find(npcId).orElse(null);
+        return existing == null || existing.factionId() > 0 ? null : renameTraderInternal(npcId, name);
+    }
+
+    public Trader renameTrader(Player actor, long npcId, String name) {
+        Trader existing = traderService == null ? null : traderService.find(npcId).orElse(null);
+        return !canManageTrader(actor, existing) ? null : renameTraderInternal(npcId, name);
+    }
+
+    private Trader renameTraderInternal(long npcId, String name) {
+        Trader old = traderService == null ? null : traderService.find(npcId).orElse(null);
+        if (old == null || name == null || name.isBlank()) return null;
+        String normalized = name.trim();
+        SystemOfferEditor editor = new SystemOfferEditor((Shop) this);
+        String newFile = null;
+        if (old.factionId() > 0) {
+            FactionTraderBridge factions = new FactionTraderBridge(this);
+            String factionName = factions.factionName(old.factionId());
+            if (factionName == null) return null;
+            newFile = SystemOfferEditor.factionFileName(factionName, normalized);
+        }
+        Trader updated = newFile == null ? traderService.rename(npcId, normalized).orElse(null)
+                : traderService.renameFaction(npcId, normalized, newFile, editor).orElse(null);
         if (updated != null) {
             Npc npc = World.getNpc(npcId);
             if (npc != null) npc.setName(updated.name());
-            new WalletBridge((Shop) this).updateSystemAccountDisplayName(updated.accountId(), updated.name(), "OZ - Shop");
+            if (updated.factionId() == 0) new WalletBridge((Shop) this).updateSystemAccountDisplayName(updated.accountId(), updated.name(), "OZ - Shop");
         }
         return updated;
     }
 
     public Trader setTraderOffersFile(long npcId, String file) {
-        return traderService == null ? null : traderService.setSystemOffersFile(npcId, file).orElse(null);
+        Trader trader = traderService == null ? null : traderService.find(npcId).orElse(null);
+        return trader == null || trader.factionId() > 0 ? null : traderService.setSystemOffersFile(npcId, file).orElse(null);
     }
 
     public boolean offerFileExists(String file) { return new SystemOfferEditor((Shop) this).exists(file); }
@@ -638,12 +788,18 @@ class ShopRuntime extends Plugin {
     public boolean canEditOfferFile(Player player, Trader trader) { return editorOfferFile(player, trader) != null; }
 
     public ShopPurchaseResult addOfferFromCatalog(Player player, Trader trader, String itemName, int itemVariant) {
-        if (player == null || !player.isAdmin()) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        if (player == null || trader == null && !player.isAdmin() || trader != null && !canManageTrader(player, trader))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         SystemOfferEditor.AddResult result = new SystemOfferEditor((Shop) this).addFromCatalog(file, itemName, itemVariant);
         if (result == SystemOfferEditor.AddResult.ADDED) {
             if (trader == null) reloadSystemOffers();
+            else if (trader.factionId() > 0 && economyStore != null) {
+                listTraderSystemOffers(trader).stream().filter(offer -> offer.getItemName().equalsIgnoreCase(itemName)
+                        && offer.getItemVariant() == itemVariant).findFirst()
+                        .ifPresent(offer -> economyStore.initializeFactionOffer(trader.economyScope(), offer));
+            }
             return ShopPurchaseResult.success(t.get("tc.shop.editor.added", player), null);
         }
         String key = result == SystemOfferEditor.AddResult.TARGET_READ_ONLY
@@ -652,14 +808,24 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult removeOffer(Player player, Trader trader, ShopOffer offer) {
-        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        if (player == null || offer == null || trader == null && !player.isAdmin()
+                || trader != null && !canManageTrader(player, trader))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         String scope = trader == null ? ShopEconomyStore.scopeFor(currentShopZone(player).orElse(null)) : trader.economyScope();
         if (economyStore == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        if (trader != null && trader.factionId() > 0 && economyStore.hasPendingFactionOperations(scope, offer.getId()))
+            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, "Faction trader trade is still pending.");
         String removalId = new SystemOfferEditor((Shop) this).prepareRemoval(file, offer.getId());
         if (removalId == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
-        if (trader != null && !settleTraderOfferStock(trader, offer, removalId)) return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.editor.remove.failed", player));
+        if (trader != null && trader.factionId() == 0 && !settleTraderOfferStock(trader, offer, removalId))
+            return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.editor.remove.failed", player));
+        if (trader != null && trader.factionId() > 0) {
+            boolean removed = new SystemOfferEditor((Shop) this).removeFactionOffer(file, offer.getId(), economyStore, scope);
+            return removed ? ShopPurchaseResult.success(t.get("tc.shop.editor.removed", player), null)
+                    : ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
+        }
         if (!new SystemOfferEditor((Shop) this).remove(file, offer.getId()) || economyStore == null || !economyStore.deleteOffer(scope, offer.getId()))
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.remove.failed", player));
         if (trader == null) reloadSystemOffers();
@@ -667,7 +833,13 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult updateOffer(Player player, Trader trader, ShopOffer offer, java.util.Map<String, Object> values) {
-        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        if (player == null || offer == null || trader == null && !player.isAdmin()
+                || trader != null && !canManageTrader(player, trader))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        if (trader != null && trader.factionId() > 0 && values != null && values.keySet().stream().anyMatch(
+                key -> java.util.Set.of("stock", "targetStock", "stockMode", "drainRate",
+                        "refillRate", "drainPercent", "drainMax", "restockPercent", "restockMax").contains(key)))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         boolean updated = new SystemOfferEditor((Shop) this).update(file, offer.getId(), values);
@@ -686,7 +858,9 @@ class ShopRuntime extends Plugin {
     }
 
     public ShopPurchaseResult moveOffer(Player player, Trader trader, ShopOffer offer, int direction) {
-        if (player == null || !player.isAdmin() || offer == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
+        if (player == null || offer == null || trader == null && !player.isAdmin()
+                || trader != null && !canManageTrader(player, trader))
+            return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.not.allowed", player));
         String file = editorOfferFile(player, trader);
         if (file == null) return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, t.get("tc.shop.editor.default.file", player));
         boolean moved = new SystemOfferEditor((Shop) this).move(file, offer.getId(), direction);
@@ -696,6 +870,8 @@ class ShopRuntime extends Plugin {
     }
 
     private String editorOfferFile(Player player, Trader trader) {
+        if (player == null || trader == null && !player.isAdmin() || trader != null && !canManageTrader(player, trader))
+            return null;
         String file = trader == null ? systemOffersFileFor(player) : trader.systemOffersFile();
         return file == null || file.isBlank() || file.equalsIgnoreCase("system-offers.default.json")
                 || file.equalsIgnoreCase("default-trader.json") || file.equalsIgnoreCase(s.systemOffersFile) ? null : file;
@@ -717,12 +893,14 @@ class ShopRuntime extends Plugin {
     }
 
     public Trader setTraderPluginShopEnabled(long npcId, boolean enabled) {
-        return traderService == null ? null : traderService.setPluginShopEnabled(npcId, enabled).orElse(null);
+        Trader trader = traderService == null ? null : traderService.find(npcId).orElse(null);
+        return trader == null || trader.factionId() > 0 ? null : traderService.setPluginShopEnabled(npcId, enabled).orElse(null);
     }
 
     /** Settles stock and balances before removing Shop ownership of a trader NPC. */
     public ShopPurchaseResult dissolveTrader(Player player, Trader trader, boolean deleteNpc) {
-        if (player == null || !player.isAdmin() || trader == null || traderService == null || economyStore == null) {
+        if (player == null || trader == null || !canManageTrader(player, trader)
+                || traderService == null || economyStore == null) {
             return ShopPurchaseResult.failure(ShopErrorCode.CALLBACK_FAILED, t.get("tc.shop.trader.dissolve.failed", player));
         }
         String failure = dissolveTraderData(trader);
@@ -743,7 +921,10 @@ class ShopRuntime extends Plugin {
         if (traderService == null || economyStore == null) return;
         for (Trader trader : traderService.list()) {
             Npc npc = World.getNpc(trader.npcId());
-            if (npc != null && !npc.isDead()) continue;
+            if (npc != null && !npc.isDead()) {
+                traderService.applyNpcFlags(npc);
+                continue;
+            }
             String failure = dissolveTraderData(trader);
             if (failure == null) {
                 logger().info("Dissolved missing trader '" + trader.name() + "' (NPC " + trader.npcId() + ")");
@@ -755,8 +936,30 @@ class ShopRuntime extends Plugin {
     }
 
     /** Returns a failure detail, or {@code null} after a complete, idempotent trader settlement. */
-    private String dissolveTraderData(Trader trader) {
+    private synchronized String dissolveTraderData(Trader trader) {
         if (trader == null || traderService == null || economyStore == null) return "Trader services are unavailable.";
+        if (trader.factionId() > 0) {
+            if (economyStore.hasPendingFactionOperations(trader.economyScope(), null))
+                return "Faction trader trades are still pending.";
+            try {
+                if (!sqliteCon.getAutoCommit()) return "Trader database is busy.";
+                sqliteCon.setAutoCommit(false);
+                try {
+                    if (!traderService.delete(trader.npcId()) || !economyStore.deleteScope(trader.economyScope())) {
+                        sqliteCon.rollback();
+                        return "Faction trader persistence cleanup failed.";
+                    }
+                    sqliteCon.commit();
+                } catch (Exception ex) { sqliteCon.rollback(); throw ex; }
+                finally { sqliteCon.setAutoCommit(true); }
+            } catch (Exception ex) {
+                logger().error("Faction trader dissolution database transaction failed: " + ex.getMessage());
+                return "Faction trader persistence cleanup failed.";
+            }
+            if (!new SystemOfferEditor((Shop) this).deleteFactionFile(trader.systemOffersFile()))
+                logger().error("Faction trader offer file needs manual cleanup: " + trader.systemOffersFile());
+            return null;
+        }
         WalletBridge wallet = new WalletBridge((Shop) this);
         String worldAccount = wallet.worldSystemAccountId();
         if (!wallet.hasSystemAccountApi() || worldAccount.isBlank()) {
@@ -883,7 +1086,10 @@ class ShopRuntime extends Plugin {
                     offer == null ? 0.0d : offer.getDefaultDrainRate(),
                     offer == null ? 0.0d : offer.getDefaultRefillRate());
         }
-        return economyStore.stateFor(trader.economyScope(), offer);
+        if (trader.factionId() > 0 && !economyStore.hasFactionState(trader.economyScope(), offer.getId()))
+            return new ShopEconomyStore.EconomyState(0L, 0L, offer.getDefaultStockLimit(), 0.0d, 0.0d);
+        return trader.factionId() > 0 ? economyStore.stateForWithoutTick(trader.economyScope(), offer)
+                : economyStore.stateFor(trader.economyScope(), offer);
     }
 
     public ShopEconomyStore.EconomyTickStatus economyTickStatusFor(Player player, ShopOffer offer) {
@@ -900,11 +1106,12 @@ class ShopRuntime extends Plugin {
     }
 
     public long nextEconomyTickAt(Trader trader) {
-        return economyStore == null ? 0L : economyStore.nextScopeTickAt(trader == null ? "global" : trader.economyScope());
+        return economyStore == null || trader != null && trader.factionId() > 0 ? 0L
+                : economyStore.nextScopeTickAt(trader == null ? "global" : trader.economyScope());
     }
 
     public void forceEconomyTick(Player player, Trader trader) {
-        if (player == null || !player.isAdmin()) return;
+        if (player == null || !player.isAdmin() || trader != null && trader.factionId() > 0) return;
         String scope = trader == null ? currentShopZone(player).map(ShopEconomyStore::scopeFor).orElse("global")
                 : trader.economyScope();
         economyStore.requestImmediateScopeTick(scope);
@@ -1453,11 +1660,45 @@ class ShopRuntime extends Plugin {
     }
 
     public void createTrader(Player player) {
+        createTrader(player, new Random().nextBoolean());
+    }
+
+    public void createTrader(Player player, boolean male) {
+        if (player == null || !player.isAdmin()) return;
+        createTrader(player, 0, male);
+    }
+
+    public boolean canCreateFactionTrader(Player player) {
+        if (player == null || traderService == null) return false;
+        FactionTraderBridge factions = new FactionTraderBridge(this);
+        Integer factionId = factions.factionIdFor(player.getDbID());
+        if (factionId == null || factionId <= 0 || !factions.canManage(player.getDbID())) return false;
+        Integer capacity = factions.capacity(factionId);
+        int count = traderService.factionTraderCount(factionId);
+        return capacity != null && count >= 0 && count < capacity
+                && factions.accountId(factionId) != null && factions.factionName(factionId) != null;
+    }
+
+    public void createFactionTrader(Player player) {
+        createFactionTrader(player, new Random().nextBoolean());
+    }
+
+    public void createFactionTrader(Player player, boolean male) {
+        if (player == null) return;
+        if (!canCreateFactionTrader(player)) {
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.faction.create.denied", player));
+            return;
+        }
+        FactionTraderBridge factions = new FactionTraderBridge(this);
+        Integer factionId = factions.factionIdFor(player.getDbID());
+        if (factionId != null) createTrader(player, factionId, male);
+    }
+
+    private void createTrader(Player player, int factionId, boolean male) {
         if (player == null) return;
         TraderGeneratorConfig config = traderGeneratorConfig == null
                 ? new TraderGeneratorConfig(List.of(), List.of(), List.of(), List.of()) : traderGeneratorConfig;
         Random random = new Random();
-        boolean male = random.nextBoolean();
         net.risingworld.api.definitions.Npcs.NpcDefinition dummy = Definitions.getNpcDefinition("dummy");
         if (dummy == null) {
             logger().error("Could not create trader: NPC definition 'dummy' was not found");
@@ -1478,14 +1719,21 @@ class ShopRuntime extends Plugin {
                 (byte) (male && random.nextInt(100) >= 20 ? random.nextInt(14) : -1),
                 (byte) random.nextInt(5));
         applyGeneratedTraderAppearance(npc, appearance);
-        registerTrader(player, npc);
-        executeDelayed(0.1f, () -> {
-            if (npc.isDead()) return;
-            applyTraderOutfit(npc, appearance.clothing());
-            verifyGeneratedTraderAppearance(npc, appearance);
-        });
-        executeDelayed(0.5f, () -> verifyGeneratedTraderAppearance(npc, appearance));
-        executeDelayed(1.0f, () -> verifyGeneratedTraderAppearance(npc, appearance));
+        boolean registered = factionId > 0 ? registerFactionTrader(player, npc, factionId, appearance.name())
+                : registerTrader(player, npc);
+        if (!registered) {
+            if (!npc.isDead()) npc.delete();
+            return;
+        }
+        executeDelayed(0.1f, () -> initializeGeneratedTrader(npc, appearance));
+        executeDelayed(0.5f, () -> initializeGeneratedTrader(npc, appearance));
+        executeDelayed(1.0f, () -> initializeGeneratedTrader(npc, appearance));
+    }
+
+    private void initializeGeneratedTrader(Npc npc, GeneratedTraderAppearance appearance) {
+        if (npc == null || npc.isDead()) return;
+        verifyGeneratedTraderAppearance(npc, appearance);
+        applyTraderOutfit(npc, appearance.clothing());
     }
 
     private void applyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {
@@ -1517,7 +1765,7 @@ class ShopRuntime extends Plugin {
     private static boolean generatedTraderAppearanceMatches(Npc npc, GeneratedTraderAppearance appearance) {
         if (!appearance.name().equals(npc.getName()) || !npc.isLocked() || !npc.isInvincible()) return false;
         Skin skin = npc.getSkin();
-        return skin != null
+        return npc.getBehaviour() == Npcs.Behaviour.Dummy && !npc.isStatic() && skin != null
                 && skin.getGender() == (appearance.male() ? Skin.Gender.Male : Skin.Gender.Female)
                 && skin.getSkinColor() == appearance.skinColor()
                 && skin.getHairColor() == appearance.hairColor()
@@ -1552,6 +1800,7 @@ class ShopRuntime extends Plugin {
             logger().warn("Generated trader NPC " + npc.getGlobalID() + " does not expose a Clothes object");
             return;
         }
+        clothes.removeAll();
         for (String garment : clothing) {
             ClothingDefinition definition = Definitions.getClothingDefinition(garment);
             if (definition == null) {
@@ -1562,11 +1811,11 @@ class ShopRuntime extends Plugin {
         }
     }
 
-    private void registerTrader(Player player, Npc npc) {
+    private boolean registerTrader(Player player, Npc npc) {
         Trader trader = traderService == null ? null : traderService.register(npc, player).orElse(null);
         if (trader == null) {
             player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
-            return;
+            return false;
         }
         WalletBridge wallet = new WalletBridge((Shop) this);
         String currency = s.systemShopCurrency.isBlank() ? wallet.defaultCurrencyIdentifier() : s.systemShopCurrency;
@@ -1576,10 +1825,57 @@ class ShopRuntime extends Plugin {
                 "OZ - Shop", "trader:" + trader.npcId() + ":seed").success();
         if (!funded) {
             player.sendTextMessage(c.error + t.get("tc.shop.trader.wallet.failed", player));
-            return;
+            return true;
         }
         player.sendTextMessage(c.okay + t.get("tc.shop.trader.created", player)
                 .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
+        return true;
+    }
+
+    private boolean registerFactionTrader(Player player, Npc npc, int factionId, String name) {
+        FactionTraderBridge factions = new FactionTraderBridge(this);
+        String factionName = factions.factionName(factionId);
+        Integer actorFaction = factions.factionIdFor(player.getDbID());
+        Integer capacity = factions.capacity(factionId);
+        if (factionName == null || actorFaction == null || actorFaction != factionId
+                || !factions.canManage(player.getDbID()) || capacity == null
+                || traderService.factionTraderCount(factionId) >= capacity
+                || factions.accountId(factionId) == null) {
+            npc.delete();
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.faction.create.denied", player));
+            return false;
+        }
+        String file = SystemOfferEditor.factionFileName(factionName, name);
+        SystemOfferEditor editor = new SystemOfferEditor((Shop) this);
+        boolean created;
+        try {
+            created = !traderService.factionTraderNameExists(factionId, name, npc.getGlobalID())
+                    && editor.createEmpty(file);
+        } catch (RuntimeException ex) {
+            logger().error("Could not prepare faction trader offer file " + file + ": " + ex.getMessage());
+            created = false;
+        }
+        if (!created) {
+            npc.delete();
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
+            return false;
+        }
+        Trader trader;
+        try {
+            trader = traderService.registerFaction(npc, player, factionId, file, name).orElse(null);
+        } catch (RuntimeException ex) {
+            logger().error("Could not register faction trader " + npc.getGlobalID() + ": " + ex.getMessage());
+            trader = null;
+        }
+        if (trader == null) {
+            if (!editor.deleteEmpty(file)) logger().error("Could not remove unclaimed faction trader offer file: " + file);
+            npc.delete();
+            player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
+            return false;
+        }
+        player.sendTextMessage(c.okay + t.get("tc.shop.trader.created", player)
+                .replace("PH_TRADER", trader.name()).replace("PH_ID", String.valueOf(trader.npcId())));
+        return true;
     }
 
     private Optional<ShopOffer> findTraderOffer(Trader trader, String offerId) {
@@ -1592,7 +1888,10 @@ class ShopRuntime extends Plugin {
         if (trader == null || offer == null || !offer.isSystemOffer()) return offer;
         int amount = Math.max(1, quantity) * Math.max(1, offer.getAmount());
         ShopEconomyStore.EconomyState state = s.dynamicEconomyEnabled && economyStore != null
-                ? economyStore.stateFor(trader.economyScope(), offer) : null;
+                ? trader.factionId() > 0
+                        ? economyStore.hasFactionState(trader.economyScope(), offer.getId())
+                                ? economyStore.stateForWithoutTick(trader.economyScope(), offer) : null
+                        : economyStore.stateFor(trader.economyScope(), offer) : null;
         DynamicEconomyPrices prices = dynamicEconomyPrices(offer, state, amount, s.dynamicEconomyEnabled);
         long sell = prices.sellPrice() <= prices.buyPrice() && offer.getBasePrice() > 0.0d
                 ? prices.buyPrice() + 1L : prices.sellPrice();

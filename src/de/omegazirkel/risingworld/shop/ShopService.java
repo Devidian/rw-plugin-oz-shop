@@ -321,8 +321,24 @@ public class ShopService {
         return sell(player, offer, 1, payerSystemAccountId, quote);
     }
 
+    public ShopPurchaseResult sellToFactionAccount(Player player, ShopOffer offer, SellQuote quote,
+            int factionId, FactionTraderBridge factions, String correlationId) {
+        String currency = offer == null ? "" : offer.getCurrencyIdentifier().isBlank()
+                ? wallet.defaultCurrencyIdentifier() : offer.getCurrencyIdentifier();
+        if (factionId <= 0 || factions == null || correlationId == null
+                || !correlationId.startsWith("shop:faction-trader:" + factionId + ":")
+                || currency == null || currency.isBlank())
+            return ShopPurchaseResult.failure(ShopErrorCode.PAYMENT_FAILED, "Faction trader payout is unavailable.");
+        return sell(player, offer, 1, "", quote, factions, factionId, correlationId);
+    }
+
     private ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity, String payerSystemAccountId,
             SellQuote suppliedQuote) {
+        return sell(player, offer, quantity, payerSystemAccountId, suppliedQuote, null, 0, "");
+    }
+
+    private ShopPurchaseResult sell(Player player, ShopOffer offer, int quantity, String payerSystemAccountId,
+            SellQuote suppliedQuote, FactionTraderBridge factions, int factionId, String correlationId) {
         if (player == null || player.getDbID() <= 0) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, "A valid player is required.");
         }
@@ -338,6 +354,7 @@ public class ShopService {
             return ShopPurchaseResult.failure(ShopErrorCode.WALLET_UNAVAILABLE, "OZ - Wallet is not available.");
         }
         SellQuote quote = suppliedQuote == null ? quoteSell(player, effectiveOffer) : suppliedQuote;
+        if (factions != null) quote = quote.withoutPositiveModifierPremium();
         if (!quote.sellable()) {
             return ShopPurchaseResult.failure(ShopErrorCode.INVALID_ARGUMENT, quote.message());
         }
@@ -357,7 +374,13 @@ public class ShopService {
         String currency = effectiveOffer.getCurrencyIdentifier().isBlank()
                 ? wallet.defaultCurrencyIdentifier() : effectiveOffer.getCurrencyIdentifier();
         WalletBridge.WalletCallResult deposit;
-        if (payerSystemAccountId != null && !payerSystemAccountId.isBlank() && !currency.isBlank()) {
+        if (factions != null && factionId > 0 && !currency.isBlank()) {
+            boolean paid = payout == 0L || factions.paySeller(factionId, player.getDbID(), payout, currency,
+                    correlationId);
+            if (!paid && !factions.reversePayment(factionId, correlationId))
+                Shop.logger().warn("Faction trader payout could not be confirmed or reversed: " + correlationId);
+            deposit = new WalletBridge.WalletCallResult(paid, paid ? "Faction trader payout completed." : "Faction trader payout failed.");
+        } else if (payerSystemAccountId != null && !payerSystemAccountId.isBlank() && !currency.isBlank()) {
             WalletBridge.WalletTransferCallResult transfer = wallet.transferSystemToPlayerIdempotent(
                     payerSystemAccountId, player.getDbID(), payout, "Shop sale: " + effectiveOffer.getId(), currency,
                     "OZ - Shop", "shop:sale:" + payerSystemAccountId + ":" + UUID.randomUUID());
@@ -947,6 +970,9 @@ public class ShopService {
             return ShopService.traderPayoutCap(payout, normalPayout);
         }
         public long worldModifierPremium() { return Math.max(0L, payout - traderPayoutCap()); }
+        public SellQuote withoutPositiveModifierPremium() {
+            return new SellQuote(selections, candidates, traderPayoutCap(), amount, message);
+        }
         public int amount() { return amount; }
         public String message() { return message; }
         public boolean sellable() { return !selections.isEmpty() && amount > 0; }

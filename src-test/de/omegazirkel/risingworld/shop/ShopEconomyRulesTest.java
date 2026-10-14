@@ -18,6 +18,47 @@ import net.risingworld.api.definitions.Items.Modifier;
 
 public class ShopEconomyRulesTest {
     @Test
+    public void factionStockReservationsAreDurableAndNeverOversellOrCreateUnpaidStock() throws Exception {
+        ShopOffer offer = offer(ShopStockMode.PLAYER_SUPPLIED);
+        String scope = "trader:47";
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection);
+            assertFalse(store.reserveFactionStock(scope, offer, "OUT", "missing"));
+            store.initializeFactionOffer(scope, offer);
+            assertEquals(0L, store.stateForWithoutTick(scope, offer).stock());
+            assertTrue(store.reserveFactionStock(scope, offer, "IN", "buy-1"));
+            assertEquals(0L, store.stateForWithoutTick(scope, offer).stock());
+            assertFalse(store.reserveFactionStock(scope, offer, "OUT", "sell-early"));
+            assertTrue(store.finishFactionStock("buy-1", true));
+            assertEquals(1L, store.stateForWithoutTick(scope, offer).stock());
+            assertTrue(store.reserveFactionStock(scope, offer, "OUT", "sell-1"));
+            assertFalse(store.reserveFactionStock(scope, offer, "OUT", "sell-2"));
+            assertTrue(store.finishFactionStock("sell-1", false));
+            assertEquals(1L, store.stateForWithoutTick(scope, offer).stock());
+            assertTrue(store.reserveFactionStock(scope, offer, "OUT", "sell-3"));
+            assertTrue(store.finishFactionStock("sell-3", true));
+            assertEquals(0L, store.stateForWithoutTick(scope, offer).stock());
+            assertFalse(store.hasPendingFactionOperations(scope, null));
+        }
+    }
+
+    @Test
+    public void factionTraderScopeRejectsDirectStockConfiguration() throws Exception {
+        ShopOffer offer = offer(ShopStockMode.PLAYER_SUPPLIED);
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            ShopEconomyStore store = new ShopEconomyStore(connection);
+            new TraderService(connection);
+            try (PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO shop_traders(npc_id,name,created_by,created_at,system_offers_file,plugin_shop_enabled,faction_id)
+                    VALUES(47,'Mara','Officer',1,'faction.Test.Mara.json',0,12)
+                    """)) { statement.executeUpdate(); }
+            store.initializeFactionOffer("trader:47", offer);
+            assertFalse(store.configure("trader:47", offer.getId(), 100L, 0.0d, 0.0d));
+            store.recordSystemBuy("trader:47", 1L, offer, 100L);
+            assertEquals(0L, store.stateForWithoutTick("trader:47", offer).stock());
+        }
+    }
+    @Test
     public void durabilityAdjustedPayoutIsLinearPerItemAndFloorsWholeCurrency() {
         assertEquals(100L, ShopService.durabilityAdjustedPayout(100L, 100, 100));
         assertEquals(10L, ShopService.durabilityAdjustedPayout(100L, 10, 100));
