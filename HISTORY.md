@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## [0.13.0] - 2026-10-14 | Faction traders
+
 - feat: add faction traders with dedicated files, faction Wallet payouts, and reserved player-supplied stock.
 - fix: exclude faction trader stock from automatic ticks and world-account liquidation.
 - fix: offer male and female private/faction trader creation in the radial menu with distinct icons; keep registered dummies stationary after spawn and reload.
