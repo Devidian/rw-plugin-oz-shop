@@ -373,6 +373,8 @@
           "settings": {
             "title": "Trader settings"
           },
+          "random_outfit": "Random outfit",
+          "copy_clothing": "Copy my clothing",
           "subtitle": "This trader\u0027s offers and balance.",
           "faction": {
             "title": "Faction trader: PH_TRADER",

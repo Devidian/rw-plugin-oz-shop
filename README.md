@@ -369,3 +369,7 @@ already present on the server. Use `mvn clean package` for a fresh local
 package; ZIP assembly also excludes stale legacy settings and translations.
 
 Admin-added items outside the enabled catalog use stock 0, target 10, limit 100, HYBRID mode, drain 50% (max 5), restock 25% (max 2), base price 10, price multipliers 0.25–4, spread 25%, and daily sell limits 1000 per player / 10000 global. Existing enabled catalog presets remain available. Removing an NPC trader offer sells its remaining stock through Wallet using the configured or default currency.
+
+## Backlog update (2026-10-15)
+
+Trader settings now offer random catalog clothing and a copy of the player's worn clothing. Selected clothing is stored in an additive SQLite table and restored on plugin reload.

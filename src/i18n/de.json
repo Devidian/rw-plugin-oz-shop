@@ -373,6 +373,8 @@
           "settings": {
             "title": "Händlereinstellungen"
           },
+          "random_outfit": "Zufällig einkleiden",
+          "copy_clothing": "Meine Kleidung kopieren",
           "subtitle": "Angebote und Kontostand dieses Händlers.",
           "faction": {
             "title": "Fraktionshändler: PH_TRADER",

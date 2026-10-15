@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## [0.14.0] - 2026-10-15 | Trader clothing controls
+
+- Trader settings now offer random catalog clothing and a copy of the player's worn clothing. Selected clothing is stored in an additive SQLite table and restored on plugin reload.
+
 ## [0.13.0] - 2026-10-14 | Faction traders
 
 - feat: add faction traders with dedicated files, faction Wallet payouts, and reserved player-supplied stock.

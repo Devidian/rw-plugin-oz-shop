@@ -2141,7 +2141,11 @@ public class ShopOverlay extends BasePluginOverlayWithTabs {
                 rebuild();
             }));
         }
-        UIElement dissolve = zoneButton(t.get("tc.shop.trader.ui.dissolve", player), 18, 340, 260,
+        body.addChild(zoneButton(t.get("tc.shop.trader.ui.random_outfit", player), 18, 310, 220,
+                event -> { if (plugin.randomTraderClothing(player, trader)) rebuild(); }));
+        body.addChild(zoneButton(t.get("tc.shop.trader.ui.copy_clothing", player), 252, 310, 220,
+                event -> { if (plugin.copyTraderClothing(player, trader)) rebuild(); }));
+        UIElement dissolve = zoneButton(t.get("tc.shop.trader.ui.dissolve", player), 18, 360, 260,
                 event -> confirmTraderDissolve(trader));
         if (dissolve instanceof AdvancedButton dissolveButton) styleResetButton(dissolveButton);
         body.addChild(dissolve);

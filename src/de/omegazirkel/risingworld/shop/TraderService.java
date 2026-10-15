@@ -143,6 +143,9 @@ public final class TraderService {
     }
 
     public synchronized boolean delete(long npcId) {
+        try (PreparedStatement appearance = connection.prepareStatement("DELETE FROM shop_trader_clothing WHERE npc_id = ?")) {
+            appearance.setLong(1, npcId); appearance.executeUpdate();
+        } catch (SQLException ex) { Shop.logger().error("Could not remove trader clothing: " + ex.getMessage()); return false; }
         try (PreparedStatement statement = connection.prepareStatement("DELETE FROM shop_traders WHERE npc_id = ?")) {
             statement.setLong(1, npcId);
             return statement.executeUpdate() == 1;
@@ -150,6 +153,18 @@ public final class TraderService {
             Shop.logger().error("Could not remove trader " + npcId + ": " + ex.getMessage());
             return false;
         }
+    }
+
+    public synchronized boolean saveClothing(long npcId, byte[] clothing) {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO shop_trader_clothing(npc_id,clothing) VALUES(?,?) ON CONFLICT(npc_id) DO UPDATE SET clothing=excluded.clothing")) {
+            statement.setLong(1, npcId); statement.setBytes(2, clothing); return statement.executeUpdate() == 1;
+        } catch (SQLException ex) { Shop.logger().error("Could not save trader clothing: " + ex.getMessage()); return false; }
+    }
+    public synchronized byte[] clothing(long npcId) {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT clothing FROM shop_trader_clothing WHERE npc_id=?")) {
+            statement.setLong(1, npcId);
+            try (ResultSet result = statement.executeQuery()) { return result.next() ? result.getBytes(1) : null; }
+        } catch (SQLException ex) { Shop.logger().error("Could not load trader clothing: " + ex.getMessage()); return null; }
     }
 
     public void applyNpcFlags(Npc npc) {
@@ -253,6 +268,7 @@ public final class TraderService {
                 while (columns.next()) if ("faction_id".equalsIgnoreCase(columns.getString("name"))) found = true;
             }
             if (!found) statement.execute("ALTER TABLE shop_traders ADD COLUMN faction_id INTEGER NOT NULL DEFAULT 0");
+            statement.execute("CREATE TABLE IF NOT EXISTS shop_trader_clothing (npc_id BIGINT PRIMARY KEY, clothing BLOB NOT NULL)");
         } catch (SQLException ex) {
             Shop.logger().error("Could not initialize trader database: " + ex.getMessage());
         }

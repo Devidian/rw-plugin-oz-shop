@@ -25,3 +25,8 @@ Every implementation plan must include objective, ownership, dependencies, risks
 - [x] Merge construction-definition textures with recipe-backed texture variants
 - [x] Add concrete construction offers and icons to the complete catalog
 - [x] Validate generated default and tier offer files
+
+## Backlog validation (2026-10-15)
+
+- [x] Implement: Trader settings now offer random catalog clothing and a copy of the player's worn clothing. Selected clothing is stored in an additive SQLite table and restored on plugin reload.
+- [ ] Verify behavior on Development after upload, including persistence and permissions where relevant.

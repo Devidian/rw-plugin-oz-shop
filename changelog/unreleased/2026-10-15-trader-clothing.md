@@ -1,0 +1,1 @@
+- Authorized managers can select and persist random or copied trader clothing.

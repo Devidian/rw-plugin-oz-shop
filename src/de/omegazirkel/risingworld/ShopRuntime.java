@@ -923,6 +923,11 @@ class ShopRuntime extends Plugin {
             Npc npc = World.getNpc(trader.npcId());
             if (npc != null && !npc.isDead()) {
                 traderService.applyNpcFlags(npc);
+                byte[] clothing = traderService.clothing(trader.npcId());
+                if (clothing != null) for (float delay : new float[] { .1f, .5f, 1.0f })
+                    executeDelayed(delay, () -> {
+                        if (!npc.isDead() && npc.getClothes() != null) npc.getClothes().deserialize(clothing);
+                    });
                 continue;
             }
             String failure = dissolveTraderData(trader);
@@ -1733,7 +1738,32 @@ class ShopRuntime extends Plugin {
     private void initializeGeneratedTrader(Npc npc, GeneratedTraderAppearance appearance) {
         if (npc == null || npc.isDead()) return;
         verifyGeneratedTraderAppearance(npc, appearance);
-        applyTraderOutfit(npc, appearance.clothing());
+        byte[] saved = traderService == null ? null : traderService.clothing(npc.getGlobalID());
+        if (saved != null) npc.getClothes().deserialize(saved);
+        else applyTraderOutfit(npc, appearance.clothing());
+    }
+
+    public boolean randomTraderClothing(Player player, Trader trader) {
+        if (!canManageTrader(player, trader)) return false;
+        Npc npc = World.getNpc(trader.npcId());
+        if (npc == null || npc.isDead() || npc.getClothes() == null || traderGeneratorConfig == null) return false;
+        List<String> outfit = traderGeneratorConfig.randomOutfit(new Random());
+        if (outfit.isEmpty()) return false;
+        byte[] previous = npc.getClothes().serialize();
+        applyTraderOutfit(npc, outfit);
+        if (traderService.saveClothing(trader.npcId(), npc.getClothes().serialize())) return true;
+        npc.getClothes().deserialize(previous);
+        return false;
+    }
+
+    public boolean copyTraderClothing(Player player, Trader trader) {
+        if (!canManageTrader(player, trader)) return false;
+        Npc npc = World.getNpc(trader.npcId());
+        if (npc == null || npc.isDead() || npc.getClothes() == null || player.getClothes() == null) return false;
+        byte[] clothing = player.getClothes().serialize();
+        if (!traderService.saveClothing(trader.npcId(), clothing)) return false;
+        npc.getClothes().deserialize(clothing);
+        return true;
     }
 
     private void applyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {

@@ -2,6 +2,9 @@ package de.omegazirkel.risingworld.shop;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,6 +27,10 @@ public class TraderServiceFactionMigrationTest {
             assertEquals(0, old.factionId());
             assertEquals(0, traders.factionTraderCount(12));
             assertFalse(traders.factionTraderNameExists(12, "Old", 0));
+            assertNull(traders.clothing(1L));
+            byte[] wornClothing = new byte[] { 1, 2, 3, 4 };
+            assertTrue(traders.saveClothing(1L, wornClothing));
+            assertArrayEquals(wornClothing, new TraderService(connection).clothing(1L));
         }
     }
 }
