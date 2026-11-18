@@ -4,6 +4,8 @@
 
 Shared shop and purchase API plugin for Rising World.
 
+For coordinated player erasure, `erasePlayerData(int playerDbId)` removes the player's daily sell counters. Anonymous global trade totals remain. The method refuses erasure while a faction payout reservation for that player is active.
+
 Global system and plugin shops have separate switches. Shop areas can inherit, enable or disable either shop independently. Offer tabs and the player radial menu follow the effective setting at the current area.
 
 Sell condition details display item modifier names in the player's game language.

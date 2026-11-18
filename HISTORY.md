@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Add a player-erasure API for personal daily sell counters while preserving anonymous global trade totals.
+
 ## [0.14.0] - 2026-10-15 | Trader clothing controls
 
 - Trader settings now offer random catalog clothing and a copy of the player's worn clothing. Selected clothing is stored in an additive SQLite table and restored on plugin reload.

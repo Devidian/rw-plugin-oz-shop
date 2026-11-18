@@ -74,6 +74,20 @@ public class ShopEconomyStore {
         initialize();
     }
 
+    /** Removes per-player sell counters while retaining anonymous global trade totals. */
+    public synchronized boolean erasePlayerData(int playerDbId) {
+        if (playerDbId <= 0) return false;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM shop_offer_daily_sell_counters WHERE player_id = ?")) {
+            statement.setString(1, playerKey(playerDbId));
+            statement.executeUpdate();
+            return true;
+        } catch (SQLException ex) {
+            Shop.logger().error("Shop player erasure failed: " + ex.getMessage());
+            return false;
+        }
+    }
+
     public void setTickIntervalHours(int hours) {
         tickIntervalMillis = Math.max(1, hours) * ONE_HOUR_MILLIS;
     }

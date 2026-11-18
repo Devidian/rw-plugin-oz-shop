@@ -57,6 +57,7 @@ import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettingsOverlay;
 import de.omegazirkel.risingworld.tools.ui.PluginInfoStatusProviders;
 import de.omegazirkel.risingworld.tools.ui.PluginShortcutVisibility;
 import de.omegazirkel.risingworld.tools.ui.SharedIndicators;
+import de.omegazirkel.risingworld.tools.privacy.PlayerErasureService;
 import net.risingworld.api.Plugin;
 import net.risingworld.api.Server;
 import net.risingworld.api.Timer;
@@ -75,6 +76,7 @@ import net.risingworld.api.definitions.Clothing.ClothingDefinition;
 import net.risingworld.api.ui.UITarget;
 
 class ShopRuntime extends Plugin {
+    private PlayerErasureService.Registration erasureRegistration;
     private final Map<String, FactionPayoutAuthorization> factionPayouts = new ConcurrentHashMap<>();
     private record FactionPayoutAuthorization(int factionId, int playerDbId, long amount, String currency) { }
 
@@ -96,6 +98,15 @@ class ShopRuntime extends Plugin {
     private static ShopService service;
     private static ShopZoneService zoneService;
     private static ShopEconomyStore economyStore;
+
+    /** Called after active shop operations for the player have finished. */
+    public boolean erasePlayerData(int playerDbId) {
+        if (economyStore == null || ps == null || playerDbId <= 0 || factionPayouts.values().stream()
+                .anyMatch(authorization -> authorization.playerDbId() == playerDbId)) return false;
+        if (!economyStore.erasePlayerData(playerDbId)) return false;
+        ps.erasePlayer(playerDbId);
+        return true;
+    }
     private static TraderService traderService;
     private static TraderGeneratorConfig traderGeneratorConfig;
     private static Map<String, Double> completeCatalogBaseUnitPrices = Map.of();
@@ -129,6 +140,7 @@ class ShopRuntime extends Plugin {
 
     @Override
     public void onEnable() {
+        erasureRegistration = PlayerErasureService.register("shop", request -> erasePlayerData(request.playerDbId()));
         name = getDescription("name");
         s = PluginSettings.getInstance((Shop) this);
         t = I18n.getInstance(this);
@@ -167,6 +179,7 @@ class ShopRuntime extends Plugin {
 
     @Override
     public void onDisable() {
+        if (erasureRegistration != null) erasureRegistration.close();
         if (webserverZonesRoute != null) { unregisterWebserverHandler(WEBSERVER_ZONES_ROUTE); webserverZonesRoute = null; }
         if (webserverTradersRoute != null) { unregisterWebserverHandler(WEBSERVER_TRADERS_ROUTE); webserverTradersRoute = null; }
         stopEconomyTimer();
