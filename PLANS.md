@@ -14,6 +14,13 @@ Planning is stored in repository-local docs.
 
 Every implementation plan must include objective, ownership, dependencies, risks, validation strategy, affected repositories/plugins, rollback considerations, and a markdown checkbox checklist.
 
+## Player erasure
+
+- [x] Remove per-player daily sell counters without changing global totals.
+- [ ] Connect to the shared erasure coordinator and validate with an active faction trader operation on Development.
+
+The SQLite deletion is repeatable; a pre-erasure database backup is the rollback point. The coordinator must retry after any active faction payout has completed.
+
 ## Clothing Item Resolution
 
 - [x] Replace generic clothing placeholders with concrete definition offers in the complete catalog
