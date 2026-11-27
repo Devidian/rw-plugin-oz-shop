@@ -8,6 +8,7 @@ Manage system offer files, trader state, dynamic economy, zones and export route
 ## Source and tests
 
 - [`TraderService`](../../src/de/omegazirkel/risingworld/shop/TraderService.java) — trader management.
+- [`TraderAppearance`](../../src/de/omegazirkel/risingworld/shop/TraderAppearance.java) — generated visual attributes, clothing application and appearance checks. [Seeded tests](../../src-test/de/omegazirkel/risingworld/shop/TraderAppearanceTest.java) characterize selection.
 - [`ShopEconomyStore`](../../src/de/omegazirkel/risingworld/shop/ShopEconomyStore.java) — economy persistence.
 - [`SystemOfferFile`](../../src/de/omegazirkel/risingworld/shop/SystemOfferFile.java) — system offer input.
 - [`ShopOverlay`](../../src/de/omegazirkel/risingworld/shop/ui/ShopOverlay.java) — shop UI.

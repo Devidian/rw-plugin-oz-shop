@@ -32,6 +32,7 @@ import de.omegazirkel.risingworld.shop.ShopZone;
 import de.omegazirkel.risingworld.shop.ShopZoneService;
 import de.omegazirkel.risingworld.shop.Trader;
 import de.omegazirkel.risingworld.shop.TraderService;
+import de.omegazirkel.risingworld.shop.TraderAppearance;
 import de.omegazirkel.risingworld.shop.TraderGeneratorConfig;
 import de.omegazirkel.risingworld.shop.FactionTraderBridge;
 import de.omegazirkel.risingworld.shop.SystemOfferFile;
@@ -68,11 +69,9 @@ import net.risingworld.api.events.player.ui.PlayerUITextFieldChangeEvent;
 import net.risingworld.api.objects.Area;
 import net.risingworld.api.objects.Player;
 import net.risingworld.api.objects.Npc;
-import net.risingworld.api.objects.Skin;
 import net.risingworld.api.World;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Npcs;
-import net.risingworld.api.definitions.Clothing.ClothingDefinition;
 import net.risingworld.api.ui.UITarget;
 
 class ShopRuntime extends Plugin {
@@ -110,21 +109,6 @@ class ShopRuntime extends Plugin {
     private static TraderService traderService;
     private static TraderGeneratorConfig traderGeneratorConfig;
     private static Map<String, Double> completeCatalogBaseUnitPrices = Map.of();
-    private static final int[] LIGHT_SKIN_COLORS = { 0xFFE0BD, 0xF1C27D, 0xE0AC69, 0xFFDBAC };
-    private static final int[] MEDIUM_SKIN_COLORS = { 0xC68642, 0xA56B46, 0x8D5524 };
-    private static final int[] DARK_SKIN_COLORS = { 0x6F4E37, 0x4B2E20 };
-    private static final int[] HAIR_COLORS = { 0x1C120C, 0x3A2518, 0x5A381E, 0x8B5A2B, 0xC48A4A, 0xD9B36C };
-    private static final int[] EYE_COLORS = { 0x4E7AA8, 0x5A8E50, 0x6B4A2E, 0x7D8B44 };
-    private static final int MALE_HAIRSTYLE_FIRST = 50;
-    private static final int MALE_HAIRSTYLE_LAST = 68;
-    private static final int FEMALE_HAIRSTYLE_FIRST = 100;
-    private static final int FEMALE_HAIRSTYLE_LAST = 119;
-
-    private record GeneratedTraderAppearance(String name, boolean male, List<String> clothing,
-                                             int skinColor, int hairColor, int eyeColor,
-                                             byte hairstyle, byte beard, byte variation) {
-    }
-
     private static Connection sqliteCon;
     public static String name;
     public static PlayerSettings ps;
@@ -1728,32 +1712,18 @@ class ShopRuntime extends Plugin {
             player.sendTextMessage(c.error + t.get("tc.shop.trader.create.failed", player));
             return;
         }
-        String name = t.get(male ? "tc.shop.trader.prefix.male" : "tc.shop.trader.prefix.female", player)
-                + " " + config.randomName(male, random);
-        List<String> outfit = config.randomOutfit(random);
-        GeneratedTraderAppearance appearance = new GeneratedTraderAppearance(name, male, List.copyOf(outfit),
-                randomSkinColor(random), random(HAIR_COLORS, random), random(EYE_COLORS, random),
-                randomHairstyle(male, random),
-                (byte) (male && random.nextInt(100) >= 20 ? random.nextInt(14) : -1),
-                (byte) random.nextInt(5));
-        applyGeneratedTraderAppearance(npc, appearance);
+        TraderAppearance.Appearance appearance = TraderAppearance.generate(config,
+                t.get(male ? "tc.shop.trader.prefix.male" : "tc.shop.trader.prefix.female", player), male, random);
+        TraderAppearance.applyAppearance(npc, appearance, traderService);
         boolean registered = factionId > 0 ? registerFactionTrader(player, npc, factionId, appearance.name())
                 : registerTrader(player, npc);
         if (!registered) {
             if (!npc.isDead()) npc.delete();
             return;
         }
-        executeDelayed(0.1f, () -> initializeGeneratedTrader(npc, appearance));
-        executeDelayed(0.5f, () -> initializeGeneratedTrader(npc, appearance));
-        executeDelayed(1.0f, () -> initializeGeneratedTrader(npc, appearance));
-    }
-
-    private void initializeGeneratedTrader(Npc npc, GeneratedTraderAppearance appearance) {
-        if (npc == null || npc.isDead()) return;
-        verifyGeneratedTraderAppearance(npc, appearance);
-        byte[] saved = traderService == null ? null : traderService.clothing(npc.getGlobalID());
-        if (saved != null) npc.getClothes().deserialize(saved);
-        else applyTraderOutfit(npc, appearance.clothing());
+        executeDelayed(0.1f, () -> TraderAppearance.initialize(npc, appearance, traderService));
+        executeDelayed(0.5f, () -> TraderAppearance.initialize(npc, appearance, traderService));
+        executeDelayed(1.0f, () -> TraderAppearance.initialize(npc, appearance, traderService));
     }
 
     public boolean randomTraderClothing(Player player, Trader trader) {
@@ -1763,7 +1733,7 @@ class ShopRuntime extends Plugin {
         List<String> outfit = traderGeneratorConfig.randomOutfit(new Random());
         if (outfit.isEmpty()) return false;
         byte[] previous = npc.getClothes().serialize();
-        applyTraderOutfit(npc, outfit);
+        TraderAppearance.applyTraderOutfit(npc, outfit);
         if (traderService.saveClothing(trader.npcId(), npc.getClothes().serialize())) return true;
         npc.getClothes().deserialize(previous);
         return false;
@@ -1779,79 +1749,8 @@ class ShopRuntime extends Plugin {
         return true;
     }
 
-    private void applyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {
-        npc.setName(appearance.name());
-        npc.setLocked(true);
-        if (traderService != null) traderService.applyNpcFlags(npc);
-        Skin skin = npc.getSkin();
-        if (skin != null) {
-            skin.setGender(appearance.male() ? Skin.Gender.Male : Skin.Gender.Female);
-            skin.setSkinColor(appearance.skinColor());
-            skin.setHairColor(appearance.hairColor());
-            skin.setEyeColor(appearance.eyeColor());
-            skin.setHairstyle(appearance.hairstyle());
-            skin.setBeard(appearance.beard());
-            skin.setVariation(appearance.variation());
-        }
-    }
-
-    private void verifyGeneratedTraderAppearance(Npc npc, GeneratedTraderAppearance appearance) {
-        if (npc == null || npc.isDead() || generatedTraderAppearanceMatches(npc, appearance)) return;
-        logger().warn("Repairing generated trader appearance for NPC " + npc.getGlobalID()
-                + ": expected name '" + appearance.name() + "', actual name '" + npc.getName() + "'");
-        applyGeneratedTraderAppearance(npc, appearance);
-        if (!generatedTraderAppearanceMatches(npc, appearance)) {
-            logger().warn("Generated trader appearance is still not fully applied for NPC " + npc.getGlobalID());
-        }
-    }
-
-    private static boolean generatedTraderAppearanceMatches(Npc npc, GeneratedTraderAppearance appearance) {
-        if (!appearance.name().equals(npc.getName()) || !npc.isLocked() || !npc.isInvincible()) return false;
-        Skin skin = npc.getSkin();
-        return npc.getBehaviour() == Npcs.Behaviour.Dummy && !npc.isStatic() && skin != null
-                && skin.getGender() == (appearance.male() ? Skin.Gender.Male : Skin.Gender.Female)
-                && skin.getSkinColor() == appearance.skinColor()
-                && skin.getHairColor() == appearance.hairColor()
-                && skin.getEyeColor() == appearance.eyeColor()
-                && skin.getHairstyle() == appearance.hairstyle()
-                && skin.getBeard() == appearance.beard()
-                && skin.getVariation() == appearance.variation();
-    }
-
-    private static int randomSkinColor(Random random) {
-        int weight = random.nextInt(100);
-        return random(weight < 76 ? LIGHT_SKIN_COLORS : weight < 96 ? MEDIUM_SKIN_COLORS : DARK_SKIN_COLORS, random);
-    }
-
     static byte randomHairstyle(boolean male, Random random) {
-        int first = male ? MALE_HAIRSTYLE_FIRST : FEMALE_HAIRSTYLE_FIRST;
-        int last = male ? MALE_HAIRSTYLE_LAST : FEMALE_HAIRSTYLE_LAST;
-        return (byte) (first + random.nextInt(last - first + 1));
-    }
-
-    private static int random(int[] values, Random random) {
-        return values[random.nextInt(values.length)];
-    }
-
-    private static byte random(byte[] values, Random random) {
-        return values[random.nextInt(values.length)];
-    }
-
-    private void applyTraderOutfit(Npc npc, List<String> clothing) {
-        net.risingworld.api.objects.Clothes clothes = npc.getClothes();
-        if (clothes == null) {
-            logger().warn("Generated trader NPC " + npc.getGlobalID() + " does not expose a Clothes object");
-            return;
-        }
-        clothes.removeAll();
-        for (String garment : clothing) {
-            ClothingDefinition definition = Definitions.getClothingDefinition(garment);
-            if (definition == null) {
-                logger().warn("Ignoring unknown trader clothing definition: " + garment);
-                continue;
-            }
-            clothes.add((short) definition.id);
-        }
+        return TraderAppearance.randomHairstyle(male, random);
     }
 
     private boolean registerTrader(Player player, Npc npc) {
