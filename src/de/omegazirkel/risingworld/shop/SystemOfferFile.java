@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,7 +97,7 @@ public final class SystemOfferFile {
 
     /** Reads a user-managed offer file without applying first-run defaults. */
     static List<Map<String, Object>> readObjects(Path file) throws IOException {
-        return new JsonObjects(Files.readString(file, StandardCharsets.UTF_8)).parseArray();
+        return new JsonObjects(Files.readString(file, StandardCharsets.UTF_8), false).parseArray();
     }
 
     /** Writes offer objects atomically enough for the plugin directory's single UI writer. */
@@ -132,7 +131,7 @@ public final class SystemOfferFile {
     }
 
     private static List<ShopOffer> parseOffers(String json, String systemShopCurrency) {
-        List<Map<String, Object>> objects = new JsonObjects(json).parseArray();
+        List<Map<String, Object>> objects = new JsonObjects(json, false).parseArray();
         List<ShopOffer> offers = new ArrayList<>();
         String centralCurrency = systemShopCurrency == null ? "" : systemShopCurrency.trim().toUpperCase();
         for (Map<String, Object> object : objects) {
@@ -650,156 +649,5 @@ public final class SystemOfferFile {
         return booleanValue(object, "sellEnabled", false) || booleanValue(object, "buyEnabled", false);
     }
 
-    private static final class JsonObjects {
-        private final String input;
-        private int index;
 
-        JsonObjects(String input) {
-            this.input = input == null ? "" : input;
-        }
-
-        List<Map<String, Object>> parseArray() {
-            skipWhitespace();
-            expect('[');
-            List<Map<String, Object>> result = new ArrayList<>();
-            skipWhitespace();
-            if (peek(']')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                result.add(parseObject());
-                skipWhitespace();
-                if (peek(',')) {
-                    index++;
-                    continue;
-                }
-                expect(']');
-                return result;
-            }
-        }
-
-        private Map<String, Object> parseObject() {
-            skipWhitespace();
-            expect('{');
-            Map<String, Object> result = new LinkedHashMap<>();
-            skipWhitespace();
-            if (peek('}')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                String key = parseString();
-                skipWhitespace();
-                expect(':');
-                Object value = parseValue();
-                result.put(key, value);
-                skipWhitespace();
-                if (peek(',')) {
-                    index++;
-                    continue;
-                }
-                expect('}');
-                return result;
-            }
-        }
-
-        private Object parseValue() {
-            skipWhitespace();
-            if (peek('"')) {
-                return parseString();
-            }
-            if (matches("true")) {
-                index += 4;
-                return Boolean.TRUE;
-            }
-            if (matches("false")) {
-                index += 5;
-                return Boolean.FALSE;
-            }
-            if (matches("null")) {
-                index += 4;
-                return null;
-            }
-            return parseNumber();
-        }
-
-        private String parseString() {
-            expect('"');
-            StringBuilder result = new StringBuilder();
-            while (index < input.length()) {
-                char ch = input.charAt(index++);
-                if (ch == '"') {
-                    return result.toString();
-                }
-                if (ch == '\\') {
-                    if (index >= input.length()) {
-                        throw error("Unexpected end of escape sequence");
-                    }
-                    char escaped = input.charAt(index++);
-                    result.append(switch (escaped) {
-                        case '"', '\\', '/' -> escaped;
-                        case 'b' -> '\b';
-                        case 'f' -> '\f';
-                        case 'n' -> '\n';
-                        case 'r' -> '\r';
-                        case 't' -> '\t';
-                        default -> escaped;
-                    });
-                } else {
-                    result.append(ch);
-                }
-            }
-            throw error("Unterminated string");
-        }
-
-        private Number parseNumber() {
-            int start = index;
-            if (peek('-')) {
-                index++;
-            }
-            while (index < input.length() && Character.isDigit(input.charAt(index))) {
-                index++;
-            }
-            boolean decimal = false;
-            if (peek('.')) {
-                decimal = true;
-                index++;
-                while (index < input.length() && Character.isDigit(input.charAt(index))) {
-                    index++;
-                }
-            }
-            if (start == index) {
-                throw error("Expected JSON value");
-            }
-            String number = input.substring(start, index);
-            return decimal ? Double.parseDouble(number) : Long.parseLong(number);
-        }
-
-        private void skipWhitespace() {
-            while (index < input.length() && Character.isWhitespace(input.charAt(index))) {
-                index++;
-            }
-        }
-
-        private void expect(char expected) {
-            skipWhitespace();
-            if (!peek(expected)) {
-                throw error("Expected '" + expected + "'");
-            }
-            index++;
-        }
-
-        private boolean peek(char expected) {
-            return index < input.length() && input.charAt(index) == expected;
-        }
-
-        private boolean matches(String expected) {
-            return input.regionMatches(index, expected, 0, expected.length());
-        }
-
-        private IllegalArgumentException error(String message) {
-            return new IllegalArgumentException(message + " at offset " + index);
-        }
-    }
 }

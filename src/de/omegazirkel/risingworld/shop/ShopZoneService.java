@@ -10,7 +10,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -227,7 +226,7 @@ public class ShopZoneService {
             return;
         }
         String json = Files.readString(zonesFile, StandardCharsets.UTF_8);
-        for (Map<String, Object> object : new JsonObjects(json).parseArray()) {
+        for (Map<String, Object> object : new JsonObjects(json, true).parseArray()) {
             ShopZone zone = fromJson(object);
             if (zone.getAreaId() > 0) {
                 save(zone);
@@ -311,150 +310,5 @@ public class ShopZoneService {
         return defaultValue;
     }
 
-    private static final class JsonObjects {
-        private final String input;
-        private int index;
 
-        JsonObjects(String input) {
-            this.input = input == null ? "" : input;
-        }
-
-        List<Map<String, Object>> parseArray() {
-            skipWhitespace();
-            if (index >= input.length()) {
-                return List.of();
-            }
-            expect('[');
-            List<Map<String, Object>> result = new ArrayList<>();
-            skipWhitespace();
-            if (peek(']')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                result.add(parseObject());
-                skipWhitespace();
-                if (peek(',')) {
-                    index++;
-                    continue;
-                }
-                expect(']');
-                return result;
-            }
-        }
-
-        private Map<String, Object> parseObject() {
-            skipWhitespace();
-            expect('{');
-            Map<String, Object> result = new LinkedHashMap<>();
-            skipWhitespace();
-            if (peek('}')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                String key = parseString();
-                skipWhitespace();
-                expect(':');
-                Object value = parseValue();
-                result.put(key, value);
-                skipWhitespace();
-                if (peek(',')) {
-                    index++;
-                    continue;
-                }
-                expect('}');
-                return result;
-            }
-        }
-
-        private Object parseValue() {
-            skipWhitespace();
-            if (peek('"')) {
-                return parseString();
-            }
-            if (matches("true")) {
-                index += 4;
-                return Boolean.TRUE;
-            }
-            if (matches("false")) {
-                index += 5;
-                return Boolean.FALSE;
-            }
-            if (matches("null")) {
-                index += 4;
-                return null;
-            }
-            return parseNumber();
-        }
-
-        private String parseString() {
-            expect('"');
-            StringBuilder result = new StringBuilder();
-            while (index < input.length()) {
-                char ch = input.charAt(index++);
-                if (ch == '"') {
-                    return result.toString();
-                }
-                if (ch == '\\') {
-                    if (index >= input.length()) {
-                        throw error("Unexpected end of escape sequence");
-                    }
-                    char escaped = input.charAt(index++);
-                    result.append(switch (escaped) {
-                        case '"', '\\', '/' -> escaped;
-                        case 'b' -> '\b';
-                        case 'f' -> '\f';
-                        case 'n' -> '\n';
-                        case 'r' -> '\r';
-                        case 't' -> '\t';
-                        default -> escaped;
-                    });
-                } else {
-                    result.append(ch);
-                }
-            }
-            throw error("Unterminated string");
-        }
-
-        private Long parseNumber() {
-            int start = index;
-            if (peek('-')) {
-                index++;
-            }
-            while (index < input.length() && Character.isDigit(input.charAt(index))) {
-                index++;
-            }
-            if (start == index || (input.charAt(start) == '-' && start + 1 == index)) {
-                throw error("Expected number");
-            }
-            return Long.parseLong(input.substring(start, index));
-        }
-
-        private void expect(char expected) {
-            skipWhitespace();
-            if (index >= input.length() || input.charAt(index) != expected) {
-                throw error("Expected '" + expected + "'");
-            }
-            index++;
-        }
-
-        private boolean peek(char expected) {
-            return index < input.length() && input.charAt(index) == expected;
-        }
-
-        private boolean matches(String value) {
-            return input.regionMatches(index, value, 0, value.length());
-        }
-
-        private void skipWhitespace() {
-            while (index < input.length() && Character.isWhitespace(input.charAt(index))) {
-                index++;
-            }
-        }
-
-        private IllegalArgumentException error(String message) {
-            return new IllegalArgumentException(message + " at index " + index);
-        }
-    }
 }
