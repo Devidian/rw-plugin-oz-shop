@@ -4,7 +4,10 @@
 
 ## Unreleased
 
-- Add a player-erasure API for personal daily sell counters while preserving anonymous global trade totals.
+## [0.14.2] - 2026-11-27 | OZ Shop trader and configuration reliability
+
+- Trader outfits still restore after reload. A failed appearance change restores the prior outfit.
+- Offers and zone configuration use the same JSON reader. Existing formats and active commands are supported.
 
 ## [0.14.0] - 2026-10-15 | Trader clothing controls
 
